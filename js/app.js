@@ -32,6 +32,10 @@ const App = {
     this.bindEvents();
     this.renderAll();
 
+    if (window.Sync && typeof window.Sync.init === 'function') {
+      window.Sync.init();
+    }
+
     Store.subscribe(() => {
       this.renderAll();
     });
@@ -1572,8 +1576,23 @@ const App = {
             </div>
 
             <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md);">
+              <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:4px;">☁️ Synchronizacja w chmurze (Firebase)</h3>
+              <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">
+                ${window.Sync && window.Sync.user ? `Zalogowano jako: <strong>${window.Sync.user.displayName || window.Sync.user.email}</strong>` : 'Zaloguj się, aby mieć te same zadania na komputerze i w telefonie w czasie rzeczywistym.'}
+              </p>
+              <div style="display:flex; gap:8px;">
+                ${window.Sync && window.Sync.user ? `
+                  <button class="header-action-btn btn-primary" onclick="Sync.pushToCloud(true); App.showToast('Wymuszono synchronizację!');">🔄 Wymuś synchronizację</button>
+                  <button class="header-action-btn" style="color:var(--crimson);" onclick="Sync.logout(); App.openSettings();">Wyloguj</button>
+                ` : `
+                  <button class="header-action-btn btn-primary" onclick="Sync.openAuthModal()">☁️ Zaloguj / Połącz z chmurą</button>
+                `}
+              </div>
+            </div>
+
+            <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md);">
               <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:4px;">Kopia zapasowa (JSON)</h3>
-              <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">Pobierz kopię danych na komputer lub wgraj z telefonu:</p>
+              <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">Pobierz kopię danych na komputer lub wgraj z pliku (po wgraniu automatycznie synchronizuje się z chmurą):</p>
               <div style="display:flex; gap:8px;">
                 <button class="header-action-btn" onclick="App.downloadBackup()">💾 Pobierz kopię</button>
                 <button class="header-action-btn" onclick="document.getElementById('importFile').click()">📂 Wgraj plik</button>

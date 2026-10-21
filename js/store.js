@@ -72,10 +72,13 @@ const Store = {
     this.state.tasks = this.state.tasks.filter(t => !(t.done && !t.recur && t.doneAt && t.doneAt < limit));
   },
 
-  persist(emit = true) {
+  persist(emit = true, syncCloud = true) {
     this.state.updatedAt = Date.now();
-    localStorage.setItem(this.KEY, JSON.stringify(this.state));
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.state)); } catch (e) { console.warn(e); }
     if (emit) this.emit();
+    if (syncCloud && window.Sync && typeof window.Sync.pushToCloud === 'function') {
+      window.Sync.pushToCloud(false);
+    }
   },
   emit() { this.subs.forEach(f => f()); },
   subscribe(f) { this.subs.add(f); },
@@ -124,7 +127,11 @@ const Store = {
   exportJSON() { return JSON.stringify(this.state, null, 2); },
   importJSON(obj) {
     if (!obj || !Array.isArray(obj.tasks) || !Array.isArray(obj.roles)) throw new Error('Nieprawidłowy plik');
-    this.state = obj; this.persist();
+    this.state = obj;
+    this.persist(true, true);
+    if (window.Sync && typeof window.Sync.pushToCloud === 'function') {
+      window.Sync.pushToCloud(true);
+    }
   },
-  reset() { this.state = Seed.build(); this.persist(); },
+  reset() { this.state = Seed.build(); this.persist(true, true); },
 };

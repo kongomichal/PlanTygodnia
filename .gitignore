@@ -6,8 +6,8 @@ Thumbs.db
 !package.json
 !manifest.json
 
-# Prywatna konfiguracja Firebase (klucze API)
+# Prywatna konfiguracja lokalna
 js/firebase-config.local.js
-firebase-config.js
 .env
 .env.local
+
