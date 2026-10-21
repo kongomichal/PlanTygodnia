@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Plan Tygodnia</title>
   <meta name="description" content="Spokojna, minimalistyczna rozkładówka tygodniowa, nawyków i priorytetów.">
-  <meta name="theme-color" content="#090d16" id="metaThemeColor">
+  <meta name="theme-color" content="#f1f5f9" id="metaThemeColor">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2.5">
+  <link rel="stylesheet" href="css/style.css?v=4.0">
 
   <!-- Dedykowane, wbudowane style ekranu logowania (brak ryzyka błędu cache) -->
   <style>
@@ -22,9 +22,15 @@
       padding: 0;
       width: 100%;
       height: 100%;
-      background: #090d16;
+      background: #f1f5f9;
+      color: #0f172a;
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       overflow: hidden;
+    }
+
+    [data-theme="dark"] body {
+      background: #090d16;
+      color: #f8fafc;
     }
 
     /* 1. EKRAN WEJŚCIA / BRAMKA LOGOWANIA */

@@ -4,9 +4,9 @@
 
 :root {
   /* Kolory bazowe - Jasny motyw (domyślny) */
-  --bg: #f8fafc;
+  --bg: #f1f5f9;
   --surface: #ffffff;
-  --surface-alt: #f1f5f9;
+  --surface-alt: #e8ecf2;
   --surface-hover: #f8fafc;
   --surface-active: #e2e8f0;
   --border: #e2e8f0;
@@ -138,6 +138,7 @@ button, input, select, textarea {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
+  background-color: var(--bg);
   overflow: hidden;
 }
 
@@ -356,6 +357,7 @@ button, input, select, textarea {
   display: flex;
   flex: 1;
   height: calc(100vh - 56px);
+  background-color: var(--bg);
   overflow: hidden;
 }
 
@@ -367,6 +369,7 @@ button, input, select, textarea {
   overflow-x: auto;
   overflow-y: auto;
   padding: 14px 16px 20px;
+  background-color: var(--bg);
 }
 
 /* Siatka 7 dni tygodnia */
