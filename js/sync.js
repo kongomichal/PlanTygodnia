@@ -40,6 +40,7 @@ const Sync = {
       this.auth.onAuthStateChanged(user => {
         this.user = user;
         this.updateHeaderUI();
+        this.updateGateUI();
 
         if (user) {
           this.listenToUserDoc(user.uid);
@@ -50,6 +51,17 @@ const Sync = {
     } catch (err) {
       console.error('Błąd inicjalizacji Firebase Sync:', err);
       this.setStatus('error');
+    }
+  },
+
+  /* ---- Blokada / Ekran logowania (Auth Gate) ---- */
+  updateGateUI() {
+    const gate = document.getElementById('authGateOverlay');
+    if (!gate) return;
+    if (this.user) {
+      gate.classList.add('is-hidden');
+    } else {
+      gate.classList.remove('is-hidden');
     }
   },
 
@@ -259,6 +271,13 @@ const Sync = {
     if (!this.auth) return;
     try {
       await this.auth.signOut();
+      this.user = null;
+      // Wyczyszczenie wrażliwych danych po wylogowaniu
+      Store.state = Seed.build();
+      try { localStorage.removeItem(Store.KEY); } catch(e){}
+      Store.emit();
+      this.updateHeaderUI();
+      this.updateGateUI();
       App.closeModal();
       App.showToast('Wylogowano z chmury.');
     } catch (err) {
