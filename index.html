@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Plan Tygodnia</title>
   <meta name="description" content="Spokojna, minimalistyczna rozkładówka tygodniowa, nawyków i priorytetów.">
-  <meta name="theme-color" content="#f8fafc" id="metaThemeColor">
+  <meta name="theme-color" content="#090d16" id="metaThemeColor">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
@@ -13,21 +13,239 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=2.5">
+
+  <!-- Dedykowane, wbudowane style ekranu logowania (brak ryzyka błędu cache) -->
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #090d16;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+    }
+
+    /* 1. EKRAN WEJŚCIA / BRAMKA LOGOWANIA */
+    #screenAuth {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, #0f172a 45%, #090d16 100%);
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+      z-index: 999999;
+    }
+
+    .auth-portal-card {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      padding: 40px 32px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      text-align: center;
+      box-sizing: border-box;
+      animation: authCardIn 0.35s ease-out;
+    }
+
+    @keyframes authCardIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .auth-portal-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .auth-portal-icon {
+      font-size: 2.2rem;
+      line-height: 1;
+    }
+
+    .auth-portal-title {
+      font-size: 1.65rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin: 0;
+      color: #ffffff;
+    }
+
+    .auth-portal-subtitle {
+      font-size: 0.88rem;
+      color: #94a3b8;
+      line-height: 1.5;
+      margin: 0 0 26px 0;
+    }
+
+    .btn-portal-google {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 13px 20px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-sizing: border-box;
+    }
+
+    .btn-portal-google:hover {
+      background: #f8fafc;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    .btn-portal-google:active {
+      transform: translateY(0);
+    }
+
+    .auth-portal-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    .auth-portal-divider::before,
+    .auth-portal-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .auth-portal-divider span {
+      font-size: 0.74rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .auth-portal-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .portal-input {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.05);
+      color: #ffffff;
+      font-size: 0.9rem;
+      outline: none;
+      box-sizing: border-box;
+      transition: all 0.2s;
+    }
+
+    .portal-input:focus {
+      border-color: #6366f1;
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    }
+
+    .portal-input::placeholder {
+      color: #64748b;
+    }
+
+    .portal-btn-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    .btn-portal-submit {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: none;
+      background: #4f46e5;
+      color: #ffffff;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-portal-submit:hover {
+      background: #4338ca;
+    }
+
+    .btn-portal-register {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: transparent;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-portal-register:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .auth-portal-footer {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.74rem;
+      color: #64748b;
+      margin-top: 22px;
+    }
+
+    /* 2. GŁÓWNY EKRAN PLANERA - CAŁKOWICIE UKRYTY DOMYŚLNIE */
+    #screenApp {
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <!-- Ekran blokady logowania (wymaga zalogowania do zobaczenia planera) -->
-  <div class="auth-gate-overlay" id="authGateOverlay">
-    <div class="auth-gate-card">
-      <div class="auth-gate-brand">
-        <span class="auth-gate-icon">📅</span>
-        <h1 class="auth-gate-title">Plan Tygodnia</h1>
+  <!-- ============================================================== -->
+  <!-- 1. BRAMKA LOGOWANIA (OSOBNY EKRAN WEJŚCIA)                       -->
+  <!-- ============================================================== -->
+  <div id="screenAuth">
+    <div class="auth-portal-card">
+      <div class="auth-portal-brand">
+        <span class="auth-portal-icon">📅</span>
+        <h1 class="auth-portal-title">Plan Tygodnia</h1>
       </div>
-      <p class="auth-gate-subtitle">
-        Zaloguj się, aby uzyskać dostęp do swoich prywatnych planów, zadań i rutyn.
+      <p class="auth-portal-subtitle">
+        Twój osobisty planer tygodnia, rutyn i priorytetów. Zaloguj się, aby uzyskać dostęp do swoich zadań.
       </p>
 
-      <button class="google-auth-btn auth-gate-google-btn" onclick="Sync.loginWithGoogle()">
+      <!-- Logowanie Google jednym kliknięciem -->
+      <button class="btn-portal-google" onclick="Sync.loginWithGoogle()">
         <svg width="20" height="20" viewBox="0 0 18 18">
           <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
           <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
@@ -37,22 +255,30 @@
         <span>Kontynuuj przez Google</span>
       </button>
 
-      <div class="auth-gate-divider">
-        <span>lub e-mail</span>
+      <div class="auth-portal-divider">
+        <span>lub adres e-mail</span>
       </div>
 
-      <form class="auth-gate-form" onsubmit="event.preventDefault(); Sync.loginWithEmail(this.email.value, this.pass.value);">
-        <input type="email" name="email" placeholder="Twój adres e-mail" required class="auth-gate-input">
-        <input type="password" name="pass" placeholder="Hasło (min. 6 znaków)" required minlength="6" class="auth-gate-input">
-        <div style="display:flex; gap:8px; width:100%;">
-          <button type="submit" class="header-action-btn btn-primary" style="flex:1; justify-content:center; padding:10px;">Zaloguj się</button>
-          <button type="button" class="header-action-btn" style="flex:1; justify-content:center; padding:10px;" onclick="const f=this.form; if(f.checkValidity()){ Sync.registerWithEmail(f.email.value, f.pass.value); } else { f.reportValidity(); }">Zarejestruj</button>
+      <form class="auth-portal-form" onsubmit="event.preventDefault(); Sync.loginWithEmail(this.email.value, this.pass.value);">
+        <input type="email" name="email" placeholder="Twój adres e-mail" required class="portal-input">
+        <input type="password" name="pass" placeholder="Hasło (min. 6 znaków)" required minlength="6" class="portal-input">
+        <div class="portal-btn-row">
+          <button type="submit" class="btn-portal-submit">Zaloguj się</button>
+          <button type="button" class="btn-portal-register" onclick="const f=this.form; if(f.checkValidity()){ Sync.registerWithEmail(f.email.value, f.pass.value); } else { f.reportValidity(); }">Zarejestruj</button>
         </div>
       </form>
+
+      <div class="auth-portal-footer">
+        <span>🔒</span>
+        <span>Bezpieczna synchronizacja Google Firebase</span>
+      </div>
     </div>
   </div>
 
-  <div class="app-layout">
+  <!-- ============================================================== -->
+  <!-- 2. GŁÓWNY EKRAN PLANERA (WŁĄCZANY DOPIERO PO ZALOGOWANIU)        -->
+  <!-- ============================================================== -->
+  <div id="screenApp" class="app-layout">
     <!-- Górna belka: Kompas Tygodnia i nawigacja -->
     <header class="app-header">
       <div class="header-left">
@@ -119,13 +345,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js"></script>
+  <script src="js/firebase-config.js?v=2.5"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js"></script>
-  <script src="js/seed.js"></script>
-  <script src="js/sync.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/utils.js?v=2.5"></script>
+  <script src="js/seed.js?v=2.5"></script>
+  <script src="js/sync.js?v=2.5"></script>
+  <script src="js/store.js?v=2.5"></script>
+  <script src="js/app.js?v=2.5"></script>
 </body>
 </html>

@@ -56,12 +56,21 @@ const Sync = {
 
   /* ---- Blokada / Ekran logowania (Auth Gate) ---- */
   updateGateUI() {
-    const gate = document.getElementById('authGateOverlay');
-    if (!gate) return;
+    const screenAuth = document.getElementById('screenAuth');
+    const screenApp = document.getElementById('screenApp');
+    const metaTheme = document.getElementById('metaThemeColor');
+
     if (this.user) {
-      gate.classList.add('is-hidden');
+      if (screenAuth) screenAuth.style.display = 'none';
+      if (screenApp) screenApp.style.display = 'flex';
+      if (window.App) {
+        if (typeof window.App.initTheme === 'function') window.App.initTheme();
+        if (typeof window.App.renderAll === 'function') window.App.renderAll();
+      }
     } else {
-      gate.classList.remove('is-hidden');
+      if (screenAuth) screenAuth.style.display = 'flex';
+      if (screenApp) screenApp.style.display = 'none';
+      if (metaTheme) metaTheme.setAttribute('content', '#090d16');
     }
   },
 
