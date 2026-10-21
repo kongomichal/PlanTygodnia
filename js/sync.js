@@ -217,62 +217,137 @@ const Sync = {
     }
   },
 
+  /* ---- Pomocnik błędów logowania ---- */
+  formatError(err) {
+    if (!err) return 'Wystąpił nieznany błąd.';
+    const code = err.code || '';
+    if (code === 'auth/unauthorized-domain') {
+      return '⚠️ Domena kongomichal.github.io nie została dodana w Firebase Console! Wejdź w Authentication -> Settings -> Authorized domains i kliknij "Add domain" dla kongomichal.github.io.';
+    }
+    if (code === 'auth/operation-not-allowed') {
+      return '⚠️ Ta metoda logowania nie jest włączona w Firebase Console -> Authentication -> Sign-in method!';
+    }
+    if (code === 'auth/popup-blocked') {
+      return '⚠️ Twoja przeglądarka zablokowała wyskakujące okno logowania Google. Zezwól na wyskakujące okna dla tej strony lub spróbuj ponownie.';
+    }
+    if (code === 'auth/popup-closed-by-user') {
+      return 'Okno logowania Google zostało zamknięte przed zalogowaniem.';
+    }
+    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
+      return 'Niepoprawne hasło lub błędne dane logowania.';
+    }
+    if (code === 'auth/email-already-in-use') {
+      return 'Konto z tym adresem e-mail już istnieje. Wpisz hasło i kliknij "Zaloguj się".';
+    }
+    if (code === 'auth/weak-password') {
+      return 'Hasło jest za słabe (musi mieć minimum 6 znaków).';
+    }
+    if (code === 'auth/invalid-email') {
+      return 'Nieprawidłowy format adresu e-mail.';
+    }
+    return `Błąd logowania (${code || 'Auth'}): ${err.message}`;
+  },
+
+  showAuthError(msg) {
+    const box = document.getElementById('authErrorBox');
+    if (box) {
+      box.textContent = msg;
+      box.style.display = 'block';
+    } else {
+      alert(msg);
+    }
+  },
+
+  clearAuthError() {
+    const box = document.getElementById('authErrorBox');
+    if (box) {
+      box.textContent = '';
+      box.style.display = 'none';
+    }
+  },
+
   /* ---- Metody Logowania ---- */
   async loginWithGoogle() {
+    this.clearAuthError();
     if (!this.auth) {
-      alert('Firebase nie jest zainicjalizowany.');
+      this.showAuthError('Firebase nie został jeszcze zainicjalizowany.');
       return;
     }
     const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
-      await this.auth.signInWithPopup(provider);
-      App.closeModal();
-      App.showToast('Zalogowano pomyślnie przez konto Google!');
+      const res = await this.auth.signInWithPopup(provider);
+      if (res && res.user) {
+        this.user = res.user;
+        this.updateHeaderUI();
+        this.updateGateUI();
+        this.listenToUserDoc(res.user.uid);
+      }
     } catch (err) {
-      console.warn('Popup nie powiódł się, próba przekierowania:', err);
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
+      console.warn('Błąd logowania Google:', err);
+      if (err.code === 'auth/popup-blocked') {
         try {
           await this.auth.signInWithRedirect(provider);
+          return;
         } catch (e2) {
-          alert('Błąd logowania Google: ' + e2.message);
+          this.showAuthError(this.formatError(e2));
+          return;
         }
-      } else {
-        alert('Błąd logowania Google: ' + err.message);
       }
+      this.showAuthError(this.formatError(err));
     }
   },
 
   async loginWithEmail(email, password) {
-    if (!this.auth) return;
+    this.clearAuthError();
+    if (!this.auth) {
+      this.showAuthError('Firebase nie został jeszcze zainicjalizowany.');
+      return;
+    }
     try {
-      await this.auth.signInWithEmailAndPassword(email, password);
-      App.closeModal();
-      App.showToast('Zalogowano pomyślnie!');
+      const res = await this.auth.signInWithEmailAndPassword(email, password);
+      if (res && res.user) {
+        this.user = res.user;
+        this.updateHeaderUI();
+        this.updateGateUI();
+        this.listenToUserDoc(res.user.uid);
+      }
     } catch (err) {
-      // Jeśli użytkownik nie istnieje, spróbuj zarejestrować
-      if (err.code === 'auth/user-not-found') {
+      console.warn('Błąd logowania email:', err);
+      // Próba automatycznej rejestracji jeśli konto jeszcze nie istnieje
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
         try {
-          await this.auth.createUserWithEmailAndPassword(email, password);
-          App.closeModal();
-          App.showToast('Konto utworzone i zalogowano!');
-          return;
+          const regRes = await this.auth.createUserWithEmailAndPassword(email, password);
+          if (regRes && regRes.user) {
+            this.user = regRes.user;
+            this.updateHeaderUI();
+            this.updateGateUI();
+            this.listenToUserDoc(regRes.user.uid);
+            return;
+          }
         } catch (regErr) {
-          alert('Błąd rejestracji: ' + regErr.message);
+          this.showAuthError(this.formatError(regErr.code === 'auth/email-already-in-use' ? err : regErr));
           return;
         }
       }
-      alert('Błąd logowania: ' + err.message);
+      this.showAuthError(this.formatError(err));
     }
   },
 
   async registerWithEmail(email, password) {
+    this.clearAuthError();
     if (!this.auth) return;
     try {
-      await this.auth.createUserWithEmailAndPassword(email, password);
-      App.closeModal();
-      App.showToast('Konto utworzone i zalogowano!');
+      const res = await this.auth.createUserWithEmailAndPassword(email, password);
+      if (res && res.user) {
+        this.user = res.user;
+        this.updateHeaderUI();
+        this.updateGateUI();
+        this.listenToUserDoc(res.user.uid);
+      }
     } catch (err) {
-      alert('Błąd rejestracji: ' + err.message);
+      console.warn('Błąd rejestracji email:', err);
+      this.showAuthError(this.formatError(err));
     }
   },
 
@@ -392,3 +467,13 @@ const Sync = {
     }
   }
 };
+
+// Bezpieczna automatyczna inicjalizacja modułu Sync
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => Sync.init());
+  } else {
+    Sync.init();
+  }
+}
+
