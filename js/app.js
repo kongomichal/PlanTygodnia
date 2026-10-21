@@ -81,13 +81,15 @@ const App = {
   },
 
   updateWeekNav() {
-    const days = Store.getWeekDays(this.weekOffset);
+    const days = this.showAllDaysInGrid
+      ? Store.getWeekDays(this.weekOffset)
+      : Store.getRollingDays(this.weekOffset).days;
     const start = days[0];
-    const end = days[6];
+    const end = days[days.length - 1];
     const labelEl = document.getElementById('weekRangeLabel');
     if (labelEl) {
       if (this.weekOffset === 0) {
-        labelEl.textContent = `Bieżący tydzień (${D.short(start)} – ${D.short(end)})`;
+        labelEl.textContent = `Bieżący rozkład (${D.short(start)} – ${D.short(end)})`;
       } else {
         labelEl.textContent = `${D.short(start)} – ${D.short(end)}`;
       }
@@ -333,12 +335,12 @@ const App = {
 
     sidebar.classList.toggle('is-collapsed', !this.isCompletedSidebarOpen);
 
-    const weekDays = Store.getWeekDays(this.weekOffset);
     const completedSet = new Set(Store.state.completedDays || []);
-    const completedDatesThisWeek = weekDays.filter(d => completedSet.has(d));
+    // Pokaż wszystkie odklikane dni w archiwum posortowane od najnowszego:
+    const completedDates = [...completedSet].sort().reverse();
 
     const badgeEl = document.getElementById('completedCountBadge');
-    if (badgeEl) badgeEl.textContent = completedDatesThisWeek.length;
+    if (badgeEl) badgeEl.textContent = completedDates.length;
 
     const btnToggle = document.getElementById('btnToggleCompleted');
     if (btnToggle) {
@@ -351,7 +353,7 @@ const App = {
         <div class="completed-sb-title">
           <span>✅</span>
           <span>Wykonane</span>
-          <span class="completed-pill-count">${completedDatesThisWeek.length}</span>
+          <span class="completed-pill-count">${completedDates.length}</span>
         </div>
         <button class="inbox-sb-close" data-act="toggleCompletedSidebar" title="Zwiń listę wykonanych">✕</button>
       </div>
@@ -364,17 +366,17 @@ const App = {
           </label>
         </div>
 
-        ${completedDatesThisWeek.length === 0 ? `
+        ${completedDates.length === 0 ? `
           <div style="text-align:center; padding:32px 12px; color:var(--text-dim); font-size:0.8rem; line-height:1.5;">
             <div style="font-size:2rem; margin-bottom:8px; opacity:0.7;">🏁</div>
-            Brak odklikanych dni w tym tygodniu.<br>
+            Brak odklikanych dni w archiwum.<br>
             <span style="font-size:0.72rem; color:var(--text-muted); display:block; margin-top:8px;">
               Gdy odhaczysz dzień przyciskiem <strong>✓</strong> w nagłówku kolumny, dzień schowa się tutaj, a niewykonane zadania przejdą na kolejny dzień!
             </span>
           </div>
         ` : `
           <div style="display:flex; flex-direction:column; gap:8px;">
-            ${completedDatesThisWeek.map(dateStr => {
+            ${completedDates.map(dateStr => {
               const d = D.parse(dateStr);
               const dow = D.dow(dateStr);
               const dayName = D.DOW_LONG[dow];
@@ -441,18 +443,18 @@ const App = {
     if (!grid) return;
 
     const today = D.today();
-    const allWeekDays = Store.getWeekDays(this.weekOffset);
     const completedSet = new Set(Store.state.completedDays || []);
+
     const days = this.showAllDaysInGrid
-      ? allWeekDays
-      : allWeekDays.filter(d => !completedSet.has(d));
+      ? Store.getWeekDays(this.weekOffset)
+      : Store.getRollingDays(this.weekOffset).days;
     const tasks = Store.state.tasks.filter(t => !t.inbox && !t.recur);
 
     if (days.length === 0) {
       grid.innerHTML = `
-        <div style="grid-column: 1 / -1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); text-align:center;">
+        <div style="flex:1; max-width:600px; margin:40px auto; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); text-align:center;">
           <div style="font-size:3rem; margin-bottom:12px;">🏆</div>
-          <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:6px;">Wszystkie dni w tym tygodniu zostały odklikane!</h2>
+          <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:6px;">Wszystkie dni w tym okresie zostały odklikane!</h2>
           <p style="font-size:0.85rem; color:var(--text-muted); max-width:420px; margin-bottom:16px;">
             Wszystkie zakończone dni znajdują się na liście „Wykonane” po lewej stronie ekranu.
           </p>
@@ -462,8 +464,16 @@ const App = {
       return;
     }
 
+    // Dzień o statusie bieżącym (rozciągany 2x):
+    // Jeśli dzisiejszy dzień (today) jest w siatce, to on jest bieżący.
+    // Jeśli dzisiejszy dzień został zarchiwizowany, to pierwszy aktywny dzień (days[0]) przejmuje rolę bieżącego!
+    const currentActiveDate = (this.weekOffset === 0)
+      ? (days.includes(today) ? today : days[0])
+      : null;
+
     grid.innerHTML = days.map(dateStr => {
       const isToday = dateStr === today;
+      const isCurrentFocus = dateStr === currentActiveDate;
       const isCompleted = Store.isDayCompleted(dateStr);
       const dayTasks = tasks.filter(t => t.date === dateStr);
       const d = D.parse(dateStr);
@@ -486,17 +496,21 @@ const App = {
       const standardTasks = sortDone(dayTasks.filter(t => this.getTaskPriority(t) === 2 || this.getTaskPriority(t) === 3));
       const totalWorkCount = standardTasks.length + recurringWorkTasks.length;
 
+      const finishBtnLabel = isCompleted
+        ? '✓ Zrobione'
+        : (isCurrentFocus ? '✓ Zakończ dzień' : '✓');
+
       return `
-        <div class="day-column ${isToday ? 'is-today' : ''} ${isCompleted ? 'is-completed' : ''}" data-date="${dateStr}">
+        <div class="day-column ${isToday ? 'is-today' : ''} ${isCurrentFocus ? 'is-current-day' : ''} ${isCompleted ? 'is-completed' : ''}" data-date="${dateStr}">
           <!-- Nagłówek dnia -->
           <div class="col-header">
             <div class="col-header-info">
               <span class="col-day-name">${dayName}</span>
               <span class="col-day-date">${d.getDate()} ${D.MON_GEN[d.getMonth()]}</span>
-              ${isToday ? '<span class="col-badge-today">Dziś</span>' : ''}
+              ${isToday ? '<span class="col-badge-today">Dziś</span>' : (isCurrentFocus ? '<span class="col-badge-today col-badge-focus">Bieżący</span>' : '')}
             </div>
             <button class="btn-col-finish ${isCompleted ? 'is-completed' : ''}" data-act="toggleDayCompleted" data-date="${dateStr}" title="${isCompleted ? 'Cofnij zakończenie dnia' : 'Zakończ dzień (schowaj do wykonanych)'}">
-              ${isCompleted ? '✓ Zrobione' : '✓'}
+              ${finishBtnLabel}
             </button>
           </div>
 

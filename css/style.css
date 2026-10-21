@@ -372,17 +372,23 @@ button, input, select, textarea {
   background-color: var(--bg);
 }
 
-/* Siatka 7 dni tygodnia */
+/* Siatka dni tygodnia (układ elastyczny z 2x szerszym bieżącym dniem) */
 .week-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(285px, 1fr));
+  display: flex;
   gap: 14px;
   height: 100%;
   min-height: 520px;
+  min-width: 100%;
+  width: max-content;
+  align-items: stretch;
 }
 
-/* Pojedyncza kolumna dnia */
+/* Pojedyncza kolumna dnia (standardowa szerokość) */
 .day-column {
+  flex: 1 1 285px;
+  width: 285px;
+  min-width: 285px;
+  max-width: 380px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -398,10 +404,61 @@ button, input, select, textarea {
   box-shadow: var(--shadow-sm);
 }
 
-/* Dzisiejszy dzień - subtelne wyróżnienie */
-.day-column.is-today {
-  border-top: 3px solid var(--accent);
-  background: linear-gradient(180deg, var(--accent-light) 0%, var(--surface) 80px);
+/* Bieżący dzień - bardzo mocno rozciągnięty (2x szerszy od normalnego dnia) */
+.day-column.is-today,
+.day-column.is-current-day {
+  flex: 2 1 570px;
+  width: 570px;
+  min-width: 570px;
+  max-width: 760px;
+  border-top: 4px solid var(--accent);
+  background: linear-gradient(180deg, var(--accent-light) 0%, var(--surface) 100px);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.12);
+}
+
+.day-column.is-today .col-header,
+.day-column.is-current-day .col-header {
+  padding: 12px 14px 10px;
+  background: rgba(99, 102, 241, 0.05);
+  border-bottom: 1.5px solid rgba(99, 102, 241, 0.18);
+}
+
+.day-column.is-today .col-day-name,
+.day-column.is-current-day .col-day-name {
+  color: var(--accent);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.day-column.is-today .col-day-date,
+.day-column.is-current-day .col-day-date {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.day-column.is-today .selfcare-items-list,
+.day-column.is-current-day .selfcare-items-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 6px;
+}
+
+.day-column.is-today .btn-col-finish,
+.day-column.is-current-day .btn-col-finish {
+  padding: 4px 12px;
+  font-size: 0.76rem;
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: var(--accent);
+}
+
+.day-column.is-today .btn-col-finish:hover,
+.day-column.is-current-day .btn-col-finish:hover {
+  background: var(--emerald);
+  border-color: var(--emerald);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
 /* Zakończony dzień */
@@ -437,10 +494,6 @@ button, input, select, textarea {
   color: var(--text-main);
 }
 
-.day-column.is-today .col-day-name {
-  color: var(--accent);
-}
-
 .col-day-date {
   font-size: 0.74rem;
   color: var(--text-muted);
@@ -454,6 +507,10 @@ button, input, select, textarea {
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: #ffffff;
+}
+
+.col-badge-today.col-badge-focus {
+  background: var(--accent);
 }
 
 .btn-col-finish {
@@ -1769,6 +1826,31 @@ button, input, select, textarea {
   }
   .spread-container {
     height: calc(100vh - 96px);
+  }
+}
+
+@media (max-width: 768px) {
+  .week-grid {
+    width: max-content;
+    gap: 10px;
+    padding-bottom: 20px;
+  }
+  .day-column {
+    flex: 0 0 85vw !important;
+    width: 85vw !important;
+    min-width: 85vw !important;
+    max-width: 85vw !important;
+  }
+  .day-column.is-today,
+  .day-column.is-current-day {
+    flex: 0 0 90vw !important;
+    width: 90vw !important;
+    min-width: 90vw !important;
+    max-width: 90vw !important;
+  }
+  .day-column.is-today .selfcare-items-list,
+  .day-column.is-current-day .selfcare-items-list {
+    grid-template-columns: 1fr;
   }
 }
 

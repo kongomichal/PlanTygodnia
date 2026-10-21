@@ -56,14 +56,46 @@ const Store = {
     const baseMonday = D.weekStart(today);
     const completed = new Set(this.state.completedDays || []);
 
-    let firstActive = baseMonday;
-    while (completed.has(firstActive)) {
-      firstActive = D.addDays(firstActive, 1);
+    // Znajdź pierwszy nieukończony dzień począwszy od początku bieżącego tygodnia
+    let cur = baseMonday;
+    while (completed.has(cur)) {
+      cur = D.addDays(cur, 1);
     }
+    const firstActive = cur;
 
-    const start = D.addDays(firstActive, offset * 7);
-    const days = [0, 1, 2, 3, 4, 5, 6].map(i => D.addDays(start, i));
-    return { firstActive, start, days, baseMonday };
+    if (offset === 0) {
+      const days = [];
+      let scan = firstActive;
+      while (days.length < 7) {
+        if (!completed.has(scan)) {
+          days.push(scan);
+        }
+        scan = D.addDays(scan, 1);
+      }
+      return { firstActive, start: days[0], days, baseMonday };
+    } else if (offset > 0) {
+      let scan = firstActive;
+      let skipped = 0;
+      const targetSkip = offset * 7;
+      while (skipped < targetSkip) {
+        if (!completed.has(scan)) {
+          skipped++;
+        }
+        scan = D.addDays(scan, 1);
+      }
+      const days = [];
+      while (days.length < 7) {
+        if (!completed.has(scan)) {
+          days.push(scan);
+        }
+        scan = D.addDays(scan, 1);
+      }
+      return { firstActive, start: days[0], days, baseMonday };
+    } else {
+      const start = D.addDays(firstActive, offset * 7);
+      const days = [0, 1, 2, 3, 4, 5, 6].map(i => D.addDays(start, i));
+      return { firstActive, start, days, baseMonday };
+    }
   },
 
   /** Usuwa jednorazowe zadania zrobione ponad 60 dni temu – żeby lista nie puchła. */
