@@ -1,0 +1,13 @@
+.DS_Store
+Thumbs.db
+
+# Kopia zapasowa danych użytkownika (nigdy nie wrzucaj na GitHuba!)
+*.json
+!package.json
+!manifest.json
+
+# Prywatna konfiguracja Firebase (klucze API)
+js/firebase-config.local.js
+firebase-config.js
+.env
+.env.local

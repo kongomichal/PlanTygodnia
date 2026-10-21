@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pl" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Plan Tygodnia</title>
+  <meta name="description" content="Spokojna, minimalistyczna rozkładówka tygodniowa, nawyków i priorytetów.">
+  <meta name="theme-color" content="#f8fafc" id="metaThemeColor">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Górna belka: Kompas Tygodnia i nawigacja -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="app-brand">
+          <span class="brand-icon">📅</span>
+          <span class="brand-name">Plan Tygodnia</span>
+        </div>
+
+        <div class="week-nav">
+          <button class="nav-arrow-btn" data-act="prevWeek" title="Poprzedni tydzień" aria-label="Poprzedni tydzień">‹</button>
+          <button class="nav-range-btn" data-act="currentWeek" id="weekRangeLabel">Bieżący tydzień</button>
+          <button class="nav-arrow-btn" data-act="nextWeek" title="Następny tydzień" aria-label="Następny tydzień">›</button>
+        </div>
+      </div>
+
+      <!-- Kompas tygodnia: Główny cel tygodnia -->
+      <div class="header-center">
+        <div class="week-goal-pill" id="weekGoalPill" title="Kliknij, aby ustalić lub edytować główny cel tego tygodnia">
+          <span class="goal-icon">🎯</span>
+          <input class="week-goal-input" id="weekGoalInput" placeholder="Główny cel tego tygodnia (np. Oddać rozdział 2 licencjatu)..." maxlength="120" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button class="header-action-btn btn-subtle" id="btnToggleCompleted" data-act="toggleCompletedSidebar" title="Pokaż / Ukryj listę wykonanych dni">
+          <span>✅ Wykonane</span>
+          <span class="inbox-pill-count" id="completedCountBadge">0</span>
+        </button>
+        <button class="header-action-btn btn-primary" data-act="openNewTaskModal" title="Dodaj nowe zadanie">+ Zadanie</button>
+        <button class="header-action-btn btn-subtle" data-act="openRoutinesModal" title="Cykliczne rutyny i ostrzenie piły">🪚 Rutyny & Cykle</button>
+        <button class="header-action-btn btn-inbox-toggle" id="btnToggleSidebar" data-act="toggleInboxSidebar" title="Pokaż / Ukryj Skrzynkę myśli">
+          <span>📥 Skrzynka</span>
+          <span class="inbox-pill-count" id="inboxCountBadge">0</span>
+        </button>
+        <button class="icon-circle-btn theme-toggle" id="btnThemeToggle" title="Przełącz motyw (Jasny / Ciemny)" aria-label="Przełącz motyw"></button>
+        <button class="icon-circle-btn" data-act="openSettings" title="Ustawienia i kopia zapasowa" aria-label="Ustawienia">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Główna przestrzeń: Lewy panel Wykonane + Rozkładówka 7 dni + Prawy panel Skrzynki -->
+    <div class="spread-container" id="spreadContainer">
+      <!-- LEWA STRONA: BOCZNY PANEL WYKONANYCH DNI -->
+      <aside class="completed-sidebar is-collapsed" id="completedSidebar"></aside>
+
+      <!-- ŚRODEK: 7 DNI TYGODNIA W ZASIĘGU WZROKU -->
+      <main class="board-main" id="boardMain">
+        <div class="week-grid" id="weekDaysGrid">
+          <!-- 7 kolumn tygodnia generowanych przez JS -->
+        </div>
+      </main>
+
+      <!-- PRAWA STRONA: BOCZNY PANEL SKRZYNKI MYŚLI (I - III) -->
+      <aside class="inbox-sidebar" id="inboxSidebar">
+        <!-- Generowany dynamicznie przez JS -->
+      </aside>
+    </div>
+  </div>
+
+  <!-- Modale i powiadomienia -->
+  <div class="modal-root" id="modalRoot"></div>
+  <div class="toast-root" id="toastRoot"></div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/seed.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
