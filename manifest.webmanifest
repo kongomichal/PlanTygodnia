@@ -1,8 +1,11 @@
 {
   "name": "Plan Tygodnia",
   "short_name": "Plan Tygodnia",
+  "id": "plantygodnia",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#f1f5f9",
   "theme_color": "#f1f5f9",
   "lang": "pl",
