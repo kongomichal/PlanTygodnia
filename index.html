@@ -260,7 +260,7 @@
       <div id="authErrorBox" class="auth-error-box" style="display:none;"></div>
 
       <!-- Logowanie Google jednym kliknięciem -->
-      <button class="btn-portal-google" id="btnPortalGoogle" onclick="Sync.handleGoogleLogin()">
+      <button class="btn-portal-google" id="btnPortalGoogle" onclick="handleAuthAction('google')">
         <svg width="20" height="20" viewBox="0 0 18 18">
           <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
           <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
@@ -276,15 +276,15 @@
 
       <div class="auth-portal-form">
         <input type="email" id="authPortalEmail" placeholder="Twój adres e-mail" class="portal-input" autocomplete="username">
-        <input type="password" id="authPortalPass" placeholder="Hasło (min. 6 znaków)" class="portal-input" autocomplete="current-password" onkeydown="if(event.key==='Enter') Sync.handleEmailLogin();">
+        <input type="password" id="authPortalPass" placeholder="Hasło (min. 6 znaków)" class="portal-input" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleAuthAction('login');">
         <div class="portal-btn-row">
-          <button type="button" class="btn-portal-submit" id="btnPortalEmailSubmit" onclick="Sync.handleEmailLogin()">Zaloguj się</button>
-          <button type="button" class="btn-portal-register" id="btnPortalEmailRegister" onclick="Sync.handleEmailRegister()">Zarejestruj</button>
+          <button type="button" class="btn-portal-submit" id="btnPortalEmailSubmit" onclick="handleAuthAction('login')">Zaloguj się</button>
+          <button type="button" class="btn-portal-register" id="btnPortalEmailRegister" onclick="handleAuthAction('register')">Zarejestruj</button>
         </div>
       </div>
 
       <div style="margin-top:16px;">
-        <button type="button" style="background:transparent; border:none; color:#94a3b8; font-size:0.78rem; text-decoration:underline; cursor:pointer;" onclick="Sync.enterOfflineMode()">
+        <button type="button" style="background:transparent; border:none; color:#94a3b8; font-size:0.78rem; text-decoration:underline; cursor:pointer;" onclick="handleAuthAction('offline')">
           Przejdź w trybie lokalnym / offline (bez logowania) ➔
         </button>
       </div>
@@ -366,13 +366,158 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=2.5"></script>
+  <script src="js/firebase-config.js?v=3.5"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=2.5"></script>
-  <script src="js/seed.js?v=2.5"></script>
-  <script src="js/sync.js?v=2.5"></script>
-  <script src="js/store.js?v=2.5"></script>
-  <script src="js/app.js?v=2.5"></script>
+  <script src="js/utils.js?v=3.5"></script>
+  <script src="js/seed.js?v=3.5"></script>
+  <script src="js/sync.js?v=3.5"></script>
+  <script src="js/store.js?v=3.5"></script>
+  <script src="js/app.js?v=3.5"></script>
+
+  <!-- Niezależna od cache obsługa bramki wejściowej -->
+  <script>
+    window.handleAuthAction = async function(type) {
+      const errorBox = document.getElementById('authErrorBox');
+      const emailEl = document.getElementById('authPortalEmail');
+      const passEl = document.getElementById('authPortalPass');
+      const btnSubmit = document.getElementById('btnPortalEmailSubmit');
+      const btnRegister = document.getElementById('btnPortalEmailRegister');
+      const btnGoogle = document.getElementById('btnPortalGoogle');
+      const googleText = document.getElementById('btnPortalGoogleText');
+
+      function showError(msg) {
+        if (errorBox) {
+          errorBox.textContent = msg;
+          errorBox.style.display = 'block';
+        } else {
+          alert(msg);
+        }
+      }
+      function clearError() {
+        if (errorBox) {
+          errorBox.textContent = '';
+          errorBox.style.display = 'none';
+        }
+      }
+
+      clearError();
+
+      // Awaryjny tryb offline
+      if (type === 'offline') {
+        document.getElementById('screenAuth').style.display = 'none';
+        document.getElementById('screenApp').style.display = 'flex';
+        if (window.App && typeof window.App.renderAll === 'function') window.App.renderAll();
+        return;
+      }
+
+      // Inicjalizacja Firebase jeśli jeszcze nie wystartował
+      if (!window.firebase || !firebase.apps || !firebase.apps.length) {
+        try {
+          if (window.FIREBASE_CONFIG) firebase.initializeApp(window.FIREBASE_CONFIG);
+        } catch(e) {
+          showError('Błąd konfiguracji Firebase: ' + e.message);
+          return;
+        }
+      }
+
+      const auth = firebase.auth();
+
+      // Logowanie Google
+      if (type === 'google') {
+        if (btnGoogle) btnGoogle.disabled = true;
+        if (googleText) googleText.textContent = 'Otwieranie Google...';
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+
+        try {
+          await auth.signInWithPopup(provider);
+        } catch (err) {
+          console.error('Google Auth Error:', err);
+          if (err.code === 'auth/popup-blocked') {
+            try {
+              await auth.signInWithRedirect(provider);
+              return;
+            } catch(e2) {
+              showError('Błąd logowania Google: ' + e2.message);
+            }
+          } else if (err.code === 'auth/unauthorized-domain') {
+            showError('⚠️ Domena kongomichal.github.io nie została dodana w Firebase Console! Dodaj ją w Authentication -> Settings -> Authorized domains.');
+          } else {
+            showError('Błąd Google: ' + (err.message || err.code));
+          }
+        } finally {
+          if (btnGoogle) btnGoogle.disabled = false;
+          if (googleText) googleText.textContent = 'Kontynuuj przez Google';
+        }
+        return;
+      }
+
+      const email = emailEl ? emailEl.value.trim() : '';
+      const pass = passEl ? passEl.value : '';
+
+      if (!email) {
+        showError('Wpisz swój adres e-mail.');
+        if (emailEl) emailEl.focus();
+        return;
+      }
+      if (!pass) {
+        showError('Wpisz hasło.');
+        if (passEl) passEl.focus();
+        return;
+      }
+
+      // Logowanie E-mail
+      if (type === 'login') {
+        if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = 'Logowanie...'; }
+        try {
+          await auth.signInWithEmailAndPassword(email, pass);
+        } catch (err) {
+          console.warn('Login email error:', err);
+          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+            // Automatyczna rejestracja nowego konta
+            try {
+              await auth.createUserWithEmailAndPassword(email, pass);
+              return;
+            } catch (regErr) {
+              if (regErr.code === 'auth/email-already-in-use') {
+                showError('Niepoprawne hasło dla tego konta.');
+              } else if (regErr.code === 'auth/weak-password') {
+                showError('Hasło musi mieć co najmniej 6 znaków.');
+              } else if (regErr.code === 'auth/operation-not-allowed') {
+                showError('⚠️ Logowanie przez E-mail nie zostało włączone w Firebase Console! Włącz je w Authentication -> Sign-in method -> Email/Password.');
+              } else {
+                showError('Błąd: ' + regErr.message);
+              }
+              return;
+            }
+          } else if (err.code === 'auth/operation-not-allowed') {
+            showError('⚠️ Logowanie przez E-mail nie zostało włączone w Firebase Console! Włącz je w Authentication -> Sign-in method -> Email/Password.');
+          } else {
+            showError('Błąd: ' + (err.message || err.code));
+          }
+        } finally {
+          if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = 'Zaloguj się'; }
+        }
+      } else if (type === 'register') {
+        if (btnRegister) { btnRegister.disabled = true; btnRegister.textContent = 'Rejestracja...'; }
+        try {
+          await auth.createUserWithEmailAndPassword(email, pass);
+        } catch (err) {
+          if (err.code === 'auth/email-already-in-use') {
+            showError('Konto z tym adresem już istnieje. Wpisz hasło i kliknij "Zaloguj się".');
+          } else if (err.code === 'auth/weak-password') {
+            showError('Hasło musi mieć minimum 6 znaków.');
+          } else if (err.code === 'auth/operation-not-allowed') {
+            showError('⚠️ Logowanie E-mail nie jest włączone w Firebase Console!');
+          } else {
+            showError('Błąd: ' + err.message);
+          }
+        } finally {
+          if (btnRegister) { btnRegister.disabled = false; btnRegister.textContent = 'Zarejestruj'; }
+        }
+      }
+    };
+  </script>
 </body>
 </html>
