@@ -266,6 +266,100 @@ const Sync = {
     }
   },
 
+  /* ---- Obsługa kliknięć w portalu logowania ---- */
+  async handleGoogleLogin() {
+    const btn = document.getElementById('btnPortalGoogle');
+    const label = document.getElementById('btnPortalGoogleText');
+    const prevText = label ? label.textContent : '';
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = 'Otwieranie logowania Google...';
+
+    try {
+      await this.loginWithGoogle();
+    } finally {
+      if (btn) btn.disabled = false;
+      if (label) label.textContent = prevText || 'Kontynuuj przez Google';
+    }
+  },
+
+  async handleEmailLogin() {
+    const emailEl = document.getElementById('authPortalEmail');
+    const passEl = document.getElementById('authPortalPass');
+    const btn = document.getElementById('btnPortalEmailSubmit');
+    const email = emailEl ? emailEl.value.trim() : '';
+    const pass = passEl ? passEl.value : '';
+
+    if (!email) {
+      this.showAuthError('Wpisz swój adres e-mail.');
+      if (emailEl) emailEl.focus();
+      return;
+    }
+    if (!pass) {
+      this.showAuthError('Wpisz hasło.');
+      if (passEl) passEl.focus();
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Logowanie...';
+    }
+
+    try {
+      await this.loginWithEmail(email, pass);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Zaloguj się';
+      }
+    }
+  },
+
+  async handleEmailRegister() {
+    const emailEl = document.getElementById('authPortalEmail');
+    const passEl = document.getElementById('authPortalPass');
+    const btn = document.getElementById('btnPortalEmailRegister');
+    const email = emailEl ? emailEl.value.trim() : '';
+    const pass = passEl ? passEl.value : '';
+
+    if (!email) {
+      this.showAuthError('Wpisz swój adres e-mail do rejestracji.');
+      if (emailEl) emailEl.focus();
+      return;
+    }
+    if (!pass || pass.length < 6) {
+      this.showAuthError('Hasło musi mieć co najmniej 6 znaków.');
+      if (passEl) passEl.focus();
+      return;
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Rejestracja...';
+    }
+
+    try {
+      await this.registerWithEmail(email, pass);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Zarejestruj';
+      }
+    }
+  },
+
+  enterOfflineMode() {
+    const screenAuth = document.getElementById('screenAuth');
+    const screenApp = document.getElementById('screenApp');
+    if (screenAuth) screenAuth.style.display = 'none';
+    if (screenApp) screenApp.style.display = 'flex';
+    if (window.App) {
+      if (typeof window.App.initTheme === 'function') window.App.initTheme();
+      if (typeof window.App.renderAll === 'function') window.App.renderAll();
+      if (typeof window.App.showToast === 'function') window.App.showToast('Uruchomiono w trybie lokalnym.');
+    }
+  },
+
   /* ---- Metody Logowania ---- */
   async loginWithGoogle() {
     this.clearAuthError();
