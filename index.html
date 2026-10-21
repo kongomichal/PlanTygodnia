@@ -5,18 +5,38 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Plan Tygodnia</title>
   <meta name="description" content="Spokojna, minimalistyczna rozkładówka tygodniowa, nawyków i priorytetów.">
-  <meta name="theme-color" content="#f1f5f9" id="metaThemeColor">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Plan Tygodnia">
+  <meta name="application-name" content="Plan Tygodnia">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=4.0">
+  <link rel="stylesheet" href="css/style.css?v=4.5">
+
+  <script>
+    // Natychmiastowe przywrócenie sesji bez migania ekranu logowania
+    try {
+      if (localStorage.getItem('kompas_auth_active') === '1') {
+        document.documentElement.classList.add('is-authenticated');
+      }
+    } catch(e) {}
+  </script>
 
   <!-- Dedykowane, wbudowane style ekranu logowania (brak ryzyka błędu cache) -->
   <style>
+    /* Natychmiastowe ukrycie bramki logowania gdy użytkownik jest już zalogowany */
+    html.is-authenticated #screenAuth {
+      display: none !important;
+    }
+    html.is-authenticated #screenApp {
+      display: flex !important;
+    }
     html, body {
       margin: 0;
       padding: 0;
@@ -429,6 +449,16 @@
 
       const auth = firebase.auth();
 
+      function setAuthSuccess() {
+        try { localStorage.setItem('kompas_auth_active', '1'); } catch(e){}
+        document.documentElement.classList.add('is-authenticated');
+        const screenAuth = document.getElementById('screenAuth');
+        const screenApp = document.getElementById('screenApp');
+        if (screenAuth) screenAuth.style.display = 'none';
+        if (screenApp) screenApp.style.display = 'flex';
+        if (window.App && typeof window.App.renderAll === 'function') window.App.renderAll();
+      }
+
       // Logowanie Google
       if (type === 'google') {
         if (btnGoogle) btnGoogle.disabled = true;
@@ -437,7 +467,8 @@
         provider.setCustomParameters({ prompt: 'select_account' });
 
         try {
-          await auth.signInWithPopup(provider);
+          const res = await auth.signInWithPopup(provider);
+          if (res && res.user) setAuthSuccess();
         } catch (err) {
           console.error('Google Auth Error:', err);
           if (err.code === 'auth/popup-blocked') {
@@ -477,13 +508,15 @@
       if (type === 'login') {
         if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = 'Logowanie...'; }
         try {
-          await auth.signInWithEmailAndPassword(email, pass);
+          const res = await auth.signInWithEmailAndPassword(email, pass);
+          if (res && res.user) setAuthSuccess();
         } catch (err) {
           console.warn('Login email error:', err);
           if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
             // Automatyczna rejestracja nowego konta
             try {
-              await auth.createUserWithEmailAndPassword(email, pass);
+              const regRes = await auth.createUserWithEmailAndPassword(email, pass);
+              if (regRes && regRes.user) setAuthSuccess();
               return;
             } catch (regErr) {
               if (regErr.code === 'auth/email-already-in-use') {
@@ -508,7 +541,8 @@
       } else if (type === 'register') {
         if (btnRegister) { btnRegister.disabled = true; btnRegister.textContent = 'Rejestracja...'; }
         try {
-          await auth.createUserWithEmailAndPassword(email, pass);
+          const regRes = await auth.createUserWithEmailAndPassword(email, pass);
+          if (regRes && regRes.user) setAuthSuccess();
         } catch (err) {
           if (err.code === 'auth/email-already-in-use') {
             showError('Konto z tym adresem już istnieje. Wpisz hasło i kliknij "Zaloguj się".');

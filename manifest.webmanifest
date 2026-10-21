@@ -1,10 +1,33 @@
 {
-  "name": "Kompas – planer tygodnia",
-  "short_name": "Kompas",
+  "name": "Plan Tygodnia",
+  "short_name": "Plan Tygodnia",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#07080f",
-  "theme_color": "#07080f",
+  "background_color": "#f1f5f9",
+  "theme_color": "#f1f5f9",
   "lang": "pl",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
 }

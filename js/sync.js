@@ -27,6 +27,11 @@ const Sync = {
       this.auth = firebase.auth();
       this.db = firebase.firestore();
 
+      // Zapewnij trwałą sesję na urządzeniu (nie wylogowuj po zamknięciu)
+      if (typeof this.auth.setPersistence === 'function') {
+        this.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e => console.warn(e));
+      }
+
       // Obsługa powrotu z logowania przez przekierowanie (dla urządzeń mobilnych)
       this.auth.getRedirectResult().then(result => {
         if (result && result.user) {
@@ -39,6 +44,13 @@ const Sync = {
       // Nasłuchuj zmian stanu autoryzacji
       this.auth.onAuthStateChanged(user => {
         this.user = user;
+        if (user) {
+          try { localStorage.setItem('kompas_auth_active', '1'); } catch(e){}
+          document.documentElement.classList.add('is-authenticated');
+        } else {
+          try { localStorage.removeItem('kompas_auth_active'); } catch(e){}
+          document.documentElement.classList.remove('is-authenticated');
+        }
         this.updateHeaderUI();
         this.updateGateUI();
 
@@ -452,7 +464,11 @@ const Sync = {
       this.user = null;
       // Wyczyszczenie wrażliwych danych po wylogowaniu
       Store.state = Seed.build();
-      try { localStorage.removeItem(Store.KEY); } catch(e){}
+      try {
+        localStorage.removeItem(Store.KEY);
+        localStorage.removeItem('kompas_auth_active');
+      } catch(e){}
+      document.documentElement.classList.remove('is-authenticated');
       Store.emit();
       this.updateHeaderUI();
       this.updateGateUI();
