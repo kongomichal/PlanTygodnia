@@ -874,6 +874,7 @@ const App = {
               </button>
             ` : ''}
             <button class="selfcare-edit-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj tę rutynę">✏️</button>
+            <button class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń tę rutynę" style="font-size:0.75rem; padding:1px 3px;">🗑️</button>
           </div>
         </div>
         ${r.notes ? `
@@ -1365,10 +1366,14 @@ const App = {
     Store.remove(id);
     this.showToast(`Usunięto ${isRoutine ? 'rutynę' : 'zadanie'} „${title}”.`, () => {
       Store.add(backup);
+      this.renderAll();
     });
-    if (this.activeModal === 'routines' || this.activeModal === 'routine_form') {
+    if (this.activeModal === 'routines') {
       this.openRoutinesModal();
+    } else {
+      this.closeModal();
     }
+    this.renderAll();
   },
 
   deleteRoutine(id) {
@@ -1383,12 +1388,8 @@ const App = {
     });
     if (this.activeModal === 'routines') {
       this.openRoutinesModal();
-    } else if (this.activeModal === 'routine_form') {
-      if (this._fromRoutinesTable) {
-        this.openRoutinesModal();
-      } else {
-        this.closeModal();
-      }
+    } else {
+      this.closeModal();
     }
     this.renderAll();
   },
