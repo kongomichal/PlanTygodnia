@@ -874,7 +874,7 @@ const App = {
               </button>
             ` : ''}
             <button class="selfcare-edit-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj tę rutynę">✏️</button>
-            <button class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń tę rutynę" style="font-size:0.75rem; padding:1px 3px;">🗑️</button>
+            <button type="button" class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń tę rutynę" style="font-size:0.75rem; padding:1px 3px;">🗑️</button>
           </div>
         </div>
         ${r.notes ? `
@@ -922,7 +922,7 @@ const App = {
           </button>
           <div class="task-micro-actions">
             ${streak > 0 ? `<span class="selfcare-streak" style="margin-right:4px;">🔥${streak}</span>` : ''}
-            <button class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
+            <button type="button" class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
           </div>
         </div>
       </div>
@@ -965,7 +965,7 @@ const App = {
           </span>
           <div class="task-micro-actions">
             ${streak > 0 ? `<span class="selfcare-streak" style="margin-right:4px;">🔥${streak}</span>` : ''}
-            <button class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
+            <button type="button" class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
           </div>
         </div>
       </div>
@@ -1011,7 +1011,7 @@ const App = {
 
           <div class="task-micro-actions">
             <button class="task-micro-btn" data-act="postponeTask" data-id="${t.id}" title="Przełóż na jutro (➡️)">➡️</button>
-            <button class="task-micro-btn btn-trash" data-act="deleteTask" data-id="${t.id}" title="Usuń">🗑️</button>
+            <button type="button" class="task-micro-btn btn-trash" data-act="deleteTask" data-id="${t.id}" title="Usuń">🗑️</button>
           </div>
         </div>
       </div>
@@ -1060,7 +1060,7 @@ const App = {
                 </button>
               ` : ''}
               <button class="task-micro-btn" data-act="editTask" data-id="${item.id}" title="Edytuj">✏️</button>
-              <button class="task-micro-btn btn-trash" data-act="deleteTask" data-id="${item.id}" title="Usuń trwale">🗑️</button>
+              <button type="button" class="task-micro-btn btn-trash" data-act="deleteTask" data-id="${item.id}" title="Usuń trwale">🗑️</button>
             </div>
           </div>
 
@@ -1230,9 +1230,11 @@ const App = {
         this._fromRoutinesTable = (this.activeModal === 'routines');
         this.openRoutineModal({ editId: btn.dataset.id });
       } else if (act === 'deleteRoutine') {
+        e.preventDefault();
         e.stopPropagation();
         this.deleteRoutine(btn.dataset.id);
       } else if (act === 'deleteTask') {
+        e.preventDefault();
         e.stopPropagation();
         this.confirmDelete(btn.dataset.id);
       } else if (act === 'openNewTaskModal') {
@@ -1359,7 +1361,11 @@ const App = {
 
   confirmDelete(id) {
     const t = Store.get(id);
-    if (!t) return;
+    if (!t) {
+      Store.remove(id);
+      this.renderAll();
+      return;
+    }
     const backup = { ...t };
     const title = t.title || 'zadanie';
     const isRoutine = !!t.recur;
@@ -1368,7 +1374,7 @@ const App = {
       Store.add(backup);
       this.renderAll();
     });
-    if (this.activeModal === 'routines') {
+    if (this.activeModal === 'routines' || this._fromRoutinesTable) {
       this.openRoutinesModal();
     } else {
       this.closeModal();
@@ -1378,7 +1384,11 @@ const App = {
 
   deleteRoutine(id) {
     const r = Store.get(id);
-    if (!r) return;
+    if (!r) {
+      Store.remove(id);
+      this.renderAll();
+      return;
+    }
     const backup = { ...r };
     const title = r.title || 'rutynę';
     Store.remove(id);
@@ -1386,7 +1396,7 @@ const App = {
       Store.add(backup);
       this.renderAll();
     });
-    if (this.activeModal === 'routines') {
+    if (this.activeModal === 'routines' || this._fromRoutinesTable) {
       this.openRoutinesModal();
     } else {
       this.closeModal();
@@ -1578,7 +1588,7 @@ const App = {
                               <td style="text-align:right;">
                                 <div style="display:flex; justify-content:flex-end; gap:4px;">
                                   <button class="task-micro-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj (nazwę, cykl, notatkę)">✏️</button>
-                                  <button class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
+                                  <button type="button" class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
                                 </div>
                               </td>
                             </tr>

@@ -139,7 +139,11 @@ const Store = {
     if (i >= 0) this.state.tasks[i] = task; else this.state.tasks.unshift(task);
     this.persist();
   },
-  remove(id) { this.state.tasks = this.state.tasks.filter(t => t.id !== id); this.persist(); },
+  remove(id) {
+    const sId = String(id);
+    this.state.tasks = this.state.tasks.filter(t => String(t.id) !== sId);
+    this.persist();
+  },
 
   /* ---- role ---- */
   role(id) { return this.state.roles.find(r => r.id === id); },

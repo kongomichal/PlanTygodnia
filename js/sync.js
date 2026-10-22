@@ -5,6 +5,7 @@
  * Obsługuje komputer i telefon bez przeładowywania strony.
  */
 const Sync = {
+  PRIMARY_DOC_ID: 'Ff2wqrcam5gr4ov0rx3miNRA8ue2',
   auth: null,
   db: null,
   user: null,
@@ -50,11 +51,16 @@ const Sync = {
         this.updateGateUI();
 
         if (user) {
-          this.listenToUserDoc(user.uid);
+          this.listenToUserDoc();
         } else {
           this.detachUserDoc();
         }
       });
+
+      // Jeśli sesja była aktywna (PWA / powrót na telefonie), synchronizuj natychmiast
+      if (localStorage.getItem('kompas_auth_active') === '1') {
+        this.listenToUserDoc();
+      }
     } catch (err) {
       console.error('Błąd inicjalizacji Firebase Sync:', err);
       this.setStatus('error');
@@ -150,12 +156,12 @@ const Sync = {
   },
 
   /* ---- Nasłuchiwanie bazy Firestore w czasie rzeczywistym (wzór Muraven) ---- */
-  listenToUserDoc(uid) {
+  listenToUserDoc() {
     if (!this.db) return;
     this.detachUserDoc();
 
     this.setStatus('syncing');
-    const docRef = this.db.collection('users').doc(uid);
+    const docRef = this.db.collection('users').doc(this.PRIMARY_DOC_ID);
 
     this.unsubscribeSnapshot = docRef.onSnapshot(docSnap => {
       if (docSnap.exists) {
@@ -203,11 +209,11 @@ const Sync = {
 
   /* ---- Zapis do chmury w czasie rzeczywistym natychmiast (wzór Muraven) ---- */
   pushToCloud() {
-    if (!this.user || !this.db || this.isRemoteChange) return;
+    if (!this.db || this.isRemoteChange) return;
 
     try {
       this.setStatus('saving');
-      const docRef = this.db.collection('users').doc(this.user.uid);
+      const docRef = this.db.collection('users').doc(this.PRIMARY_DOC_ID);
       const store = (typeof Store !== 'undefined' ? Store : window.Store);
       if (!store || !store.state) return;
       const payload = JSON.parse(JSON.stringify(store.state));
@@ -381,7 +387,7 @@ const Sync = {
         this.user = res.user;
         this.updateHeaderUI();
         this.updateGateUI();
-        this.listenToUserDoc(res.user.uid);
+        this.listenToUserDoc();
       }
     } catch (err) {
       console.warn('Błąd logowania Google:', err);
@@ -410,7 +416,7 @@ const Sync = {
         this.user = res.user;
         this.updateHeaderUI();
         this.updateGateUI();
-        this.listenToUserDoc(res.user.uid);
+        this.listenToUserDoc();
       }
     } catch (err) {
       console.warn('Błąd logowania email:', err);
@@ -422,7 +428,7 @@ const Sync = {
             this.user = regRes.user;
             this.updateHeaderUI();
             this.updateGateUI();
-            this.listenToUserDoc(regRes.user.uid);
+            this.listenToUserDoc();
             return;
           }
         } catch (regErr) {
@@ -443,7 +449,7 @@ const Sync = {
         this.user = res.user;
         this.updateHeaderUI();
         this.updateGateUI();
-        this.listenToUserDoc(res.user.uid);
+        this.listenToUserDoc();
       }
     } catch (err) {
       console.warn('Błąd rejestracji email:', err);
