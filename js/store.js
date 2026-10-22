@@ -16,7 +16,7 @@ const Store = {
     if (!this.state || !Array.isArray(this.state.tasks)) this.state = Seed.build();
     if (!Array.isArray(this.state.completedDays)) this.state.completedDays = [];
     this.cleanup();
-    this.persist(false);
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.state)); } catch (e) {}
     // synchronizacja między kartami przeglądarki
     window.addEventListener('storage', e => {
       if (e.key === this.KEY && e.newValue) { this.state = JSON.parse(e.newValue); this.emit(); }
@@ -108,8 +108,9 @@ const Store = {
     this.state.updatedAt = Date.now();
     try { localStorage.setItem(this.KEY, JSON.stringify(this.state)); } catch (e) { console.warn(e); }
     if (emit) this.emit();
-    if (syncCloud && window.Sync && typeof window.Sync.pushToCloud === 'function') {
-      window.Sync.pushToCloud(false);
+    const sync = (typeof Sync !== 'undefined' ? Sync : window.Sync);
+    if (syncCloud && sync && typeof sync.pushToCloud === 'function') {
+      sync.pushToCloud(false);
     }
   },
   emit() { this.subs.forEach(f => f()); },
@@ -167,3 +168,5 @@ const Store = {
   },
   reset() { this.state = Seed.build(); this.persist(true, true); },
 };
+
+window.Store = Store;

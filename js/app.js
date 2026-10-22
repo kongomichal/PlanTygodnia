@@ -1763,12 +1763,11 @@ const App = {
             <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md);">
               <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:4px;">☁️ Synchronizacja w chmurze (Firebase)</h3>
               <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">
-                ${window.Sync && window.Sync.user ? `Zalogowano jako: <strong>${window.Sync.user.displayName || window.Sync.user.email}</strong>` : 'Zaloguj się, aby mieć te same zadania na komputerze i w telefonie w czasie rzeczywistym.'}
+                ${((window.Sync && window.Sync.user) || (typeof Sync !== 'undefined' && Sync.user)) ? `Zalogowano jako: <strong>${(window.Sync?.user || Sync?.user).displayName || (window.Sync?.user || Sync?.user).email}</strong>. Każda zmiana zapisuje się automatycznie w ułamku sekundy.` : 'Zaloguj się, aby mieć te same zadania na komputerze i w telefonie w czasie rzeczywistym.'}
               </p>
-              <div style="display:flex; flex-wrap:wrap; gap:8px;">
-                ${window.Sync && window.Sync.user ? `
-                  <button class="header-action-btn btn-primary" onclick="Sync.pushToCloud(true); App.showToast('Wysłano dane z tego urządzenia do chmury!');">⬆️ Wyślij do chmury</button>
-                  <button class="header-action-btn" onclick="Sync.pullFromCloud();">⬇️ Pobierz z chmury</button>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <span style="font-size:0.82rem; font-weight:600; color:var(--emerald);">🟢 Synchronizacja automatyczna aktywna</span>
+                ${((window.Sync && window.Sync.user) || (typeof Sync !== 'undefined' && Sync.user)) ? `
                   <button class="header-action-btn" style="color:var(--crimson);" onclick="Sync.logout(); App.openSettings();">Wyloguj</button>
                 ` : `
                   <button class="header-action-btn btn-primary" onclick="Sync.openAuthModal()">☁️ Zaloguj / Połącz z chmurą</button>
@@ -1848,4 +1847,5 @@ const App = {
   },
 };
 
+window.App = App;
 window.addEventListener('DOMContentLoaded', () => App.init());

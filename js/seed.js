@@ -20,7 +20,10 @@ const Seed = {
       weekGoals: {},
       autoRollover: true,
       lastReview: null,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      updatedAt: 0
     };
   },
 };
+
+window.Seed = Seed;

@@ -163,113 +163,56 @@ const Sync = {
     const docRef = this.db.collection('users').doc(uid);
 
     this.unsubscribeSnapshot = docRef.onSnapshot(docSnap => {
+      // Ignorujemy echo lokalnego zapisu, które jeszcze oczekuje na wysyłkę
+      if (docSnap.metadata && docSnap.metadata.hasPendingWrites) {
+        return;
+      }
+
       if (docSnap.exists) {
         const cloudData = docSnap.data();
         if (cloudData && Array.isArray(cloudData.tasks)) {
-          const localUpdated = Store.state?.updatedAt || 0;
-          const cloudUpdated = cloudData.updatedAt || 0;
-          const localTasks = (Store.state && Array.isArray(Store.state.tasks)) ? Store.state.tasks : [];
-          const cloudTasks = cloudData.tasks;
+          const store = (typeof Store !== 'undefined' ? Store : window.Store);
+          const localTasks = (store && store.state && Array.isArray(store.state.tasks)) ? store.state.tasks : [];
 
-          // 1. Jeśli lokalnie są zadania, a w chmurze pusto (np. pierwsze logowanie na urządzeniu z danymi):
-          if (localTasks.length > 0 && cloudTasks.length === 0) {
-            console.log('Firebase Sync: lokalne zadania istnieją, wysyłam do chmury');
+          // Jeśli w chmurze jest pusto (np. nowe konto), a na urządzeniu lokalnie mamy zadania: wyślij je automatycznie!
+          if (cloudData.tasks.length === 0 && localTasks.length > 0) {
+            console.log('Firebase: chmura pusta, automatyczne wysłanie lokalnych zadań');
             this.pushToCloud(true);
             return;
           }
 
-          // 2. Jeśli w chmurze są zadania, a lokalnie pusto (np. nowe logowanie na telefonie):
-          if (cloudTasks.length > 0 && localTasks.length === 0) {
-            console.log('Firebase Sync: pobieram zadania z chmury');
-            this.isRemoteChange = true;
-            Store.state = cloudData;
-            if (!Array.isArray(Store.state.completedDays)) Store.state.completedDays = [];
-            Store.persist(true, false);
-            this.isRemoteChange = false;
-            this.setStatus('synced');
-            if (window.App && typeof window.App.renderAll === 'function') {
-              window.App.renderAll();
-              window.App.scrollToCurrentDayOnMobile();
-            }
-            return;
+          // W każdym innym przypadku źródłem prawdy dla zalogowanego użytkownika jest chmura:
+          this.isRemoteChange = true;
+          if (store) {
+            store.state = cloudData;
+            if (!Array.isArray(store.state.completedDays)) store.state.completedDays = [];
+            store.persist(true, false); // zapisuje do localStorage i powiadamia subskrybentów
           }
+          this.isRemoteChange = false;
+          this.setStatus('synced');
 
-          // 3. W pozostałych przypadkach decyduje znacznik nowszej aktualizacji:
-          if (cloudUpdated > localUpdated) {
-            console.log('Firebase Sync: chmura ma nowsze dane, aktualizuję lokalnie');
-            this.isRemoteChange = true;
-            Store.state = cloudData;
-            if (!Array.isArray(Store.state.completedDays)) Store.state.completedDays = [];
-            Store.persist(true, false);
-            this.isRemoteChange = false;
-            this.setStatus('synced');
-            if (window.App && typeof window.App.renderAll === 'function') {
-              window.App.renderAll();
-              window.App.scrollToCurrentDayOnMobile();
+          const app = (typeof App !== 'undefined' ? App : window.App);
+          if (app && typeof app.renderAll === 'function') {
+            app.renderAll();
+            if (typeof app.scrollToCurrentDayOnMobile === 'function') {
+              app.scrollToCurrentDayOnMobile();
             }
-          } else if (localUpdated > cloudUpdated && localTasks.length > 0) {
-            console.log('Firebase Sync: lokalne dane są nowsze, wysyłam do chmury');
-            this.pushToCloud(true);
-          } else {
-            this.setStatus('synced');
           }
         }
       } else {
-        // Pierwsze logowanie użytkownika: wyślij aktualny stan do chmury
+        // Pierwsze logowanie użytkownika: wyślij aktualny stan do chmury natychmiast
         this.pushToCloud(true);
       }
     }, err => {
       console.error('Błąd Firestore onSnapshot:', err);
       this.setStatus('error');
       if (err && err.code === 'permission-denied') {
-        if (window.App && typeof window.App.showToast === 'function') {
-          App.showToast('⚠️ Brak uprawnień do Firestore! Sprawdź reguły bazy w Firebase Console.');
-        }
-      } else {
-        if (window.App && typeof window.App.showToast === 'function') {
-          App.showToast('Błąd synchronizacji Firestore: ' + (err.message || err.code));
+        const app = (typeof App !== 'undefined' ? App : window.App);
+        if (app && typeof app.showToast === 'function') {
+          app.showToast('⚠️ Brak uprawnień do Firestore! Sprawdź reguły bazy w Firebase Console.');
         }
       }
     });
-  },
-
-  /* ---- Ręczne pobranie z chmury (Pull) ---- */
-  async pullFromCloud() {
-    if (!this.user || !this.db) {
-      if (window.App) App.showToast('Najpierw zaloguj się do konta.');
-      return;
-    }
-    try {
-      this.setStatus('syncing');
-      const docRef = this.db.collection('users').doc(this.user.uid);
-      const snap = await docRef.get();
-      if (snap.exists) {
-        const cloudData = snap.data();
-        if (cloudData && Array.isArray(cloudData.tasks)) {
-          this.isRemoteChange = true;
-          Store.state = cloudData;
-          if (!Array.isArray(Store.state.completedDays)) Store.state.completedDays = [];
-          Store.persist(true, false);
-          this.isRemoteChange = false;
-          this.setStatus('synced');
-          if (window.App && typeof window.App.renderAll === 'function') {
-            window.App.renderAll();
-            window.App.scrollToCurrentDayOnMobile();
-            window.App.showToast(`Pobrano dane z chmury (${cloudData.tasks.length} zadań)!`);
-          }
-        } else {
-          if (window.App) App.showToast('W chmurze brak zadań.');
-          this.setStatus('synced');
-        }
-      } else {
-        if (window.App) App.showToast('Brak zapisanego profilu w chmurze.');
-        this.setStatus('synced');
-      }
-    } catch (err) {
-      console.error('Błąd pullFromCloud:', err);
-      this.setStatus('error');
-      if (window.App) App.showToast('Błąd pobierania: ' + (err.message || err.code));
-    }
   },
 
   detachUserDoc() {
@@ -280,7 +223,7 @@ const Sync = {
     this.setStatus('idle');
   },
 
-  /* ---- Zapis do chmury z debouncem (800ms) ---- */
+  /* ---- Zapis do chmury w czasie rzeczywistym z debouncem (250ms) ---- */
   pushToCloud(immediate = false) {
     if (!this.user || !this.db || this.isRemoteChange) return;
 
@@ -290,8 +233,11 @@ const Sync = {
       try {
         this.setStatus('saving');
         const docRef = this.db.collection('users').doc(this.user.uid);
-        const payload = JSON.parse(JSON.stringify(Store.state));
+        const store = (typeof Store !== 'undefined' ? Store : window.Store);
+        if (!store || !store.state) return;
+        const payload = JSON.parse(JSON.stringify(store.state));
         payload.updatedAt = Date.now();
+        store.state.updatedAt = payload.updatedAt;
         await docRef.set(payload, { merge: true });
         this.setStatus('synced');
       } catch (err) {
@@ -304,7 +250,7 @@ const Sync = {
       executePush();
     } else {
       this.setStatus('saving');
-      this.saveTimer = setTimeout(executePush, 800);
+      this.saveTimer = setTimeout(executePush, 250);
     }
   },
 
@@ -596,11 +542,8 @@ const Sync = {
                 </p>
               </div>
 
-              <div style="display:flex; gap:10px;">
-                <button class="header-action-btn btn-primary" style="flex:1; justify-content:center;" onclick="Sync.pushToCloud(true); App.showToast('Wymuszono synchronizację!');">
-                  🔄 Synchronizuj teraz
-                </button>
-                <button class="header-action-btn" style="flex:1; justify-content:center; color:var(--crimson);" onclick="Sync.logout()">
+              <div style="display:flex; justify-content:flex-end;">
+                <button class="header-action-btn" style="color:var(--crimson);" onclick="Sync.logout()">
                   Wyloguj się
                 </button>
               </div>
@@ -657,6 +600,8 @@ const Sync = {
   }
 };
 
+window.Sync = Sync;
+
 // Bezpieczna automatyczna inicjalizacja modułu Sync
 if (typeof window !== 'undefined') {
   if (document.readyState === 'loading') {
@@ -665,4 +610,5 @@ if (typeof window !== 'undefined') {
     Sync.init();
   }
 }
+
 
