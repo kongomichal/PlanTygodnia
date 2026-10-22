@@ -1294,6 +1294,25 @@ const App = {
       }
     });
 
+    // Automatyczne sprawdzanie nowej wersji przy powrocie do aplikacji (np. z uśpienia / tła na telefonie)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        const lastCheck = parseInt(sessionStorage.getItem('last_update_check') || '0', 10);
+        if (Date.now() - lastCheck > 60000) {
+          sessionStorage.setItem('last_update_check', Date.now().toString());
+          fetch('index.html?check=' + Date.now(), { cache: 'no-store' })
+            .then(res => res.text())
+            .then(html => {
+              const match = html.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+              if (match && match[1] && match[1] !== '10.5') {
+                window.location.reload();
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    });
+
     // Motyw
     const themeBtn = document.getElementById('btnThemeToggle');
     if (themeBtn) themeBtn.addEventListener('click', () => this.toggleTheme());
