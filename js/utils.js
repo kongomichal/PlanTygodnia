@@ -112,7 +112,13 @@ const Recur = {
       if ((r.every || 1) === 1) return `Co miesiąc${dayText ? ` (${dayText})` : ''}`;
       return `Co ${r.every} mies.${dayText ? ` (${dayText})` : ''}`;
     }
-    if (r.unit === 'year') return 'Co rok';
+    if (r.unit === 'year') {
+      if (date) {
+        const d = D.parse(date);
+        return `Co rok (${d.getDate()} ${D.MON_GEN[d.getMonth()]})`;
+      }
+      return 'Co rok';
+    }
     return this.label(r);
   },
   group(r) {
@@ -130,6 +136,42 @@ const Recur = {
     while (d <= to && g++ < 2000) { out.push(d); d = this.next(d, t.recur); }
     return out;
   },
+  nextOccurrence(t, fromDate = D.today()) {
+    if (!t || !t.recur) return t?.date || null;
+    const start = t.date || fromDate;
+    if (start >= fromDate) return start;
+    if (t.recur.unit === 'day') return fromDate;
+    if (t.recur.unit === 'week') {
+      const occ = this.occurrences(t, fromDate, D.addDays(fromDate, 60));
+      return occ[0] || null;
+    }
+    if (t.recur.unit === 'month') {
+      const every = t.recur.every || 1;
+      const d0 = D.parse(start);
+      const cur = D.parse(fromDate);
+      const mDiff = (cur.getFullYear() - d0.getFullYear()) * 12 + (cur.getMonth() - d0.getMonth());
+      const k = Math.floor(Math.max(0, mDiff) / every);
+      for (let step = 0; step < 24; step++) {
+        const candidateMonthOffset = (k + step) * every;
+        const candidate = D.addMonths(start, candidateMonthOffset, t.recur.dayOfMonth ?? t.recur.anchor);
+        if (candidate >= fromDate) return candidate;
+      }
+    }
+    if (t.recur.unit === 'year') {
+      const every = t.recur.every || 1;
+      const d0 = D.parse(start);
+      const cur = D.parse(fromDate);
+      const yDiff = cur.getFullYear() - d0.getFullYear();
+      const k = Math.floor(Math.max(0, yDiff) / every);
+      for (let step = 0; step < 10; step++) {
+        const candidateYear = d0.getFullYear() + (k + step) * every;
+        const candidate = new Date(candidateYear, d0.getMonth(), d0.getDate());
+        const candidateDateStr = D.toStr(candidate);
+        if (candidateDateStr >= fromDate) return candidateDateStr;
+      }
+    }
+    return start;
+  },
   streak(t) {
     const h = new Set(t.history || []);
     let d = D.today(); if (!h.has(d)) d = D.addDays(d, -1);
@@ -137,7 +179,10 @@ const Recur = {
     return n;
   },
   matchesDate(t, dateStr) {
-    if (!t.recur) return false;
+    if (!t || !t.recur) return false;
+    // Nigdy nie dopasowuj daty wcześniejszej niż wskazana data bazowa/początkowa rutyny:
+    if (t.date && dateStr < t.date) return false;
+
     if (t.recur.unit === 'day') return true;
     const dow = D.dow(dateStr);
     if (t.recur.unit === 'week') {

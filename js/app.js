@@ -1509,6 +1509,15 @@ const App = {
       </div>
     `;
 
+    const mDateInput = document.getElementById('mTaskDate');
+    if (mDateInput) {
+      mDateInput.addEventListener('click', () => {
+        try {
+          if (typeof mDateInput.showPicker === 'function') mDateInput.showPicker();
+        } catch (e) {}
+      });
+    }
+
     document.getElementById('modalTaskForm').addEventListener('submit', e => {
       e.preventDefault();
       const title = document.getElementById('mTaskTitle').value.trim();
@@ -1605,6 +1614,8 @@ const App = {
                         ${items.map(r => {
                           const streak = Recur.streak(r);
                           const isWork = this.isWorkRoutine(r);
+                          const nextDate = Recur.nextOccurrence(r, D.today());
+                          const isFuture = r.date && r.date > D.today();
                           return `
                             <tr class="routine-table-row" data-id="${r.id}">
                               <td>
@@ -1617,8 +1628,16 @@ const App = {
                               <td style="cursor:pointer;" data-act="editRoutine" data-id="${r.id}">
                                 <span class="routine-cycle-badge">
                                   ${Recur.fullLabel(r.recur, r.date)}
-                                  ${r.date && (r.recur.unit === 'month' || r.recur.unit === 'year') ? `<br><small style="color:var(--text-muted); font-size:0.7rem;">termin: ${D.human(r.date)}</small>` : ''}
                                 </span>
+                                ${nextDate ? `
+                                  <div style="margin-top:3px; font-size:0.72rem; line-height:1.25;">
+                                    ${isFuture ? `
+                                      <span style="color:var(--accent); font-weight:600;">📅 Pierwsze: ${D.short(r.date)} (${D.human(r.date)})</span>
+                                    ` : `
+                                      <span style="color:var(--text-muted);">📅 Najbliższy termin: <strong style="color:var(--text-main);">${D.short(nextDate)}</strong> (${D.human(nextDate)})</span>
+                                    `}
+                                  </div>
+                                ` : ''}
                               </td>
                               <td>
                                 ${r.notes ? `
@@ -1761,8 +1780,105 @@ const App = {
     return 'daily';
   },
 
+  /* Pomocnik podglądu harmonogramu cyklu na żywo */
+  getRoutineSchedulePreview(dateStr, freqVal) {
+    if (!dateStr) return '';
+    const d = D.parse(dateStr);
+    const dow = D.dow(dateStr);
+    const dowName = D.DOW_LONG[dow];
+    const dayNum = d.getDate();
+    const monName = D.MON_GEN[d.getMonth()];
+    const year = d.getFullYear();
+    const fullDateStr = `${dayNum} ${monName} ${year} (${dowName})`;
+
+    let summary = '';
+    let nextDates = [];
+
+    if (freqVal === 'daily') {
+      summary = 'Codziennie od tej daty';
+      nextDates = [D.addDays(dateStr, 1), D.addDays(dateStr, 2), D.addDays(dateStr, 3)];
+    } else if (freqVal === 'dow_workdays') {
+      summary = 'Dni robocze (Pon – Pt)';
+      let cur = dateStr;
+      while (nextDates.length < 3) {
+        cur = D.addDays(cur, 1);
+        const w = D.dow(cur);
+        if (w < 5) nextDates.push(cur);
+      }
+    } else if (freqVal.startsWith('dow_')) {
+      const targetDow = parseInt(freqVal.replace('dow_', ''), 10);
+      const dowEvery = ['w każdy poniedziałek', 'w każdy wtorek', 'w każdą środę', 'w każdy czwartek', 'w każdy piątek', 'w każdą sobotę', 'w każdą niedzielę'];
+      summary = `Zawsze ${dowEvery[targetDow] || 'w ten dzień'}`;
+      let cur = dateStr;
+      if (dow !== targetDow) {
+        while (D.dow(cur) !== targetDow) cur = D.addDays(cur, 1);
+      }
+      nextDates = [D.addDays(cur, 7), D.addDays(cur, 14), D.addDays(cur, 21)];
+    } else if (freqVal === 'w1') {
+      summary = `Co tydzień (w każdy ${dowName})`;
+      nextDates = [D.addDays(dateStr, 7), D.addDays(dateStr, 14), D.addDays(dateStr, 21)];
+    } else if (freqVal === 'w2') {
+      summary = 'Co 2 tygodnie';
+      nextDates = [D.addDays(dateStr, 14), D.addDays(dateStr, 28), D.addDays(dateStr, 42)];
+    } else if (freqVal === 'm1' || freqVal.startsWith('m1_day_')) {
+      let day = dayNum;
+      if (freqVal.startsWith('m1_day_')) {
+        const raw = freqVal.replace('m1_day_', '');
+        day = raw === 'last' ? 'last' : (parseInt(raw, 10) || dayNum);
+      }
+      const dayLabel = day === 'last' ? 'ostatni dzień miesiąca' : `${day}. dzień miesiąca`;
+      summary = `Co miesiąc (${dayLabel})`;
+      nextDates = [
+        D.addMonths(dateStr, 1, day),
+        D.addMonths(dateStr, 2, day),
+        D.addMonths(dateStr, 3, day)
+      ];
+    } else if (freqVal === 'm3') {
+      summary = `Co 3 miesiące (Kwartalnie · ${dayNum}. dnia miesiąca)`;
+      nextDates = [
+        D.addMonths(dateStr, 3, dayNum),
+        D.addMonths(dateStr, 6, dayNum),
+        D.addMonths(dateStr, 9, dayNum)
+      ];
+    } else if (freqVal === 'm6') {
+      summary = `Co pół roku · ${dayNum}. dnia miesiąca`;
+      nextDates = [
+        D.addMonths(dateStr, 6, dayNum),
+        D.addMonths(dateStr, 12, dayNum),
+        D.addMonths(dateStr, 18, dayNum)
+      ];
+    } else if (freqVal === 'y1') {
+      summary = `Co rok (${dayNum} ${monName})`;
+      nextDates = [
+        D.addMonths(dateStr, 12, dayNum),
+        D.addMonths(dateStr, 24, dayNum),
+        D.addMonths(dateStr, 36, dayNum)
+      ];
+    }
+
+    const formatNiceDate = s => {
+      const dt = D.parse(s);
+      return `${dt.getDate()} ${D.MON_GEN[dt.getMonth()]} ${dt.getFullYear()}`;
+    };
+
+    const nextStr = nextDates.map(formatNiceDate).join(' · ');
+
+    return `
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <div style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--text-main); font-size:0.82rem;">
+          <span>🎯 Pierwsze przypomnienie:</span>
+          <span style="color:var(--accent); font-weight:700;">${fullDateStr}</span>
+        </div>
+        <div style="font-size:0.77rem; color:var(--text-muted); line-height:1.4;">
+          <span>🔄 Cykl: <strong>${summary}</strong>.</span><br>
+          <span>Kolejne powtórzenia: <strong style="color:var(--text-main);">${nextStr}</strong></span>
+        </div>
+      </div>
+    `;
+  },
+
   /* Formularz nowej / edytowanej rutyny */
-  openRoutineModal({ editId = null, defaultFreq = null } = {}) {
+  openRoutineModal({ editId = null, defaultFreq = null, defaultDate = null } = {}) {
     this.activeModal = 'routine_form';
     const root = document.getElementById('modalRoot');
     if (!root) return;
@@ -1770,27 +1886,10 @@ const App = {
     const routine = editId ? Store.get(editId) : null;
     const initialTitle = routine ? routine.title : '';
     const initialNotes = routine ? (routine.notes || '') : '';
-    let selectedFreq = routine ? this.getRoutineFreqKey(routine) : (defaultFreq || 'daily');
-    if (selectedFreq === 'm1') selectedFreq = 'm1_day_1';
-
-    let currentDayVal = 1;
-    if (routine && routine.recur && routine.recur.unit === 'month') {
-      currentDayVal = routine.recur.dayOfMonth ?? routine.recur.anchor ?? (routine.date ? D.parse(routine.date).getDate() : 1);
-    }
-
-    const standardFreqPresets = [
-      'daily', 'dow_workdays',
-      'dow_0', 'dow_1', 'dow_2', 'dow_3', 'dow_4', 'dow_5', 'dow_6',
-      'w2',
-      'm1_day_1', 'm1_day_10', 'm1_day_15', 'm1_day_20', 'm1_day_25', 'm1_day_last',
-      'm3', 'm6', 'y1'
-    ];
-
-    let isCustomMonth = false;
-    if (selectedFreq.startsWith('m1_day_') && !standardFreqPresets.includes(selectedFreq)) {
-      isCustomMonth = true;
-      currentDayVal = parseInt(selectedFreq.replace('m1_day_', ''), 10) || 1;
-      selectedFreq = 'm1_custom';
+    const initialDate = routine ? (routine.date || D.today()) : (defaultDate || D.today());
+    let selectedFreq = routine ? this.getRoutineFreqKey(routine) : (defaultFreq || 'm3');
+    if (selectedFreq.startsWith('m1_day_') && !['m1_day_1', 'm1_day_10', 'm1_day_15', 'm1_day_20', 'm1_day_25', 'm1_day_last'].includes(selectedFreq)) {
+      selectedFreq = 'm1';
     }
 
     const isWork = routine ? this.isWorkRoutine(routine) : false;
@@ -1803,9 +1902,9 @@ const App = {
         <div class="modal">
           <div class="modal-header">
             <div>
-              <h2>${editId ? '✏️ Edytuj rutynę / nawyk' : '✨ Nowa rutyna / nawyk'}</h2>
+              <h2>${editId ? '✏️ Edytuj rutynę / cykl' : '✨ Nowa rutyna / cykl'}</h2>
               <p style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
-                ${editId ? 'Zmień nazwę, częstotliwość, notatki lub przypisaną strefę.' : 'Zdefiniuj czynność cykliczną i wybierz, w którym oknie ma się pojawiać.'}
+                ${editId ? 'Zmień datę pierwszego przypomnienia, częstotliwość, notatki lub strefę.' : 'Zdefiniuj zadanie, wybierz w kalendarzu datę pierwszego przypomnienia i cykl powtarzania.'}
               </p>
             </div>
             <button class="icon-circle-btn" onclick="App.closeRoutineFormModal()">✕</button>
@@ -1813,68 +1912,70 @@ const App = {
 
           <form id="routineModalForm" autocomplete="off">
             <div class="form-group">
-              <label>Nazwa czynności / nawyku</label>
-              <input class="form-input" id="rFormTitle" value="${esc(initialTitle)}" placeholder="np. Zmierzyć ciśnienie, Przegląd faktur i KSeF, Medytacja..." required autofocus>
+              <label>Treść zadania / nawyku lub link</label>
+              <input class="form-input" id="rFormTitle" value="${esc(initialTitle)}" placeholder="np. Przegląd klimatyzacji, KSeF i podatki, Zmierzyć ciśnienie..." required autofocus>
             </div>
+
+            <div class="modal-grid-2">
+              <div class="form-group">
+                <label for="rFormDate">Dzień w planie / Data pierwszego przypomnienia</label>
+                <input type="date" class="form-input" id="rFormDate" value="${initialDate || ''}" required>
+              </div>
+
+              <div class="form-group">
+                <label for="rFormFreq">Częstotliwość powtarzania</label>
+                <select class="form-select" id="rFormFreq">
+                  <optgroup label="Cykliczne (Kwartalnie / Pół roku / Co rok)">
+                    ${opt('m3', 'Co 3 miesiące (Kwartalnie) ★')}
+                    ${opt('m6', 'Co pół roku')}
+                    ${opt('y1', 'Co rok')}
+                  </optgroup>
+                  <optgroup label="Co miesiąc">
+                    ${opt('m1', '🗓️ Co miesiąc (w ten sam dzień z kalendarza)')}
+                    ${opt('m1_day_1', '🗓️ 1. dzień każdego miesiąca (Nowy miesiąc)')}
+                    ${opt('m1_day_10', '🗓️ 10. dzień każdego miesiąca (np. ZUS)')}
+                    ${opt('m1_day_15', '🗓️ 15. dzień każdego miesiąca (np. PIT)')}
+                    ${opt('m1_day_20', '🗓️ 20. dzień każdego miesiąca')}
+                    ${opt('m1_day_25', '🗓️ 25. dzień każdego miesiąca (np. VAT / KSeF)')}
+                    ${opt('m1_day_last', '🗓️ Ostatni dzień każdego miesiąca')}
+                  </optgroup>
+                  <optgroup label="Codziennie & Tygodniowe">
+                    ${opt('daily', 'Codziennie (każdego dnia)')}
+                    ${opt('dow_workdays', 'Dni robocze (Pon – Pt)')}
+                    ${opt('w1', 'Co tydzień (w ten sam dzień tygodnia)')}
+                    ${opt('w2', 'Co 2 tygodnie')}
+                    ${opt('dow_0', 'Zawsze w Poniedziałki')}
+                    ${opt('dow_1', 'Zawsze we Wtorki')}
+                    ${opt('dow_2', 'Zawsze w Środy')}
+                    ${opt('dow_3', 'Zawsze w Czwartki')}
+                    ${opt('dow_4', 'Zawsze w Piątki')}
+                    ${opt('dow_5', 'Zawsze w Soboty')}
+                    ${opt('dow_6', 'Zawsze w Niedziele')}
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+
+            <!-- Podgląd harmonogramu na żywo -->
+            <div id="rFormSchedulePreview" class="routine-preview-card"></div>
 
             <div class="form-group">
               <label>Gdzie ma się wyświetlać w planie dnia?</label>
               <select class="form-select" id="rFormZone">
-                <option value="selfcare" ${selectedZone === 'selfcare' ? 'selected' : ''}>🛡️ Zdrowie & Ja (Na samej górze dnia — medytacja, Biblia, zdrowie, rozwój)</option>
                 <option value="standard" ${selectedZone === 'standard' ? 'selected' : ''}>📋 Bieżączka (Sprawy cykliczne — faktury, KSeF, podatki, praca, dom)</option>
+                <option value="selfcare" ${selectedZone === 'selfcare' ? 'selected' : ''}>🛡️ Zdrowie & Ja (Na samej górze dnia — medytacja, Biblia, zdrowie, rozwój)</option>
               </select>
             </div>
 
             <div class="form-group">
-              <label>Częstotliwość powtarzania</label>
-              <select class="form-select" id="rFormFreq">
-                <optgroup label="Codziennie & Tygodniowe">
-                  ${opt('daily', 'Codziennie (każdego dnia)')}
-                  ${opt('dow_workdays', 'Dni robocze (Pon – Pt)')}
-                  ${opt('dow_0', 'Zawsze w Poniedziałki')}
-                  ${opt('dow_1', 'Zawsze we Wtorki')}
-                  ${opt('dow_2', 'Zawsze w Środy')}
-                  ${opt('dow_3', 'Zawsze w Czwartki')}
-                  ${opt('dow_4', 'Zawsze w Piątki')}
-                  ${opt('dow_5', 'Zawsze w Soboty')}
-                  ${opt('dow_6', 'Zawsze w Niedziele')}
-                  ${opt('w2', 'Co 2 tygodnie')}
-                </optgroup>
-                <optgroup label="Co miesiąc (Wybierz dzień)">
-                  ${opt('m1_day_1', '🗓️ Co miesiąc — 1. dzień miesiąca (Nowy miesiąc)')}
-                  ${opt('m1_day_10', '🗓️ Co miesiąc — 10. dzień miesiąca (np. ZUS)')}
-                  ${opt('m1_day_15', '🗓️ Co miesiąc — 15. dzień miesiąca (np. PIT)')}
-                  ${opt('m1_day_20', '🗓️ Co miesiąc — 20. dzień miesiąca')}
-                  ${opt('m1_day_25', '🗓️ Co miesiąc — 25. dzień miesiąca (np. VAT / KSeF)')}
-                  ${opt('m1_day_last', '🗓️ Co miesiąc — Ostatni dzień miesiąca')}
-                  ${opt('m1_custom', '🗓️ Co miesiąc — Inny wybrany dzień (1–31)…')}
-                </optgroup>
-                <optgroup label="Rzadsze (Miesięczne / Kwartalne / Roczne)">
-                  ${opt('m3', 'Co 3 miesiące (Kwartalnie) ★')}
-                  ${opt('m6', 'Co pół roku')}
-                  ${opt('y1', 'Co rok')}
-                </optgroup>
-              </select>
-            </div>
-
-            <!-- Dynamiczne pole dla innego wybranego dnia miesiąca -->
-            <div class="form-group" id="rFormMonthDayGroup" style="${isCustomMonth ? '' : 'display:none;'}">
-              <label>Wskazany dzień każdego miesiąca (1 – 31)</label>
-              <div style="display:flex; align-items:center; gap:8px;">
-                <input type="number" min="1" max="31" class="form-input" id="rFormMonthDay" value="${currentDayVal}" style="width:90px;">
-                <span style="font-size:0.82rem; color:var(--text-muted);">dzień miesiąca</span>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Notatki / Wytyczne (będą widoczne w planie i na liście)</label>
-              <textarea class="form-textarea" id="rFormNotes" placeholder="np. Poniżej 20 nie przyjeżdżać, powyżej kontrola; rano na czczo; 3 serie po 15...">${esc(initialNotes)}</textarea>
+              <label>Notatki / Wytyczne (opcjonalnie)</label>
+              <textarea class="form-textarea" id="rFormNotes" placeholder="np. Poniżej 20 nie przyjeżdżać, powyżej kontrola; rano na czczo; kontakt do serwisu...">${esc(initialNotes)}</textarea>
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
               ${editId ? `
                 <button type="button" class="btn-col-finish" style="color:var(--crimson); border-color:var(--crimson-border); padding:6px 12px; height:auto; width:auto;" onclick="App.deleteRoutine('${editId}')">
-                  🗑️ Usuń tę rutynę
+                  Usuń tę rutynę
                 </button>
               ` : '<div></div>'}
 
@@ -1888,61 +1989,95 @@ const App = {
       </div>
     `;
 
+    const dateInput = document.getElementById('rFormDate');
     const freqSelect = document.getElementById('rFormFreq');
-    const dayGroup = document.getElementById('rFormMonthDayGroup');
-    freqSelect.addEventListener('change', () => {
-      dayGroup.style.display = freqSelect.value === 'm1_custom' ? 'block' : 'none';
-    });
+    const previewContainer = document.getElementById('rFormSchedulePreview');
+
+    if (dateInput) {
+      dateInput.addEventListener('click', () => {
+        try {
+          if (typeof dateInput.showPicker === 'function') dateInput.showPicker();
+        } catch (e) {}
+      });
+    }
+
+    const updatePreview = () => {
+      const dVal = (dateInput && dateInput.value) ? dateInput.value : D.today();
+      const fVal = freqSelect ? freqSelect.value : 'm3';
+      if (previewContainer) {
+        previewContainer.innerHTML = this.getRoutineSchedulePreview(dVal, fVal);
+      }
+    };
+
+    if (dateInput) {
+      dateInput.addEventListener('input', updatePreview);
+      dateInput.addEventListener('change', updatePreview);
+    }
+
+    if (freqSelect) {
+      freqSelect.addEventListener('change', () => {
+        const fVal = freqSelect.value;
+        if (fVal.startsWith('m1_day_')) {
+          const raw = fVal.replace('m1_day_', '');
+          const curDate = D.parse(dateInput.value || D.today());
+          const y = curDate.getFullYear();
+          const m = curDate.getMonth();
+          const targetDay = raw === 'last' ? new Date(y, m + 1, 0).getDate() : parseInt(raw, 10);
+          dateInput.value = `${y}-${D.pad(m + 1)}-${D.pad(targetDay)}`;
+        } else if (fVal.startsWith('dow_')) {
+          const targetDow = parseInt(fVal.replace('dow_', ''), 10);
+          let cur = dateInput.value || D.today();
+          if (D.dow(cur) !== targetDow) {
+            while (D.dow(cur) !== targetDow) cur = D.addDays(cur, 1);
+            dateInput.value = cur;
+          }
+        }
+        updatePreview();
+      });
+    }
+
+    updatePreview();
 
     document.getElementById('routineModalForm').addEventListener('submit', e => {
       e.preventDefault();
       const title = document.getElementById('rFormTitle').value.trim();
       const zone = document.getElementById('rFormZone').value;
       const rType = document.getElementById('rFormFreq').value;
+      const dateVal = document.getElementById('rFormDate').value;
       const notes = document.getElementById('rFormNotes').value.trim();
 
+      const date = dateVal || D.today();
+      const parsedDate = D.parse(date);
+      const chosenDayOfMonth = parsedDate.getDate();
+      const chosenDow = D.dow(date);
+
       let recur = null;
-      let date = routine && routine.date ? routine.date : D.today();
 
       if (rType === 'daily') {
         recur = { unit: 'day', every: 1 };
       } else if (rType === 'dow_workdays') {
         recur = { unit: 'week', every: 1, dows: [0, 1, 2, 3, 4] };
-        date = D.today();
+      } else if (rType === 'w1') {
+        recur = { unit: 'week', every: 1, dow: chosenDow };
+      } else if (rType === 'w2') {
+        recur = { unit: 'week', every: 2, dow: chosenDow };
       } else if (rType.startsWith('dow_')) {
         const dow = parseInt(rType.replace('dow_', ''), 10);
         recur = { unit: 'week', every: 1, dow: dow };
-        date = D.dow(D.today()) === dow ? D.today() : D.nextDow(dow);
-      } else if (rType === 'w2') {
-        recur = { unit: 'week', every: 2 };
-      } else if (rType.startsWith('m1_day_') || rType === 'm1_custom') {
-        let dayOfMonth = 1;
-        if (rType.startsWith('m1_day_')) {
-          const raw = rType.replace('m1_day_', '');
-          dayOfMonth = raw === 'last' ? 'last' : (parseInt(raw, 10) || 1);
-        } else {
-          const inputVal = parseInt(document.getElementById('rFormMonthDay').value, 10);
-          dayOfMonth = Math.min(31, Math.max(1, inputVal || 1));
-        }
-
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = now.getMonth();
-        let targetD = dayOfMonth === 'last' ? new Date(y, m + 1, 0).getDate() : dayOfMonth;
-        date = `${y}-${D.pad(m + 1)}-${D.pad(targetD)}`;
-
-        recur = {
-          unit: 'month',
-          every: 1,
-          dayOfMonth: dayOfMonth,
-          anchor: typeof dayOfMonth === 'number' ? dayOfMonth : targetD
-        };
+      } else if (rType === 'm1') {
+        recur = { unit: 'month', every: 1, dayOfMonth: chosenDayOfMonth, anchor: chosenDayOfMonth };
+      } else if (rType === 'm1_day_last') {
+        recur = { unit: 'month', every: 1, dayOfMonth: 'last', anchor: 'last' };
+      } else if (rType.startsWith('m1_day_')) {
+        const raw = rType.replace('m1_day_', '');
+        const dNum = parseInt(raw, 10) || chosenDayOfMonth;
+        recur = { unit: 'month', every: 1, dayOfMonth: dNum, anchor: dNum };
       } else if (rType === 'm3') {
-        recur = { unit: 'month', every: 3, anchor: D.parse(date).getDate(), dayOfMonth: D.parse(date).getDate() };
+        recur = { unit: 'month', every: 3, dayOfMonth: chosenDayOfMonth, anchor: chosenDayOfMonth };
       } else if (rType === 'm6') {
-        recur = { unit: 'month', every: 6, anchor: D.parse(date).getDate(), dayOfMonth: D.parse(date).getDate() };
+        recur = { unit: 'month', every: 6, dayOfMonth: chosenDayOfMonth, anchor: chosenDayOfMonth };
       } else if (rType === 'y1') {
-        recur = { unit: 'year', every: 1, anchor: D.parse(date).getDate(), dayOfMonth: D.parse(date).getDate() };
+        recur = { unit: 'year', every: 1, dayOfMonth: chosenDayOfMonth, anchor: chosenDayOfMonth };
       }
 
       if (editId) {

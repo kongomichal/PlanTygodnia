@@ -1771,6 +1771,42 @@ button, input, select, textarea {
   resize: vertical;
 }
 
+.modal-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 520px) {
+  .modal-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+input[type="date"].form-input {
+  cursor: pointer;
+}
+
+input[type="date"].form-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity var(--trans);
+}
+
+input[type="date"].form-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.routine-preview-card {
+  padding: 10px 14px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-top: -2px;
+  margin-bottom: 2px;
+}
+
 /* ==========================================================================
    DYNAMICZNE TABELE DLA RUTYN I CYKLI
    ========================================================================== */
