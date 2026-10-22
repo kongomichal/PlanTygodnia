@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=4.6">
+  <link rel="stylesheet" href="css/style.css?v=6.0">
 
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
@@ -56,6 +56,7 @@
       color: #0f172a;
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
     [data-theme="dark"] body {
@@ -67,25 +68,32 @@
     #screenAuth {
       position: fixed;
       inset: 0;
+      width: 100%;
       width: 100vw;
-      height: 100vh;
+      width: 100dvw;
+      height: 100%;
+      min-height: 100vh;
+      min-height: 100dvh;
       background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, #0f172a 45%, #090d16 100%);
       color: #f8fafc;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: max(20px, env(safe-area-inset-top, 20px)) max(16px, env(safe-area-inset-right, 16px)) max(20px, env(safe-area-inset-bottom, 20px)) max(16px, env(safe-area-inset-left, 16px));
       box-sizing: border-box;
       z-index: 999999;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .auth-portal-card {
+      margin: auto;
       width: 100%;
       max-width: 420px;
-      background: rgba(15, 23, 42, 0.92);
+      background: rgba(15, 23, 42, 0.94);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 24px;
-      padding: 40px 32px;
+      padding: 38px 30px;
       box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
@@ -144,6 +152,7 @@
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       box-sizing: border-box;
+      min-height: 48px;
     }
 
     .btn-portal-google:hover {
@@ -160,7 +169,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      margin: 24px 0;
+      margin: 22px 0;
     }
 
     .auth-portal-divider::before,
@@ -194,10 +203,11 @@
       border: 1px solid rgba(255, 255, 255, 0.14);
       background: rgba(255, 255, 255, 0.05);
       color: #ffffff;
-      font-size: 0.9rem;
+      font-size: 16px; /* Zapobiega automatycznemu powiększaniu na iOS Safari */
       outline: none;
       box-sizing: border-box;
       transition: all 0.2s;
+      min-height: 46px;
     }
 
     .portal-input:focus {
@@ -224,10 +234,11 @@
       border: none;
       background: #4f46e5;
       color: #ffffff;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
       font-weight: 700;
       cursor: pointer;
       transition: all 0.2s;
+      min-height: 46px;
     }
 
     .btn-portal-submit:hover {
@@ -241,10 +252,11 @@
       border: 1px solid rgba(255, 255, 255, 0.16);
       background: transparent;
       color: #e2e8f0;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
+      min-height: 46px;
     }
 
     .btn-portal-register:hover {
@@ -270,6 +282,28 @@
       line-height: 1.45;
       margin-bottom: 20px;
       text-align: left;
+    }
+
+    @media (max-width: 480px) {
+      #screenAuth {
+        padding: max(16px, env(safe-area-inset-top, 16px)) 12px max(20px, env(safe-area-inset-bottom, 20px)) 12px;
+        align-items: flex-start;
+      }
+      .auth-portal-card {
+        padding: 26px 18px;
+        border-radius: 20px;
+        margin: auto 0;
+      }
+      .auth-portal-icon {
+        font-size: 1.8rem;
+      }
+      .auth-portal-title {
+        font-size: 1.45rem;
+      }
+      .auth-portal-subtitle {
+        font-size: 0.82rem;
+        margin-bottom: 20px;
+      }
     }
 
     /* 2. GŁÓWNY EKRAN PLANERA - CAŁKOWICIE UKRYTY DOMYŚLNIE */
@@ -367,6 +401,9 @@
       </div>
     </header>
 
+    <!-- Pasek wyboru dni tygodnia dla urządzeń mobilnych -->
+    <div class="mobile-day-strip" id="mobileDayStrip"></div>
+
     <!-- Główna przestrzeń: Lewy panel Wykonane + Rozkładówka 7 dni + Prawy panel Skrzynki -->
     <div class="spread-container" id="spreadContainer">
       <!-- LEWA STRONA: BOCZNY PANEL WYKONANYCH DNI -->
@@ -384,6 +421,32 @@
         <!-- Generowany dynamicznie przez JS -->
       </aside>
     </div>
+
+    <!-- Dolny pasek nawigacyjny na telefon (Mobile Bottom Nav) -->
+    <nav class="mobile-bottom-bar" id="mobileBottomBar">
+      <button class="mobile-nav-btn active" data-act="mobileNavPlan" id="mNavPlan">
+        <span class="m-nav-icon">📅</span>
+        <span class="m-nav-label">Planer</span>
+      </button>
+      <button class="mobile-nav-btn" data-act="toggleInboxSidebar" id="mNavInbox">
+        <div class="m-nav-icon-wrap">
+          <span class="m-nav-icon">📥</span>
+          <span class="m-nav-badge" id="mInboxBadge" style="display:none;">0</span>
+        </div>
+        <span class="m-nav-label">Skrzynka</span>
+      </button>
+      <button class="mobile-nav-fab" data-act="openNewTaskModal" id="mNavAdd" title="Dodaj nowe zadanie" aria-label="Dodaj nowe zadanie">
+        <span class="m-fab-icon">+</span>
+      </button>
+      <button class="mobile-nav-btn" data-act="openRoutinesModal" id="mNavRoutines">
+        <span class="m-nav-icon">🪚</span>
+        <span class="m-nav-label">Rutyny</span>
+      </button>
+      <button class="mobile-nav-btn" data-act="openSettings" id="mNavSettings">
+        <span class="m-nav-icon">⚙️</span>
+        <span class="m-nav-label">Ustawienia</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Modale i powiadomienia -->
@@ -394,14 +457,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=3.5"></script>
+  <script src="js/firebase-config.js?v=6.0"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=3.5"></script>
-  <script src="js/seed.js?v=3.5"></script>
-  <script src="js/sync.js?v=3.5"></script>
-  <script src="js/store.js?v=3.5"></script>
-  <script src="js/app.js?v=3.5"></script>
+  <script src="js/utils.js?v=6.0"></script>
+  <script src="js/seed.js?v=6.0"></script>
+  <script src="js/sync.js?v=6.0"></script>
+  <script src="js/store.js?v=6.0"></script>
+  <script src="js/app.js?v=6.0"></script>
 
   <!-- Niezależna od cache obsługa bramki wejściowej -->
   <script>

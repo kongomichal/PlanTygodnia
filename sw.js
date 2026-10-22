@@ -1,5 +1,5 @@
 // Service Worker dla Plan Tygodnia (PWA & Offline Support)
-const CACHE_NAME = 'plantygodnia-cache-v1';
+const CACHE_NAME = 'plantygodnia-cache-v3';
 
 self.addEventListener('install', event => {
   self.skipWaiting();

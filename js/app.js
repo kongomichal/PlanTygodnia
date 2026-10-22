@@ -12,12 +12,13 @@
 const App = {
   weekOffset: 0,
   theme: 'light',
-  isSidebarOpen: true,
+  isSidebarOpen: window.innerWidth > 768,
   isCompletedSidebarOpen: false,
   showAllDaysInGrid: false,
   collapsedNotes: new Set(),
   inboxSelectedPriority: 2, // 1, 2, 3
   activeModal: null, // null | 'routines' | 'routine_form' | 'task' | 'settings'
+  activeMobileDay: null,
 
   init() {
     Store.init();
@@ -31,6 +32,8 @@ const App = {
     this.initTheme();
     this.bindEvents();
     this.renderAll();
+    this.initMobileScrollSync();
+    this.scrollToCurrentDayOnMobile();
 
     if (window.Sync && typeof window.Sync.init === 'function') {
       window.Sync.init();
@@ -39,6 +42,10 @@ const App = {
     Store.subscribe(() => {
       this.renderAll();
     });
+
+    window.addEventListener('resize', () => {
+      this.updateMobileBottomNav();
+    }, { passive: true });
   },
 
   /* ============ Motyw Jasny / Ciemny ============ */
@@ -121,19 +128,37 @@ const App = {
     if (badgeEl) {
       badgeEl.textContent = inboxItems.length;
     }
+    const mBadge = document.getElementById('mInboxBadge');
+    if (mBadge) {
+      mBadge.textContent = inboxItems.length;
+      mBadge.style.display = inboxItems.length > 0 ? 'inline-flex' : 'none';
+    }
   },
 
   toggleInboxSidebar() {
     this.isSidebarOpen = !this.isSidebarOpen;
+    if (this.isSidebarOpen && window.innerWidth <= 768 && this.isCompletedSidebarOpen) {
+      this.isCompletedSidebarOpen = false;
+      this.renderCompletedSidebar();
+    }
     const sidebar = document.getElementById('inboxSidebar');
     const btn = document.getElementById('btnToggleSidebar');
     if (sidebar) sidebar.classList.toggle('is-collapsed', !this.isSidebarOpen);
     if (btn) btn.classList.toggle('active', this.isSidebarOpen);
+    this.updateMobileBottomNav();
   },
 
   toggleCompletedSidebar() {
     this.isCompletedSidebarOpen = !this.isCompletedSidebarOpen;
+    if (this.isCompletedSidebarOpen && window.innerWidth <= 768 && this.isSidebarOpen) {
+      this.isSidebarOpen = false;
+      const sidebar = document.getElementById('inboxSidebar');
+      const btn = document.getElementById('btnToggleSidebar');
+      if (sidebar) sidebar.classList.add('is-collapsed');
+      if (btn) btn.classList.remove('active');
+    }
     this.renderCompletedSidebar();
+    this.updateMobileBottomNav();
   },
 
   toggleShowCompletedInGrid(val) {
@@ -341,6 +366,11 @@ const App = {
 
     const badgeEl = document.getElementById('completedCountBadge');
     if (badgeEl) badgeEl.textContent = completedDates.length;
+    const mCompBadge = document.getElementById('mCompletedBadge');
+    if (mCompBadge) {
+      mCompBadge.textContent = completedDates.length;
+      mCompBadge.style.display = completedDates.length > 0 ? 'inline-flex' : 'none';
+    }
 
     const btnToggle = document.getElementById('btnToggleCompleted');
     if (btnToggle) {
@@ -420,9 +450,133 @@ const App = {
     this.renderWeekDaysGrid();
     this.renderInboxSidebar();
     this.updateInboxBadge();
+    this.renderMobileDayStrip();
+    this.updateMobileBottomNav();
     if (this.activeModal === 'routines') {
       this.openRoutinesModal();
     }
+  },
+
+  /* ============ Pasek wyboru dni na telefonach ============ */
+  renderMobileDayStrip() {
+    const strip = document.getElementById('mobileDayStrip');
+    if (!strip) return;
+
+    const today = D.today();
+    const days = this.showAllDaysInGrid
+      ? Store.getWeekDays(this.weekOffset)
+      : Store.getRollingDays(this.weekOffset).days;
+
+    if (!days || days.length === 0) {
+      strip.innerHTML = '';
+      return;
+    }
+
+    if (!this.activeMobileDay || !days.includes(this.activeMobileDay)) {
+      this.activeMobileDay = days.includes(today) ? today : days[0];
+    }
+
+    strip.innerHTML = days.map(dateStr => {
+      const isToday = dateStr === today;
+      const isActive = dateStr === this.activeMobileDay;
+      const isCompleted = Store.isDayCompleted(dateStr);
+      const d = D.parse(dateStr);
+      const dow = D.dow(dateStr);
+      const dayShort = D.DOW_SHORT[dow];
+      const dayNum = d.getDate();
+
+      return `
+        <button class="day-strip-btn ${isActive ? 'is-active' : ''} ${isToday ? 'is-today' : ''} ${isCompleted ? 'is-completed' : ''}"
+                data-act="mobileSelectDay" data-date="${dateStr}" title="${dayShort} ${dayNum} ${isToday ? '(Dziś)' : ''}">
+          <span class="day-strip-dow">${dayShort}</span>
+          <span class="day-strip-num">${dayNum}</span>
+          ${isCompleted ? '<span class="day-strip-dot is-check">✓</span>' : (isToday ? '<span class="day-strip-dot"></span>' : '')}
+        </button>
+      `;
+    }).join('');
+  },
+
+  scrollToDay(dateStr) {
+    this.activeMobileDay = dateStr;
+    const col = document.querySelector(`.day-column[data-date="${dateStr}"]`);
+    if (col) {
+      col.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+    document.querySelectorAll('.day-strip-btn').forEach(btn => {
+      btn.classList.toggle('is-active', btn.dataset.date === dateStr);
+    });
+  },
+
+  scrollToCurrentDayOnMobile(smooth = false) {
+    if (window.innerWidth > 768) return;
+    const today = D.today();
+    const target = document.querySelector(`.day-column[data-date="${today}"]`) ||
+                   document.querySelector('.day-column.is-current-day') ||
+                   document.querySelector('.day-column');
+    if (target) {
+      const date = target.dataset.date || today;
+      this.activeMobileDay = date;
+      setTimeout(() => {
+        target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
+        document.querySelectorAll('.day-strip-btn').forEach(btn => {
+          btn.classList.toggle('is-active', btn.dataset.date === date);
+        });
+      }, 70);
+    }
+  },
+
+  initMobileScrollSync() {
+    const boardMain = document.getElementById('boardMain');
+    if (!boardMain || this._mobileScrollSyncBound) return;
+    this._mobileScrollSyncBound = true;
+    let scrollTimeout = null;
+
+    boardMain.addEventListener('scroll', () => {
+      if (window.innerWidth > 768) return;
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        const cols = Array.from(document.querySelectorAll('.day-column'));
+        if (cols.length === 0) return;
+        const center = boardMain.scrollLeft + (boardMain.clientWidth / 2);
+        let closestCol = null;
+        let minDiff = Infinity;
+
+        cols.forEach(col => {
+          const colCenter = col.offsetLeft + (col.offsetWidth / 2);
+          const diff = Math.abs(colCenter - center);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestCol = col;
+          }
+        });
+
+        if (closestCol && closestCol.dataset.date) {
+          const date = closestCol.dataset.date;
+          this.activeMobileDay = date;
+          document.querySelectorAll('.day-strip-btn').forEach(btn => {
+            btn.classList.toggle('is-active', btn.dataset.date === date);
+          });
+        }
+      }, 60);
+    }, { passive: true });
+  },
+
+  updateMobileBottomNav() {
+    const mNavPlan = document.getElementById('mNavPlan');
+    const mNavInbox = document.getElementById('mNavInbox');
+    const mNavSettings = document.getElementById('mNavSettings');
+    const mInboxBadge = document.getElementById('mInboxBadge');
+
+    const inboxCount = Store.state.tasks.filter(t => !t.done && (t.inbox || !t.date) && !t.recur).length;
+
+    if (mInboxBadge) {
+      mInboxBadge.textContent = inboxCount;
+      mInboxBadge.style.display = inboxCount > 0 ? 'inline-flex' : 'none';
+    }
+
+    if (mNavInbox) mNavInbox.classList.toggle('active', this.isSidebarOpen);
+    if (mNavSettings) mNavSettings.classList.toggle('active', this.activeModal === 'settings');
+    if (mNavPlan) mNavPlan.classList.toggle('active', !this.isSidebarOpen && !this.isCompletedSidebarOpen && this.activeModal !== 'settings');
   },
 
   /* Pomocnik strefy rutyny: 'selfcare' (Zdrowie & Ja) vs 'standard' (Bieżączka / KSeF / praca) */
@@ -928,6 +1082,21 @@ const App = {
         this.openNewTaskModal(date, priority);
       } else if (act === 'openSettings') {
         this.openSettings();
+      } else if (act === 'mobileNavPlan') {
+        if (this.isSidebarOpen) {
+          this.isSidebarOpen = false;
+          const s = document.getElementById('inboxSidebar');
+          if (s) s.classList.add('is-collapsed');
+        }
+        if (this.isCompletedSidebarOpen) {
+          this.isCompletedSidebarOpen = false;
+          this.renderCompletedSidebar();
+        }
+        this.scrollToCurrentDayOnMobile(true);
+        this.updateMobileBottomNav();
+      } else if (act === 'mobileSelectDay') {
+        e.stopPropagation();
+        this.scrollToDay(btn.dataset.date);
       }
     });
 
@@ -1557,6 +1726,8 @@ const App = {
 
   /* Ustawienia i backup */
   openSettings() {
+    this.activeModal = 'settings';
+    this.updateMobileBottomNav();
     const root = document.getElementById('modalRoot');
     if (!root) return;
 
@@ -1594,9 +1765,10 @@ const App = {
               <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">
                 ${window.Sync && window.Sync.user ? `Zalogowano jako: <strong>${window.Sync.user.displayName || window.Sync.user.email}</strong>` : 'Zaloguj się, aby mieć te same zadania na komputerze i w telefonie w czasie rzeczywistym.'}
               </p>
-              <div style="display:flex; gap:8px;">
+              <div style="display:flex; flex-wrap:wrap; gap:8px;">
                 ${window.Sync && window.Sync.user ? `
-                  <button class="header-action-btn btn-primary" onclick="Sync.pushToCloud(true); App.showToast('Wymuszono synchronizację!');">🔄 Wymuś synchronizację</button>
+                  <button class="header-action-btn btn-primary" onclick="Sync.pushToCloud(true); App.showToast('Wysłano dane z tego urządzenia do chmury!');">⬆️ Wyślij do chmury</button>
+                  <button class="header-action-btn" onclick="Sync.pullFromCloud();">⬇️ Pobierz z chmury</button>
                   <button class="header-action-btn" style="color:var(--crimson);" onclick="Sync.logout(); App.openSettings();">Wyloguj</button>
                 ` : `
                   <button class="header-action-btn btn-primary" onclick="Sync.openAuthModal()">☁️ Zaloguj / Połącz z chmurą</button>
@@ -1657,6 +1829,7 @@ const App = {
     this.activeModal = null;
     const root = document.getElementById('modalRoot');
     if (root) root.innerHTML = '';
+    this.updateMobileBottomNav();
   },
 
   showToast(msg) {

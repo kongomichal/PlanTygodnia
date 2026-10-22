@@ -168,16 +168,48 @@ const Sync = {
         if (cloudData && Array.isArray(cloudData.tasks)) {
           const localUpdated = Store.state?.updatedAt || 0;
           const cloudUpdated = cloudData.updatedAt || 0;
+          const localTasks = (Store.state && Array.isArray(Store.state.tasks)) ? Store.state.tasks : [];
+          const cloudTasks = cloudData.tasks;
 
-          // Jeśli w chmurze jest nowsza wersja lub lokalnie nie mamy zadań, pobierz
-          const localTaskCount = Store.state?.tasks?.length || 0;
-          if (cloudUpdated > localUpdated || localTaskCount === 0) {
+          // 1. Jeśli lokalnie są zadania, a w chmurze pusto (np. pierwsze logowanie na urządzeniu z danymi):
+          if (localTasks.length > 0 && cloudTasks.length === 0) {
+            console.log('Firebase Sync: lokalne zadania istnieją, wysyłam do chmury');
+            this.pushToCloud(true);
+            return;
+          }
+
+          // 2. Jeśli w chmurze są zadania, a lokalnie pusto (np. nowe logowanie na telefonie):
+          if (cloudTasks.length > 0 && localTasks.length === 0) {
+            console.log('Firebase Sync: pobieram zadania z chmury');
             this.isRemoteChange = true;
             Store.state = cloudData;
             if (!Array.isArray(Store.state.completedDays)) Store.state.completedDays = [];
-            Store.persist(true, false); // zapisz lokalnie, nie odsyłaj echa do chmury
+            Store.persist(true, false);
             this.isRemoteChange = false;
             this.setStatus('synced');
+            if (window.App && typeof window.App.renderAll === 'function') {
+              window.App.renderAll();
+              window.App.scrollToCurrentDayOnMobile();
+            }
+            return;
+          }
+
+          // 3. W pozostałych przypadkach decyduje znacznik nowszej aktualizacji:
+          if (cloudUpdated > localUpdated) {
+            console.log('Firebase Sync: chmura ma nowsze dane, aktualizuję lokalnie');
+            this.isRemoteChange = true;
+            Store.state = cloudData;
+            if (!Array.isArray(Store.state.completedDays)) Store.state.completedDays = [];
+            Store.persist(true, false);
+            this.isRemoteChange = false;
+            this.setStatus('synced');
+            if (window.App && typeof window.App.renderAll === 'function') {
+              window.App.renderAll();
+              window.App.scrollToCurrentDayOnMobile();
+            }
+          } else if (localUpdated > cloudUpdated && localTasks.length > 0) {
+            console.log('Firebase Sync: lokalne dane są nowsze, wysyłam do chmury');
+            this.pushToCloud(true);
           } else {
             this.setStatus('synced');
           }
@@ -189,8 +221,55 @@ const Sync = {
     }, err => {
       console.error('Błąd Firestore onSnapshot:', err);
       this.setStatus('error');
-      App.showToast('Uwaga: Błąd synchronizacji Firestore (sprawdź reguły bazy).');
+      if (err && err.code === 'permission-denied') {
+        if (window.App && typeof window.App.showToast === 'function') {
+          App.showToast('⚠️ Brak uprawnień do Firestore! Sprawdź reguły bazy w Firebase Console.');
+        }
+      } else {
+        if (window.App && typeof window.App.showToast === 'function') {
+          App.showToast('Błąd synchronizacji Firestore: ' + (err.message || err.code));
+        }
+      }
     });
+  },
+
+  /* ---- Ręczne pobranie z chmury (Pull) ---- */
+  async pullFromCloud() {
+    if (!this.user || !this.db) {
+      if (window.App) App.showToast('Najpierw zaloguj się do konta.');
+      return;
+    }
+    try {
+      this.setStatus('syncing');
+      const docRef = this.db.collection('users').doc(this.user.uid);
+      const snap = await docRef.get();
+      if (snap.exists) {
+        const cloudData = snap.data();
+        if (cloudData && Array.isArray(cloudData.tasks)) {
+          this.isRemoteChange = true;
+          Store.state = cloudData;
+          if (!Array.isArray(Store.state.completedDays)) Store.state.completedDays = [];
+          Store.persist(true, false);
+          this.isRemoteChange = false;
+          this.setStatus('synced');
+          if (window.App && typeof window.App.renderAll === 'function') {
+            window.App.renderAll();
+            window.App.scrollToCurrentDayOnMobile();
+            window.App.showToast(`Pobrano dane z chmury (${cloudData.tasks.length} zadań)!`);
+          }
+        } else {
+          if (window.App) App.showToast('W chmurze brak zadań.');
+          this.setStatus('synced');
+        }
+      } else {
+        if (window.App) App.showToast('Brak zapisanego profilu w chmurze.');
+        this.setStatus('synced');
+      }
+    } catch (err) {
+      console.error('Błąd pullFromCloud:', err);
+      this.setStatus('error');
+      if (window.App) App.showToast('Błąd pobierania: ' + (err.message || err.code));
+    }
   },
 
   detachUserDoc() {
@@ -563,11 +642,11 @@ const Sync = {
 
               <!-- Formularz Email -->
               <form onsubmit="event.preventDefault(); const em=this.email.value; const pw=this.pass.value; Sync.loginWithEmail(em, pw);" style="display:flex; flex-direction:column; gap:10px;">
-                <input type="email" name="email" placeholder="Twój adres e-mail" required style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); color:var(--text-main); font-size:0.86rem; outline:none;">
-                <input type="password" name="pass" placeholder="Hasło (min. 6 znaków)" required minlength="6" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); color:var(--text-main); font-size:0.86rem; outline:none;">
+                <input type="email" name="email" placeholder="Twój adres e-mail" required style="width:100%; padding:11px 14px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); color:var(--text-main); font-size:16px; min-height:44px; outline:none; box-sizing:border-box;">
+                <input type="password" name="pass" placeholder="Hasło (min. 6 znaków)" required minlength="6" style="width:100%; padding:11px 14px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); color:var(--text-main); font-size:16px; min-height:44px; outline:none; box-sizing:border-box;">
                 <div style="display:flex; gap:8px; margin-top:4px;">
-                  <button type="submit" class="header-action-btn btn-primary" style="flex:1; justify-content:center;">Zaloguj się</button>
-                  <button type="button" class="header-action-btn" style="flex:1; justify-content:center;" onclick="const f=this.form; if(f.checkValidity()){ Sync.registerWithEmail(f.email.value, f.pass.value); } else { f.reportValidity(); }">Zarejestruj się</button>
+                  <button type="submit" class="header-action-btn btn-primary" style="flex:1; justify-content:center; min-height:44px;">Zaloguj się</button>
+                  <button type="button" class="header-action-btn" style="flex:1; justify-content:center; min-height:44px;" onclick="const f=this.form; if(f.checkValidity()){ Sync.registerWithEmail(f.email.value, f.pass.value); } else { f.reportValidity(); }">Zarejestruj się</button>
                 </div>
               </form>
             </div>
