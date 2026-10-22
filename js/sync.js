@@ -158,14 +158,28 @@ const Sync = {
     const docRef = this.db.collection('users').doc(uid);
 
     this.unsubscribeSnapshot = docRef.onSnapshot(docSnap => {
+      // 1. Ignoruj echo lokalnego zapisu, który jeszcze oczekuje na wysyłkę z tego urządzenia
+      if (docSnap.metadata && docSnap.metadata.hasPendingWrites) {
+        return;
+      }
+
       if (docSnap.exists) {
         const cloudData = docSnap.data();
         if (cloudData && Array.isArray(cloudData.tasks)) {
           const store = (typeof Store !== 'undefined' ? Store : window.Store);
           const localTasks = (store && store.state && Array.isArray(store.state.tasks)) ? store.state.tasks : [];
+          const localUpdated = (store && store.state && store.state.updatedAt) || 0;
+          const cloudUpdated = cloudData.updatedAt || 0;
 
           // Jeśli w chmurze jest pusto (np. nowe konto), a na urządzeniu lokalnie mamy zadania: wyślij je
           if (cloudData.tasks.length === 0 && localTasks.length > 0) {
+            this.pushToCloud();
+            return;
+          }
+
+          // Jeśli lokalny stan jest nowszy niż w chmurze (np. przed chwilą dodano/usunięto zadanie na tym urządzeniu),
+          // nie cofaj zmian użytkownika starszymi danymi z chmury!
+          if (localUpdated > cloudUpdated && localTasks.length > 0) {
             this.pushToCloud();
             return;
           }
@@ -178,6 +192,12 @@ const Sync = {
           }
           this.isRemoteChange = false;
           this.setStatus('synced');
+
+          // Natychmiastowe odświeżenie widoku w aplikacji
+          const app = (typeof App !== 'undefined' ? App : window.App);
+          if (app && typeof app.renderAll === 'function') {
+            app.renderAll();
+          }
         }
       } else {
         // Pierwsze logowanie użytkownika: wyślij aktualny stan do chmury natychmiast
@@ -207,6 +227,8 @@ const Sync = {
       const store = (typeof Store !== 'undefined' ? Store : window.Store);
       if (!store || !store.state) return;
       const payload = JSON.parse(JSON.stringify(store.state));
+      payload.updatedAt = Date.now();
+      store.state.updatedAt = payload.updatedAt;
       docRef.set(payload).then(() => {
         this.setStatus('synced');
       }).catch(err => {

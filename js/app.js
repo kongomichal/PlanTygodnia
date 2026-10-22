@@ -1226,6 +1226,7 @@ const App = {
         this.openNewTaskModal(null, 2, btn.dataset.id);
       } else if (act === 'editRoutine') {
         e.stopPropagation();
+        this._fromRoutinesTable = (this.activeModal === 'routines');
         this.openRoutineModal({ editId: btn.dataset.id });
       } else if (act === 'deleteRoutine') {
         e.stopPropagation();
@@ -1238,7 +1239,7 @@ const App = {
       } else if (act === 'openRoutinesModal') {
         this.openRoutinesModal();
       } else if (act === 'openNewRoutineModal') {
-        this._fromRoutinesTable = true;
+        this._fromRoutinesTable = (this.activeModal === 'routines');
         this.openRoutineModal({ defaultFreq: btn.dataset.freq || null });
       } else if (act === 'showColQuickAdd') {
         const date = btn.dataset.date;
@@ -1378,6 +1379,7 @@ const App = {
     Store.remove(id);
     this.showToast(`Usunięto rutynę „${title}”.`, () => {
       Store.add(backup);
+      this.renderAll();
     });
     if (this.activeModal === 'routines') {
       this.openRoutinesModal();
@@ -1388,6 +1390,7 @@ const App = {
         this.closeModal();
       }
     }
+    this.renderAll();
   },
 
   /* ==========================================================================
@@ -1899,6 +1902,7 @@ const App = {
       } else {
         this.closeModal();
       }
+      this.renderAll();
     });
   },
 
@@ -2012,9 +2016,11 @@ const App = {
 
   closeModal() {
     this.activeModal = null;
+    this._fromRoutinesTable = false;
     const root = document.getElementById('modalRoot');
     if (root) root.innerHTML = '';
     this.updateMobileBottomNav();
+    this.renderAll();
   },
 
   showToast(msg, undoFn = null) {
