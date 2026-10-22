@@ -16,6 +16,9 @@ const App = {
   isCompletedSidebarOpen: false,
   showAllDaysInGrid: false,
   collapsedNotes: new Set(),
+  expandedDoneDays: new Set(),
+  _isRendering: false,
+  _fromRoutinesTable: false,
   inboxSelectedPriority: 2, // 1, 2, 3
   activeModal: null, // null | 'routines' | 'routine_form' | 'task' | 'settings'
   activeMobileDay: null,
@@ -27,6 +30,12 @@ const App = {
       this.collapsedNotes = new Set(savedCollapsed);
     } catch (e) {
       this.collapsedNotes = new Set();
+    }
+    try {
+      const savedDoneDays = JSON.parse(localStorage.getItem('kompas_expanded_done_days') || '[]');
+      this.expandedDoneDays = new Set(savedDoneDays);
+    } catch (e) {
+      this.expandedDoneDays = new Set();
     }
     this.autoRolloverOverdueTasks();
     this.initTheme();
@@ -188,6 +197,33 @@ const App = {
       btn.textContent = isNowCollapsed ? '▸' : '▾';
       btn.title = isNowCollapsed ? 'Rozwiń opis' : 'Zwiń opis';
     });
+  },
+
+  /* Rozwijanie / zwijanie archiwum wykonanych zadań danego dnia */
+  toggleDoneDrawer(dateStr) {
+    if (this.expandedDoneDays.has(dateStr)) {
+      this.expandedDoneDays.delete(dateStr);
+    } else {
+      this.expandedDoneDays.add(dateStr);
+    }
+    try {
+      localStorage.setItem('kompas_expanded_done_days', JSON.stringify([...this.expandedDoneDays]));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    const box = document.querySelector(`.col-completed-box[data-date="${dateStr}"]`);
+    if (box) {
+      const isExp = this.expandedDoneDays.has(dateStr);
+      box.classList.toggle('is-expanded', isExp);
+      box.classList.toggle('is-collapsed', !isExp);
+      const content = box.querySelector('.col-completed-drawer-content');
+      if (content) content.classList.toggle('is-collapsed', !isExp);
+      const chev = box.querySelector('.completed-chevron');
+      if (chev) chev.textContent = isExp ? '▾' : '▸';
+      const btn = box.querySelector('.col-completed-toggle-btn');
+      if (btn) btn.title = isExp ? 'Zwiń wykonane zadania' : 'Rozwiń wykonane zadania';
+    }
   },
 
   /* Automatyczne przenoszenie zaległych zadań z przeszłości (z wyłączeniem rutyn i Zdrowie & Ja) */
@@ -445,6 +481,7 @@ const App = {
 
   /* ============ Główny render ============ */
   renderAll() {
+    this._isRendering = true;
     this.updateWeekNav();
     this.renderCompletedSidebar();
     this.renderWeekDaysGrid();
@@ -455,6 +492,36 @@ const App = {
     if (this.activeModal === 'routines') {
       this.openRoutinesModal();
     }
+    this.restoreMobileScrollPosition();
+    setTimeout(() => {
+      this._isRendering = false;
+    }, 120);
+  },
+
+  /* Zachowuje dokładną pozycję aktywnego dnia na telefonie bez przeskoków */
+  restoreMobileScrollPosition() {
+    if (window.innerWidth > 768) return;
+    const boardMain = document.getElementById('boardMain');
+    if (!boardMain) return;
+
+    const today = D.today();
+    const days = this.showAllDaysInGrid
+      ? Store.getWeekDays(this.weekOffset)
+      : Store.getRollingDays(this.weekOffset).days;
+
+    if (!this.activeMobileDay || !days.includes(this.activeMobileDay)) {
+      this.activeMobileDay = days.includes(today) ? today : days[0];
+    }
+
+    const targetCol = boardMain.querySelector(`.day-column[data-date="${this.activeMobileDay}"]`);
+    if (targetCol) {
+      const left = targetCol.offsetLeft - (boardMain.clientWidth - targetCol.offsetWidth) / 2;
+      boardMain.scrollLeft = Math.max(0, left);
+    }
+
+    document.querySelectorAll('.day-strip-btn').forEach(btn => {
+      btn.classList.toggle('is-active', btn.dataset.date === this.activeMobileDay);
+    });
   },
 
   /* ============ Pasek wyboru dni na telefonach ============ */
@@ -496,11 +563,11 @@ const App = {
     }).join('');
   },
 
-  scrollToDay(dateStr) {
+  scrollToDay(dateStr, smooth = true) {
     this.activeMobileDay = dateStr;
     const col = document.querySelector(`.day-column[data-date="${dateStr}"]`);
     if (col) {
-      col.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      col.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
     }
     document.querySelectorAll('.day-strip-btn').forEach(btn => {
       btn.classList.toggle('is-active', btn.dataset.date === dateStr);
@@ -532,9 +599,11 @@ const App = {
     let scrollTimeout = null;
 
     boardMain.addEventListener('scroll', () => {
+      if (this._isRendering) return;
       if (window.innerWidth > 768) return;
       if (scrollTimeout) clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
+        if (this._isRendering) return;
         const cols = Array.from(document.querySelectorAll('.day-column'));
         if (cols.length === 0) return;
         const center = boardMain.scrollLeft + (boardMain.clientWidth / 2);
@@ -557,7 +626,7 @@ const App = {
             btn.classList.toggle('is-active', btn.dataset.date === date);
           });
         }
-      }, 60);
+      }, 50);
     }, { passive: true });
   },
 
@@ -618,9 +687,7 @@ const App = {
       return;
     }
 
-    // Dzień o statusie bieżącym (rozciągany 2x):
-    // Jeśli dzisiejszy dzień (today) jest w siatce, to on jest bieżący.
-    // Jeśli dzisiejszy dzień został zarchiwizowany, to pierwszy aktywny dzień (days[0]) przejmuje rolę bieżącego!
+    // Dzień o statusie bieżącym (rozciągany 2x na pulpicie):
     const currentActiveDate = (this.weekOffset === 0)
       ? (days.includes(today) ? today : days[0])
       : null;
@@ -637,18 +704,28 @@ const App = {
       // Rutyny przypadające na ten dzień:
       const dayRoutines = Store.state.tasks.filter(t => t.recur && Recur.matchesDate(t, dateStr));
 
-      // 🛡️ BAZA: Zdrowie & Ja (Ostrzenie piły, ciało, duch, zdrowie, rozwój):
+      // 🛡️ BAZA: Zdrowie & Ja:
       const selfcareRoutines = dayRoutines.filter(r => !this.isWorkRoutine(r));
-      const doneSelfcareCount = selfcareRoutines.filter(r => Recur.isDoneOn(r, dateStr)).length;
+      const activeSelfcare = selfcareRoutines.filter(r => !Recur.isDoneOn(r, dateStr));
+      const doneSelfcare = selfcareRoutines.filter(r => Recur.isDoneOn(r, dateStr));
 
       // 📋 BIEŻĄCZKA: Cykliczne sprawy operacyjne (np. KSeF, faktury, firma, dom):
       const recurringWorkTasks = dayRoutines.filter(r => this.isWorkRoutine(r));
+      const activeRecurringWork = recurringWorkTasks.filter(r => !Recur.isDoneOn(r, dateStr));
+      const doneRecurringWork = recurringWorkTasks.filter(r => Recur.isDoneOn(r, dateStr));
 
-      // Zadania dnia: podział na Głaz (I) i Bieżączkę (II)
-      const sortDone = arr => [...arr].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
-      const rockTasks = sortDone(dayTasks.filter(t => this.getTaskPriority(t) === 1));
-      const standardTasks = sortDone(dayTasks.filter(t => this.getTaskPriority(t) === 2 || this.getTaskPriority(t) === 3));
-      const totalWorkCount = standardTasks.length + recurringWorkTasks.length;
+      // Zadania dnia: Głaz (I) i Bieżączka (II)
+      const rockTasks = dayTasks.filter(t => this.getTaskPriority(t) === 1);
+      const activeRockTasks = rockTasks.filter(t => !t.done);
+      const doneRockTasks = rockTasks.filter(t => t.done);
+
+      const standardTasks = dayTasks.filter(t => this.getTaskPriority(t) === 2 || this.getTaskPriority(t) === 3);
+      const activeStandardTasks = standardTasks.filter(t => !t.done);
+      const doneStandardTasks = standardTasks.filter(t => t.done);
+
+      const totalActiveWorkCount = activeStandardTasks.length + activeRecurringWork.length;
+      const totalDoneCount = doneRockTasks.length + doneStandardTasks.length + doneRecurringWork.length + doneSelfcare.length;
+      const isDoneDrawerExpanded = this.expandedDoneDays.has(dateStr);
 
       const finishBtnLabel = isCompleted
         ? '✓ Zrobione'
@@ -674,111 +751,78 @@ const App = {
             ${selfcareRoutines.length > 0 ? `
               <div class="col-selfcare-box">
                 <div class="selfcare-box-title">
-                  <span>🛡️ Zdrowie & Ja (${doneSelfcareCount}/${selfcareRoutines.length})</span>
+                  <span>🛡️ Zdrowie & Ja (${doneSelfcare.length}/${selfcareRoutines.length})</span>
                 </div>
-                <div class="selfcare-items-list">
-                  ${selfcareRoutines.map(r => {
-                    const isDone = Recur.isDoneOn(r, dateStr);
-                    const streak = Recur.streak(r);
-                    const isCollapsed = this.collapsedNotes.has(r.id);
-                    return `
-                      <div class="selfcare-item-pill ${isDone ? 'is-done' : ''}" data-act="toggleRoutineDay" data-id="${r.id}" data-date="${dateStr}" title="${esc(r.title)}${r.notes ? ` — 📝 ${esc(r.notes)}` : ''}">
-                        <div class="selfcare-pill-top">
-                          <span class="selfcare-check-circle">${isDone ? '✓' : ''}</span>
-                          <span class="selfcare-title">${esc(r.title)}</span>
-                          ${streak > 0 ? `<span class="selfcare-streak">🔥${streak}</span>` : ''}
-                          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
-                            ${r.notes ? `
-                              <button class="note-toggle-btn" data-act="toggleNote" data-id="${r.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
-                                ${isCollapsed ? '▸' : '▾'}
-                              </button>
-                            ` : ''}
-                            <button class="selfcare-edit-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj tę rutynę">✏️</button>
-                          </div>
-                        </div>
-                        ${r.notes ? `
-                          <div class="selfcare-note-line ${isCollapsed ? 'is-collapsed' : ''}" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować notatkę">
-                            <span>📝 ${linkify(r.notes)}</span>
-                          </div>
-                        ` : ''}
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
+                ${activeSelfcare.length > 0 ? `
+                  <div class="selfcare-items-list">
+                    ${activeSelfcare.map(r => this.renderSelfcareItemPill(r, dateStr, false)).join('')}
+                  </div>
+                ` : `
+                  <div class="selfcare-all-done-hint">✓ Wszystkie nawyki na dziś odhaczone! 🎉</div>
+                `}
               </div>
             ` : ''}
 
-            <!-- 🎯 STREFA 1: GŁAZ DNIA (POZIOM I - KLUCZOWA SPRAWA) -->
+            <!-- 🎯 STREFA 1: GŁAZ DNIA (POZIOM I - KLUCZOWA SPRAWA - TYLKO AKTYWNE) -->
             <div>
               <div class="col-zone-header rock-header">
                 <span>🎯 I · Głaz Dnia</span>
                 <button class="task-micro-btn" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="1" title="Dodaj Głaz do tego dnia">+</button>
               </div>
               <div class="col-cards-list">
-                ${rockTasks.length > 0
-                  ? rockTasks.map(t => this.renderTaskCard(t)).join('')
-                  : `<div class="empty-rock-slot" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="1">+ Ustal Głaz dnia</div>`}
-              </div>
-            </div>
-
-            <!-- 📋 STREFA 2: BIEŻĄCZKA (POZIOM II - BIEŻĄCE ZADANIA + CYKLICZNA PRACA / KSEF / FAKTURY) -->
-            <div>
-              <div class="col-zone-header">
-                <span>📋 II · Bieżączka (${totalWorkCount})</span>
-                <button class="task-micro-btn" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="2" title="Dodaj zadanie do bieżączki">+</button>
-              </div>
-              <div class="col-cards-list">
-                <!-- Sprawy cykliczne w bieżączce (np. KSeF, faktury, porządki cykliczne) -->
-                ${recurringWorkTasks.map(r => {
-                  const isDone = Recur.isDoneOn(r, dateStr);
-                  const streak = Recur.streak(r);
-                  const isCollapsed = this.collapsedNotes.has(r.id);
-                  return `
-                    <div class="task-card ${isDone ? 'is-done' : ''} is-recurring-standard" data-id="${r.id}">
-                      <div class="task-card-main">
-                        <button class="task-checkbox-btn" data-act="toggleRoutineDay" data-id="${r.id}" data-date="${dateStr}" title="${isDone ? 'Cofnij' : 'Odhacz jako zrobione na ten dzień'}">
-                          ${isDone ? '✓' : ''}
-                        </button>
-                        <div class="task-title" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować">
-                          ${linkify(r.title)}
-                        </div>
-                        <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
-                          ${r.notes ? `
-                            <button class="note-toggle-btn" data-act="toggleNote" data-id="${r.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
-                              ${isCollapsed ? '▸' : '▾'}
-                            </button>
-                          ` : ''}
-                          <button class="task-micro-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj rutynę i notatki">✏️</button>
-                        </div>
-                      </div>
-
-                      ${r.notes ? `
-                        <div class="task-notes-box ${isCollapsed ? 'is-collapsed' : ''}" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować notatkę">
-                          <span class="note-icon">📝</span>
-                          <div class="note-content">${linkify(r.notes)}</div>
-                        </div>
-                      ` : ''}
-
-                      <div class="task-card-footer">
-                        <button class="task-p-badge p-routine" data-act="editRoutine" data-id="${r.id}" title="Zmień cykl lub edytuj rutynę">
-                          🔄 ${Recur.label(r.recur)}
-                        </button>
-                        <div class="task-micro-actions">
-                          ${streak > 0 ? `<span class="selfcare-streak" style="margin-right:4px;">🔥${streak}</span>` : ''}
-                          <button class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
-                        </div>
-                      </div>
-                    </div>
-                  `;
-                }).join('')}
-
-                <!-- Zadania standardowe jednorazowe -->
-                ${standardTasks.length > 0
-                  ? standardTasks.map(t => this.renderTaskCard(t)).join('')
-                  : (recurringWorkTasks.length === 0 ? '<div class="empty-tasks-hint">Brak bieżących zadań.</div>' : '')
+                ${activeRockTasks.length > 0
+                  ? activeRockTasks.map(t => this.renderTaskCard(t)).join('')
+                  : (doneRockTasks.length > 0
+                      ? `<div class="empty-rock-slot is-done-celebrate" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="1">🏆 Głaz Dnia zrealizowany! (+ Dodaj kolejny)</div>`
+                      : `<div class="empty-rock-slot" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="1">+ Ustal Głaz dnia</div>`
+                    )
                 }
               </div>
             </div>
+
+            <!-- 📋 STREFA 2: BIEŻĄCZKA (POZIOM II - TYLKO AKTYWNE ZADANIA) -->
+            <div>
+              <div class="col-zone-header">
+                <span>📋 II · Bieżączka (${totalActiveWorkCount})</span>
+                <button class="task-micro-btn" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="2" title="Dodaj zadanie do bieżączki">+</button>
+              </div>
+              <div class="col-cards-list">
+                <!-- Aktywne sprawy cykliczne w bieżączce -->
+                ${activeRecurringWork.map(r => this.renderRecurringWorkCard(r, dateStr, false)).join('')}
+
+                <!-- Aktywne zadania jednorazowe -->
+                ${activeStandardTasks.length > 0
+                  ? activeStandardTasks.map(t => this.renderTaskCard(t)).join('')
+                  : (activeRecurringWork.length === 0 ? '<div class="empty-tasks-hint">Brak bieżących zadań. Widok czysty! ✨</div>' : '')
+                }
+              </div>
+            </div>
+
+            <!-- 🗂️ WYSUWANY FOLDER WYKONANYCH ZADAŃ DNIA (CZYSTY WIDOK) -->
+            ${totalDoneCount > 0 ? `
+              <div class="col-completed-box ${isDoneDrawerExpanded ? 'is-expanded' : 'is-collapsed'}" data-date="${dateStr}">
+                <button class="col-completed-toggle-btn" data-act="toggleDoneDrawer" data-date="${dateStr}" title="${isDoneDrawerExpanded ? 'Zwiń wykonane zadania' : 'Rozwiń wykonane zadania'}">
+                  <div class="completed-toggle-left">
+                    <span class="completed-check-icon">✓</span>
+                    <span class="completed-toggle-label">Wykonane dzisiaj</span>
+                    <span class="completed-badge">${totalDoneCount}</span>
+                  </div>
+                  <span class="completed-chevron">${isDoneDrawerExpanded ? '▾' : '▸'}</span>
+                </button>
+                <div class="col-completed-drawer-content ${isDoneDrawerExpanded ? '' : 'is-collapsed'}">
+                  <div class="col-cards-list completed-cards-list">
+                    <!-- Wykonane Głazy -->
+                    ${doneRockTasks.map(t => this.renderTaskCard(t, true)).join('')}
+                    <!-- Wykonane Zadania Bieżące -->
+                    ${doneStandardTasks.map(t => this.renderTaskCard(t, true)).join('')}
+                    <!-- Wykonane Rutyny Operacyjne -->
+                    ${doneRecurringWork.map(r => this.renderRecurringWorkCard(r, dateStr, true)).join('')}
+                    <!-- Wykonane Rutyny Zdrowie & Ja -->
+                    ${doneSelfcare.map(r => this.renderSelfcareCompletedCard(r, dateStr)).join('')}
+                  </div>
+                </div>
+              </div>
+            ` : ''}
           </div>
 
           <!-- Szybkie dodawanie na dole kolumny -->
@@ -804,11 +848,127 @@ const App = {
         if (text.includes('!1')) { priority = 1; text = text.replace(/!1/g, '').trim(); }
         else if (text.includes('!2')) { priority = 2; text = text.replace(/!2/g, '').trim(); }
 
+        input.blur();
+        this.activeMobileDay = date;
         Store.add({ title: text, date, priority, q: priority === 1 ? 1 : 2 });
         input.value = '';
         this.showToast(priority === 1 ? 'Dodano Głaz Dnia 🎯' : 'Dodano do bieżączki 📋');
       });
     });
+  },
+
+  /* Pigułka rutyny Zdrowie & Ja */
+  renderSelfcareItemPill(r, dateStr, isDone = false) {
+    const streak = Recur.streak(r);
+    const isCollapsed = this.collapsedNotes.has(r.id);
+    return `
+      <div class="selfcare-item-pill ${isDone ? 'is-done' : ''}" data-act="toggleRoutineDay" data-id="${r.id}" data-date="${dateStr}" title="${esc(r.title)}${r.notes ? ` — 📝 ${esc(r.notes)}` : ''}">
+        <div class="selfcare-pill-top">
+          <span class="selfcare-check-circle">${isDone ? '✓' : ''}</span>
+          <span class="selfcare-title">${esc(r.title)}</span>
+          ${streak > 0 ? `<span class="selfcare-streak">🔥${streak}</span>` : ''}
+          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
+            ${r.notes ? `
+              <button class="note-toggle-btn" data-act="toggleNote" data-id="${r.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
+                ${isCollapsed ? '▸' : '▾'}
+              </button>
+            ` : ''}
+            <button class="selfcare-edit-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj tę rutynę">✏️</button>
+          </div>
+        </div>
+        ${r.notes ? `
+          <div class="selfcare-note-line ${isCollapsed ? 'is-collapsed' : ''}" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować notatkę">
+            <span>📝 ${linkify(r.notes)}</span>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  },
+
+  /* Karta rutyny operacyjnej w Bieżączce */
+  renderRecurringWorkCard(r, dateStr, isDone = false) {
+    const streak = Recur.streak(r);
+    const isCollapsed = this.collapsedNotes.has(r.id);
+    return `
+      <div class="task-card ${isDone ? 'is-done' : ''} is-recurring-standard" data-id="${r.id}">
+        <div class="task-card-main">
+          <button class="task-checkbox-btn" data-act="toggleRoutineDay" data-id="${r.id}" data-date="${dateStr}" title="${isDone ? 'Cofnij wykonanie' : 'Odhacz jako zrobione na ten dzień'}">
+            ${isDone ? '✓' : ''}
+          </button>
+          <div class="task-title" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować">
+            ${linkify(r.title)}
+          </div>
+          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
+            ${r.notes ? `
+              <button class="note-toggle-btn" data-act="toggleNote" data-id="${r.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
+                ${isCollapsed ? '▸' : '▾'}
+              </button>
+            ` : ''}
+            <button class="task-micro-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj rutynę i notatki">✏️</button>
+          </div>
+        </div>
+
+        ${r.notes ? `
+          <div class="task-notes-box ${isCollapsed ? 'is-collapsed' : ''}" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować notatkę">
+            <span class="note-icon">📝</span>
+            <div class="note-content">${linkify(r.notes)}</div>
+          </div>
+        ` : ''}
+
+        <div class="task-card-footer">
+          <button class="task-p-badge p-routine" data-act="editRoutine" data-id="${r.id}" title="Zmień cykl lub edytuj rutynę">
+            🔄 ${Recur.label(r.recur)}
+          </button>
+          <div class="task-micro-actions">
+            ${streak > 0 ? `<span class="selfcare-streak" style="margin-right:4px;">🔥${streak}</span>` : ''}
+            <button class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  /* Karta wykonanej rutyny Zdrowie & Ja w archiwum dnia */
+  renderSelfcareCompletedCard(r, dateStr) {
+    const streak = Recur.streak(r);
+    const isCollapsed = this.collapsedNotes.has(r.id);
+    return `
+      <div class="task-card is-done is-recurring-selfcare" data-id="${r.id}">
+        <div class="task-card-main">
+          <button class="task-checkbox-btn" data-act="toggleRoutineDay" data-id="${r.id}" data-date="${dateStr}" title="Cofnij odhaczenie nawyku">
+            ✓
+          </button>
+          <div class="task-title" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować">
+            ${linkify(r.title)}
+          </div>
+          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
+            ${r.notes ? `
+              <button class="note-toggle-btn" data-act="toggleNote" data-id="${r.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
+                ${isCollapsed ? '▸' : '▾'}
+              </button>
+            ` : ''}
+            <button class="task-micro-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj rutynę i notatki">✏️</button>
+          </div>
+        </div>
+
+        ${r.notes ? `
+          <div class="task-notes-box ${isCollapsed ? 'is-collapsed' : ''}" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować notatkę">
+            <span class="note-icon">📝</span>
+            <div class="note-content">${linkify(r.notes)}</div>
+          </div>
+        ` : ''}
+
+        <div class="task-card-footer">
+          <span class="task-p-badge" style="background:var(--emerald-light); color:var(--emerald); border:1px solid rgba(16,185,129,0.3);">
+            🛡️ Zdrowie & Ja
+          </span>
+          <div class="task-micro-actions">
+            ${streak > 0 ? `<span class="selfcare-streak" style="margin-right:4px;">🔥${streak}</span>` : ''}
+            <button class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `;
   },
 
   /* Pojedyncza karta zadania w kolumnie */
@@ -1037,6 +1197,9 @@ const App = {
       } else if (act === 'toggleDayCompleted') {
         e.stopPropagation();
         this.finishDay(btn.dataset.date);
+      } else if (act === 'toggleDoneDrawer') {
+        e.stopPropagation();
+        this.toggleDoneDrawer(btn.dataset.date);
       } else if (act === 'toggleDone') {
         e.stopPropagation();
         this.toggleTaskDone(btn.dataset.id);
@@ -1075,6 +1238,7 @@ const App = {
       } else if (act === 'openRoutinesModal') {
         this.openRoutinesModal();
       } else if (act === 'openNewRoutineModal') {
+        this._fromRoutinesTable = true;
         this.openRoutineModal({ defaultFreq: btn.dataset.freq || null });
       } else if (act === 'showColQuickAdd') {
         const date = btn.dataset.date;
@@ -1116,28 +1280,31 @@ const App = {
   toggleTaskDone(id) {
     const t = Store.get(id);
     if (!t) return;
+    if (t.date) this.activeMobileDay = t.date;
     const nextDone = !t.done;
     Store.update(id, {
       done: nextDone,
       doneAt: nextDone ? D.today() : null,
     });
+    this.showToast(nextDone ? `✓ Wykonano: „${t.title}” (przeniesiono do archiwum)` : `Przywrócono: „${t.title}”`);
   },
 
   toggleRoutineOnDay(id, dateStr) {
     const t = Store.get(id);
     if (!t) return;
+    if (dateStr) this.activeMobileDay = dateStr;
     const history = Array.isArray(t.history) ? [...t.history] : [];
     const idx = history.indexOf(dateStr);
 
     if (idx >= 0) {
       history.splice(idx, 1);
       Store.update(id, { history });
-      this.showToast(`Cofnięto „${t.title}”`);
+      this.showToast(`Przywrócono „${t.title}”`);
     } else {
       history.push(dateStr);
       Store.update(id, { history });
       const streak = Recur.streak({ history });
-      this.showToast(`✓ Odhaczono „${t.title}”! (Seria: ${streak} 🔥)`);
+      this.showToast(`✓ Wykonano „${t.title}”! (Seria: ${streak} 🔥)`);
     }
   },
 
@@ -1212,8 +1379,14 @@ const App = {
     this.showToast(`Usunięto rutynę „${title}”.`, () => {
       Store.add(backup);
     });
-    if (this.activeModal === 'routines' || this.activeModal === 'routine_form') {
+    if (this.activeModal === 'routines') {
       this.openRoutinesModal();
+    } else if (this.activeModal === 'routine_form') {
+      if (this._fromRoutinesTable) {
+        this.openRoutinesModal();
+      } else {
+        this.closeModal();
+      }
     }
   },
 
@@ -1300,6 +1473,7 @@ const App = {
      ========================================================================== */
   openRoutinesModal() {
     this.activeModal = 'routines';
+    this._fromRoutinesTable = true;
     const root = document.getElementById('modalRoot');
     if (!root) return;
 
@@ -1720,12 +1894,20 @@ const App = {
         this.showToast(`Dodano rutynę „${title}”!`);
       }
 
-      this.openRoutinesModal();
+      if (this._fromRoutinesTable) {
+        this.openRoutinesModal();
+      } else {
+        this.closeModal();
+      }
     });
   },
 
   closeRoutineFormModal() {
-    this.openRoutinesModal();
+    if (this._fromRoutinesTable) {
+      this.openRoutinesModal();
+    } else {
+      this.closeModal();
+    }
   },
 
   /* Ustawienia i backup */
