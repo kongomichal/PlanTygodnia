@@ -27,11 +27,6 @@ const Sync = {
       this.auth = firebase.auth();
       this.db = firebase.firestore();
 
-      // Zapewnij trwałą sesję na urządzeniu (nie wylogowuj po zamknięciu)
-      if (typeof this.auth.setPersistence === 'function') {
-        this.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e => console.warn(e));
-      }
-
       // Obsługa powrotu z logowania przez przekierowanie (dla urządzeń mobilnych)
       this.auth.getRedirectResult().then(result => {
         if (result && result.user) {
@@ -75,7 +70,7 @@ const Sync = {
     if (this.user) {
       if (screenAuth) screenAuth.style.display = 'none';
       if (screenApp) screenApp.style.display = 'flex';
-      if (window.App) {
+      if (window.App && window.Store && window.Store.state) {
         if (typeof window.App.initTheme === 'function') window.App.initTheme();
         if (typeof window.App.renderAll === 'function') window.App.renderAll();
       }
@@ -154,7 +149,7 @@ const Sync = {
     }
   },
 
-  /* ---- Nasłuchiwanie bazy Firestore w czasie rzeczywistym ---- */
+  /* ---- Nasłuchiwanie bazy Firestore w czasie rzeczywistym (wzór Muraven) ---- */
   listenToUserDoc(uid) {
     if (!this.db) return;
     this.detachUserDoc();
@@ -163,40 +158,18 @@ const Sync = {
     const docRef = this.db.collection('users').doc(uid);
 
     this.unsubscribeSnapshot = docRef.onSnapshot(docSnap => {
-      // 1. Ignorujemy echo lokalnego zapisu, które jeszcze oczekuje na wysyłkę
-      if (docSnap.metadata && docSnap.metadata.hasPendingWrites) {
-        return;
-      }
-
-      // 2. Jeśli trwa odliczanie do wysłania lokalnych zmian (debounce), nie nadpisuj lokalnego stanu!
-      if (this.saveTimer != null) {
-        return;
-      }
-
       if (docSnap.exists) {
         const cloudData = docSnap.data();
         if (cloudData && Array.isArray(cloudData.tasks)) {
           const store = (typeof Store !== 'undefined' ? Store : window.Store);
           const localTasks = (store && store.state && Array.isArray(store.state.tasks)) ? store.state.tasks : [];
-          const localUpdated = (store && store.state && store.state.updatedAt) || 0;
-          const cloudUpdated = cloudData.updatedAt || 0;
 
-          // Jeśli w chmurze jest pusto (np. nowe konto), a na urządzeniu lokalnie mamy zadania: wyślij je automatycznie!
+          // Jeśli w chmurze jest pusto (np. nowe konto), a na urządzeniu lokalnie mamy zadania: wyślij je
           if (cloudData.tasks.length === 0 && localTasks.length > 0) {
-            console.log('Firebase: chmura pusta, automatyczne wysłanie lokalnych zadań');
-            this.pushToCloud(true);
+            this.pushToCloud();
             return;
           }
 
-          // Jeśli lokalne dane są nowsze niż w chmurze (np. dodano/usunięto zadanie offline lub przed chwilą),
-          // nie cofaj zmian użytkownika! Zamiast tego natychmiast zaktualizuj chmurę:
-          if (localUpdated > cloudUpdated && localTasks.length > 0) {
-            console.log('Firebase Sync: lokalny stan jest nowszy, synchronizuję do chmury');
-            this.pushToCloud(true);
-            return;
-          }
-
-          // W każdym innym przypadku (dane w chmurze są równe lub nowsze) aktualizujemy lokalny stan:
           this.isRemoteChange = true;
           if (store) {
             store.state = cloudData;
@@ -205,28 +178,14 @@ const Sync = {
           }
           this.isRemoteChange = false;
           this.setStatus('synced');
-
-          const app = (typeof App !== 'undefined' ? App : window.App);
-          if (app && typeof app.renderAll === 'function') {
-            app.renderAll();
-            if (typeof app.scrollToCurrentDayOnMobile === 'function') {
-              app.scrollToCurrentDayOnMobile();
-            }
-          }
         }
       } else {
         // Pierwsze logowanie użytkownika: wyślij aktualny stan do chmury natychmiast
-        this.pushToCloud(true);
+        this.pushToCloud();
       }
     }, err => {
       console.error('Błąd Firestore onSnapshot:', err);
       this.setStatus('error');
-      if (err && err.code === 'permission-denied') {
-        const app = (typeof App !== 'undefined' ? App : window.App);
-        if (app && typeof app.showToast === 'function') {
-          app.showToast('⚠️ Brak uprawnień do Firestore! Sprawdź reguły bazy w Firebase Console.');
-        }
-      }
     });
   },
 
@@ -238,38 +197,25 @@ const Sync = {
     this.setStatus('idle');
   },
 
-  /* ---- Zapis do chmury w czasie rzeczywistym ---- */
-  pushToCloud(immediate = false) {
+  /* ---- Zapis do chmury w czasie rzeczywistym natychmiast (wzór Muraven) ---- */
+  pushToCloud() {
     if (!this.user || !this.db || this.isRemoteChange) return;
 
-    if (this.saveTimer) {
-      clearTimeout(this.saveTimer);
-      this.saveTimer = null;
-    }
-
-    const executePush = async () => {
-      this.saveTimer = null;
-      try {
-        this.setStatus('saving');
-        const docRef = this.db.collection('users').doc(this.user.uid);
-        const store = (typeof Store !== 'undefined' ? Store : window.Store);
-        if (!store || !store.state) return;
-        const payload = JSON.parse(JSON.stringify(store.state));
-        payload.updatedAt = Date.now();
-        store.state.updatedAt = payload.updatedAt;
-        await docRef.set(payload, { merge: true });
+    try {
+      this.setStatus('saving');
+      const docRef = this.db.collection('users').doc(this.user.uid);
+      const store = (typeof Store !== 'undefined' ? Store : window.Store);
+      if (!store || !store.state) return;
+      const payload = JSON.parse(JSON.stringify(store.state));
+      docRef.set(payload).then(() => {
         this.setStatus('synced');
-      } catch (err) {
+      }).catch(err => {
         console.error('Błąd zapisu do Firestore:', err);
         this.setStatus('error');
-      }
-    };
-
-    if (immediate) {
-      executePush();
-    } else {
-      this.setStatus('saving');
-      this.saveTimer = setTimeout(executePush, 200);
+      });
+    } catch (err) {
+      console.error('Błąd zapisu do Firestore:', err);
+      this.setStatus('error');
     }
   },
 

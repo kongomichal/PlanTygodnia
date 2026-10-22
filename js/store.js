@@ -104,13 +104,13 @@ const Store = {
     this.state.tasks = this.state.tasks.filter(t => !(t.done && !t.recur && t.doneAt && t.doneAt < limit));
   },
 
-  persist(emit = true, syncCloud = true, immediate = false) {
+  persist(emit = true, syncCloud = true) {
     this.state.updatedAt = Date.now();
     try { localStorage.setItem(this.KEY, JSON.stringify(this.state)); } catch (e) { console.warn(e); }
     if (emit) this.emit();
     const sync = (typeof Sync !== 'undefined' ? Sync : window.Sync);
     if (syncCloud && sync && typeof sync.pushToCloud === 'function') {
-      sync.pushToCloud(immediate);
+      sync.pushToCloud();
     }
   },
   emit() { this.subs.forEach(f => f()); },
@@ -124,22 +124,22 @@ const Store = {
       inbox: false, done: false, doneAt: null, focus: null, rock: null, history: [], createdAt: Date.now(), ...p,
     };
   },
-  add(p) { const t = this.make(p); this.state.tasks.unshift(t); this.persist(true, true, true); return t; },
-  addMany(list) { list.forEach(p => this.state.tasks.unshift(this.make(p))); this.persist(true, true, true); },
+  add(p) { const t = this.make(p); this.state.tasks.unshift(t); this.persist(); return t; },
+  addMany(list) { list.forEach(p => this.state.tasks.unshift(this.make(p))); this.persist(); },
   update(id, patch) {
     const t = this.get(id); if (!t) return null;
-    Object.assign(t, patch, { updatedAt: Date.now() }); this.persist(true, true, true); return t;
+    Object.assign(t, patch, { updatedAt: Date.now() }); this.persist(); return t;
   },
   updateMany(ids, patch) {
     ids.forEach(id => { const t = this.get(id); if (t) Object.assign(t, patch, { updatedAt: Date.now() }); });
-    this.persist(true, true, true);
+    this.persist();
   },
   replace(task) {
     const i = this.state.tasks.findIndex(t => t.id === task.id);
     if (i >= 0) this.state.tasks[i] = task; else this.state.tasks.unshift(task);
-    this.persist(true, true, true);
+    this.persist();
   },
-  remove(id) { this.state.tasks = this.state.tasks.filter(t => t.id !== id); this.persist(true, true, true); },
+  remove(id) { this.state.tasks = this.state.tasks.filter(t => t.id !== id); this.persist(); },
 
   /* ---- role ---- */
   role(id) { return this.state.roles.find(r => r.id === id); },
