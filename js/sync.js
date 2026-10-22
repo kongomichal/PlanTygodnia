@@ -163,8 +163,13 @@ const Sync = {
     const docRef = this.db.collection('users').doc(uid);
 
     this.unsubscribeSnapshot = docRef.onSnapshot(docSnap => {
-      // Ignorujemy echo lokalnego zapisu, które jeszcze oczekuje na wysyłkę
+      // 1. Ignorujemy echo lokalnego zapisu, które jeszcze oczekuje na wysyłkę
       if (docSnap.metadata && docSnap.metadata.hasPendingWrites) {
+        return;
+      }
+
+      // 2. Jeśli trwa odliczanie do wysłania lokalnych zmian (debounce), nie nadpisuj lokalnego stanu!
+      if (this.saveTimer != null) {
         return;
       }
 
@@ -173,6 +178,8 @@ const Sync = {
         if (cloudData && Array.isArray(cloudData.tasks)) {
           const store = (typeof Store !== 'undefined' ? Store : window.Store);
           const localTasks = (store && store.state && Array.isArray(store.state.tasks)) ? store.state.tasks : [];
+          const localUpdated = (store && store.state && store.state.updatedAt) || 0;
+          const cloudUpdated = cloudData.updatedAt || 0;
 
           // Jeśli w chmurze jest pusto (np. nowe konto), a na urządzeniu lokalnie mamy zadania: wyślij je automatycznie!
           if (cloudData.tasks.length === 0 && localTasks.length > 0) {
@@ -181,7 +188,15 @@ const Sync = {
             return;
           }
 
-          // W każdym innym przypadku źródłem prawdy dla zalogowanego użytkownika jest chmura:
+          // Jeśli lokalne dane są nowsze niż w chmurze (np. dodano/usunięto zadanie offline lub przed chwilą),
+          // nie cofaj zmian użytkownika! Zamiast tego natychmiast zaktualizuj chmurę:
+          if (localUpdated > cloudUpdated && localTasks.length > 0) {
+            console.log('Firebase Sync: lokalny stan jest nowszy, synchronizuję do chmury');
+            this.pushToCloud(true);
+            return;
+          }
+
+          // W każdym innym przypadku (dane w chmurze są równe lub nowsze) aktualizujemy lokalny stan:
           this.isRemoteChange = true;
           if (store) {
             store.state = cloudData;
@@ -223,13 +238,17 @@ const Sync = {
     this.setStatus('idle');
   },
 
-  /* ---- Zapis do chmury w czasie rzeczywistym z debouncem (250ms) ---- */
+  /* ---- Zapis do chmury w czasie rzeczywistym ---- */
   pushToCloud(immediate = false) {
     if (!this.user || !this.db || this.isRemoteChange) return;
 
-    if (this.saveTimer) clearTimeout(this.saveTimer);
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
 
     const executePush = async () => {
+      this.saveTimer = null;
       try {
         this.setStatus('saving');
         const docRef = this.db.collection('users').doc(this.user.uid);
@@ -250,7 +269,7 @@ const Sync = {
       executePush();
     } else {
       this.setStatus('saving');
-      this.saveTimer = setTimeout(executePush, 250);
+      this.saveTimer = setTimeout(executePush, 200);
     }
   },
 

@@ -1191,25 +1191,29 @@ const App = {
   confirmDelete(id) {
     const t = Store.get(id);
     if (!t) return;
+    const backup = { ...t };
+    const title = t.title || 'zadanie';
     const isRoutine = !!t.recur;
-    if (confirm(`Usunąć ${isRoutine ? 'rutynę' : 'zadanie'} „${t.title}”?`)) {
-      Store.remove(id);
-      this.showToast('Usunięto.');
-      if (this.activeModal === 'routines') {
-        this.openRoutinesModal();
-      }
+    Store.remove(id);
+    this.showToast(`Usunięto ${isRoutine ? 'rutynę' : 'zadanie'} „${title}”.`, () => {
+      Store.add(backup);
+    });
+    if (this.activeModal === 'routines' || this.activeModal === 'routine_form') {
+      this.openRoutinesModal();
     }
   },
 
   deleteRoutine(id) {
     const r = Store.get(id);
     if (!r) return;
-    if (confirm(`Usunąć rutynę „${r.title}”?`)) {
-      Store.remove(id);
-      this.showToast(`Usunięto rutynę „${r.title}”.`);
-      if (this.activeModal === 'routines') {
-        this.openRoutinesModal();
-      }
+    const backup = { ...r };
+    const title = r.title || 'rutynę';
+    Store.remove(id);
+    this.showToast(`Usunięto rutynę „${title}”.`, () => {
+      Store.add(backup);
+    });
+    if (this.activeModal === 'routines' || this.activeModal === 'routine_form') {
+      this.openRoutinesModal();
     }
   },
 
@@ -1262,7 +1266,7 @@ const App = {
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
-              ${editId ? `<button type="button" class="btn-col-finish" style="color:var(--crimson);" onclick="Store.remove('${editId}'); App.closeModal(); App.showToast('Usunięto.');">Usuń zadanie</button>` : '<div></div>'}
+              ${editId ? `<button type="button" class="btn-col-finish" style="color:var(--crimson);" onclick="App.confirmDelete('${editId}'); App.closeModal();">Usuń zadanie</button>` : '<div></div>'}
               <div style="display:flex; gap:8px;">
                 <button type="button" class="header-action-btn" onclick="App.closeModal()">Anuluj</button>
                 <button type="submit" class="header-action-btn btn-primary">${editId ? 'Zapisz zmiany' : 'Dodaj zadanie'}</button>
@@ -1276,15 +1280,15 @@ const App = {
     document.getElementById('modalTaskForm').addEventListener('submit', e => {
       e.preventDefault();
       const title = document.getElementById('mTaskTitle').value.trim();
-      const date = document.getElementById('mTaskDate').value || null;
+      const date = document.getElementById('mTaskDate').value || D.today();
       const priority = parseInt(document.getElementById('mTaskPriority').value, 10);
       const notes = document.getElementById('mTaskNotes').value.trim();
 
       if (editId) {
-        Store.update(editId, { title, date, priority, notes, inbox: !date, q: priority === 1 ? 1 : 2 });
+        Store.update(editId, { title, date, priority, notes, inbox: false, q: priority === 1 ? 1 : 2 });
         this.showToast('Zaktualizowano zadanie.');
       } else {
-        Store.add({ title, date, priority, notes, inbox: !date, q: priority === 1 ? 1 : 2 });
+        Store.add({ title, date, priority, notes, inbox: false, q: priority === 1 ? 1 : 2 });
         this.showToast('Dodano zadanie.');
       }
       this.closeModal();
@@ -1831,19 +1835,35 @@ const App = {
     this.updateMobileBottomNav();
   },
 
-  showToast(msg) {
+  showToast(msg, undoFn = null) {
     const root = document.getElementById('toastRoot');
     if (!root) return;
     const toast = document.createElement('div');
     toast.className = 'toast';
-    toast.textContent = msg;
+    const textSpan = document.createElement('span');
+    textSpan.textContent = msg;
+    toast.appendChild(textSpan);
+
+    if (typeof undoFn === 'function') {
+      const undoBtn = document.createElement('button');
+      undoBtn.className = 'toast-undo-btn';
+      undoBtn.textContent = 'Cofnij';
+      undoBtn.onclick = (e) => {
+        e.stopPropagation();
+        undoFn();
+        toast.remove();
+      };
+      toast.appendChild(undoBtn);
+    }
+
     root.appendChild(toast);
+    const duration = undoFn ? 3500 : 2200;
     setTimeout(() => {
       toast.style.opacity = '0';
       toast.style.transform = 'translateY(10px)';
       toast.style.transition = 'all 0.2s ease';
       setTimeout(() => toast.remove(), 200);
-    }, 2200);
+    }, duration);
   },
 };
 

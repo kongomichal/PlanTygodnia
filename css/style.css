@@ -1806,6 +1806,26 @@ button, input, select, textarea {
   box-shadow: var(--shadow-lg);
   pointer-events: auto;
   animation: toastIn 0.2s ease-out;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toast-undo-btn {
+  background: rgba(255, 255, 255, 0.22);
+  border: none;
+  color: #ffffff;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.15s ease;
+}
+
+.toast-undo-btn:hover {
+  background: rgba(255, 255, 255, 0.38);
 }
 
 @keyframes toastIn {
