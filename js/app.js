@@ -2017,6 +2017,10 @@ const App = {
               <p style="font-size:0.8rem; color:var(--text-main); margin-bottom:8px;">Przywraca startowe zadania i nawyki.</p>
               <button class="header-action-btn" style="background:var(--crimson); color:#ffffff; border:none;" onclick="if(confirm('Przywrócić dane początkowe?')){ Store.reset(); App.closeModal(); App.showToast('Zresetowano.'); }">Zresetuj dane</button>
             </div>
+
+            <div style="text-align:center; font-size:0.75rem; color:var(--text-muted); padding-top:6px;">
+              Plan Tygodnia v10.5 · Kalendarz wyboru daty aktywny
+            </div>
           </div>
         </div>
       </div>

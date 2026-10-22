@@ -19,20 +19,36 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=10.4">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <link rel="stylesheet" href="css/style.css?v=10.5">
 
   <script>
-    // Wyrejestrowanie Service Workera i usunięcie cache (jak w Muraven - zapobiega ładowaniu starego kodu)
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        for (const reg of regs) reg.unregister();
-      });
+    (function() {
+      const APP_VERSION = '10.5';
+      try {
+        const url = new URL(window.location.href);
+        // Jeśli w URL nie ma aktualnej wersji - automatycznie przekieruj, co natychmiast omija 10-minutowy cache CDN GitHub Pages oraz pamięć podręczną Safari/Chrome
+        if (url.searchParams.get('v') !== APP_VERSION) {
+          url.searchParams.set('v', APP_VERSION);
+          window.location.replace(url.toString());
+          return;
+        }
+      } catch (e) {}
+
+      // Wyrejestrowanie Service Workera i bezwzględne usunięcie wszystkich pamięci podręcznych CacheStorage
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          for (const reg of regs) reg.unregister();
+        });
+      }
       if (window.caches) {
         caches.keys().then(keys => {
           for (const k of keys) caches.delete(k);
         });
       }
-    }
+    })();
   </script>
 
   <script>
@@ -463,14 +479,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=10.4"></script>
+  <script src="js/firebase-config.js?v=10.5"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=10.4"></script>
-  <script src="js/seed.js?v=10.4"></script>
-  <script src="js/sync.js?v=10.4"></script>
-  <script src="js/store.js?v=10.4"></script>
-  <script src="js/app.js?v=10.4"></script>
+  <script src="js/utils.js?v=10.5"></script>
+  <script src="js/seed.js?v=10.5"></script>
+  <script src="js/sync.js?v=10.5"></script>
+  <script src="js/store.js?v=10.5"></script>
+  <script src="js/app.js?v=10.5"></script>
 
   <!-- Niezależna od cache obsługa bramki wejściowej -->
   <script>
