@@ -1032,16 +1032,8 @@ const App = {
     const itemsP2 = inboxItems.filter(t => this.getTaskPriority(t) === 2);
     const itemsP3 = inboxItems.filter(t => this.getTaskPriority(t) === 3);
 
-    const days = Store.getWeekDays(this.weekOffset);
-    const dayChips = [
-      { label: 'Dziś', date: D.today() },
-      { label: 'Jutro', date: D.addDays(D.today(), 1) },
-      { label: 'Pon', date: days[0] },
-      { label: 'Wt', date: days[1] },
-      { label: 'Śr', date: days[2] },
-      { label: 'Czw', date: days[3] },
-      { label: 'Pt', date: days[4] },
-    ];
+    const todayDate = D.today();
+    const tomorrowDate = D.addDays(todayDate, 1);
 
     const renderInboxCard = item => {
       const p = this.getTaskPriority(item);
@@ -1075,11 +1067,16 @@ const App = {
           ` : ''}
 
           <div class="inbox-sb-card-actions">
-            ${dayChips.map(dc => `
-              <button class="inbox-plan-chip" data-act="assignTaskToDate" data-id="${item.id}" data-date="${dc.date}" title="Zaplanuj na ${dc.label} (${D.human(dc.date)})">
-                ${dc.label}
-              </button>
-            `).join('')}
+            <button class="inbox-plan-chip" data-act="assignTaskToDate" data-id="${item.id}" data-date="${todayDate}" title="Zaplanuj na Dziś (${D.short(todayDate)})">
+              Dziś
+            </button>
+            <button class="inbox-plan-chip" data-act="assignTaskToDate" data-id="${item.id}" data-date="${tomorrowDate}" title="Zaplanuj na Jutro (${D.short(tomorrowDate)})">
+              Jutro
+            </button>
+            <label class="inbox-plan-chip inbox-plan-date-chip" title="Wybierz konkretną datę z kalendarza">
+              <span class="inbox-plan-date-label">📅 Wybierz datę</span>
+              <input type="date" class="inbox-native-date-picker" data-id="${item.id}" aria-label="Wybierz konkretną datę z kalendarza">
+            </label>
           </div>
         </div>
       `;
@@ -1265,6 +1262,35 @@ const App = {
       } else if (act === 'mobileSelectDay') {
         e.stopPropagation();
         this.scrollToDay(btn.dataset.date);
+      }
+    });
+
+    // Obsługa wyboru konkretnej daty w karcie skrzynki myśli
+    document.addEventListener('change', e => {
+      if (e.target && e.target.classList.contains('inbox-native-date-picker')) {
+        const taskId = e.target.dataset.id;
+        const chosenDate = e.target.value;
+        if (taskId && chosenDate) {
+          this.assignTaskToDate(taskId, chosenDate);
+        }
+      }
+    });
+
+    // Bezpośrednie wywołanie kalendarza przy kliknięciu w etykietę daty
+    document.addEventListener('click', e => {
+      const chip = e.target.closest('.inbox-plan-date-chip');
+      if (chip) {
+        const input = chip.querySelector('.inbox-native-date-picker');
+        if (input && e.target !== input) {
+          try {
+            if (typeof input.showPicker === 'function') {
+              input.showPicker();
+            } else {
+              input.focus();
+              input.click();
+            }
+          } catch (err) {}
+        }
       }
     });
 

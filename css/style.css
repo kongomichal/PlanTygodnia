@@ -1619,18 +1619,74 @@ button, input, select, textarea {
   border: 1px solid var(--border);
   background: var(--surface-alt);
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: var(--radius-xs);
   cursor: pointer;
   transition: all var(--trans);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  line-height: 1.25;
 }
 
 .inbox-plan-chip:hover {
   background: var(--accent);
   color: #ffffff;
   border-color: var(--accent);
+}
+
+.inbox-plan-chip.inbox-plan-date-chip {
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.inbox-plan-chip.inbox-plan-date-chip:hover,
+.inbox-plan-chip.inbox-plan-date-chip:focus-within {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.inbox-plan-chip.inbox-plan-date-chip:hover .inbox-plan-date-label,
+.inbox-plan-chip.inbox-plan-date-chip:focus-within .inbox-plan-date-label {
+  color: #ffffff;
+}
+
+.inbox-plan-date-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.inbox-native-date-picker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: 16px;
+  box-sizing: border-box;
+  z-index: 2;
+}
+
+.inbox-native-date-picker::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 /* ==========================================================================
