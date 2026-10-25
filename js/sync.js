@@ -61,6 +61,7 @@ const Sync = {
       if (localStorage.getItem('kompas_auth_active') === '1') {
         this.listenToUserDoc();
       }
+      this.startRetryLoop();
     } catch (err) {
       console.error('Błąd inicjalizacji Firebase Sync:', err);
       this.setStatus('error');
@@ -167,36 +168,51 @@ const Sync = {
       if (docSnap.exists) {
         const cloudData = docSnap.data();
         if (cloudData && Array.isArray(cloudData.tasks)) {
-          const store = (typeof Store !== 'undefined' ? Store : window.Store);
-          const localTasks = (store && store.state && Array.isArray(store.state.tasks)) ? store.state.tasks : [];
-
-          // Jeśli w chmurze jest pusto (np. nowe konto), a na urządzeniu lokalnie mamy zadania: wyślij je
-          if (cloudData.tasks.length === 0 && localTasks.length > 0) {
-            this.pushToCloud();
-            return;
-          }
-
-          this.isRemoteChange = true;
-          if (store) {
-            store.state = cloudData;
-            if (!Array.isArray(store.state.completedDays)) store.state.completedDays = [];
-            store.persist(true, false); // zapisuje do localStorage i powiadamia subskrybentów
-          }
-          this.isRemoteChange = false;
-          this.setStatus('synced');
-
-          if (window.App && typeof window.App.renderAll === 'function') {
-            window.App.renderAll();
-          }
+          this.applyRemote(cloudData);
+        } else {
+          this.pushToCloud();
         }
       } else {
-        // Pierwsze logowanie użytkownika: wyślij aktualny stan do chmury natychmiast
+        // Pierwsze logowanie użytkownika: wyślij aktualny stan do chmury
         this.pushToCloud();
       }
     }, err => {
       console.error('Błąd Firestore onSnapshot:', err);
       this.setStatus('error');
     });
+  },
+
+  /**
+   * Scala dane z chmury z lokalnymi (nigdy nie nadpisuje całości).
+   * Jeśli urządzenie ma coś, czego nie ma chmura – wysyła to dalej.
+   */
+  applyRemote(cloudData) {
+    const store = (typeof Store !== 'undefined' ? Store : window.Store);
+    if (!store || !store.state) return;
+    if (!Array.isArray(cloudData.completedDays)) cloudData.completedDays = [];
+
+    // Zapisz lokalne zmiany (np. nieoznaczone auto-przeniesienia) zanim scalimy
+    store.stamp();
+    const local = store.state;
+    const merged = store.merge(local, cloudData);
+    const localChanged = store.sig(merged) !== store.sig(local);
+    const cloudBehind = store.sig(merged) !== store.sig(cloudData);
+
+    if (localChanged) {
+      this.isRemoteChange = true;
+      store.state = merged;
+      store.rebaseline();
+      store.persist(true, false);
+      this.isRemoteChange = false;
+      if (window.App && typeof window.App.renderAll === 'function') window.App.renderAll();
+    }
+
+    if (cloudBehind) {
+      this.pushToCloud();
+    } else {
+      this.dirty = false;
+      this.setStatus('synced');
+    }
   },
 
   detachUserDoc() {
@@ -207,26 +223,54 @@ const Sync = {
     this.setStatus('idle');
   },
 
-  /* ---- Zapis do chmury w czasie rzeczywistym natychmiast (wzór Muraven) ---- */
+  /* ---- Zapis do chmury: transakcja odczyt → scalenie → zapis (nic nie jest nadpisywane) ---- */
+  dirty: false,
+  pushing: false,
+  pushAgain: false,
   pushToCloud() {
-    if (!this.db || this.isRemoteChange) return;
+    this.dirty = true;
+    if (!this.db || !this.user || this.isRemoteChange) return;
+    const store = (typeof Store !== 'undefined' ? Store : window.Store);
+    if (!store || !store.state) return;
+    if (this.pushing) { this.pushAgain = true; return; }
+    this.pushing = true;
+    this.setStatus('saving');
 
-    try {
-      this.setStatus('saving');
-      const docRef = this.db.collection('users').doc(this.PRIMARY_DOC_ID);
-      const store = (typeof Store !== 'undefined' ? Store : window.Store);
-      if (!store || !store.state) return;
-      const payload = JSON.parse(JSON.stringify(store.state));
-      docRef.set(payload).then(() => {
-        this.setStatus('synced');
-      }).catch(err => {
-        console.error('Błąd zapisu do Firestore:', err);
-        this.setStatus('error');
-      });
-    } catch (err) {
+    const docRef = this.db.collection('users').doc(this.PRIMARY_DOC_ID);
+    let mergedResult = null;
+    this.db.runTransaction(async tx => {
+      const snap = await tx.get(docRef);
+      const remote = snap.exists ? snap.data() : null;
+      const local = JSON.parse(JSON.stringify(store.state));
+      const merged = remote && Array.isArray(remote.tasks) ? store.merge(local, remote) : local;
+      tx.set(docRef, JSON.parse(JSON.stringify(merged)));
+      mergedResult = merged;
+    }).then(() => {
+      this.pushing = false;
+      // Scal wynik z ewentualnymi zmianami, które zaszły podczas zapisu
+      if (mergedResult) this.applyRemote(JSON.parse(JSON.stringify(mergedResult)));
+      if (this.pushAgain) { this.pushAgain = false; this.pushToCloud(); }
+    }).catch(err => {
+      this.pushing = false;
+      this.pushAgain = false;
       console.error('Błąd zapisu do Firestore:', err);
-      this.setStatus('error');
-    }
+      this.setStatus('error'); // dirty pozostaje true -> ponowna próba
+    });
+  },
+
+  /** Ponawia wysyłkę po powrocie sieci / do aplikacji, a także cyklicznie. */
+  startRetryLoop() {
+    if (this._retryStarted) return;
+    this._retryStarted = true;
+    const retry = () => { if (this.user && this.dirty && !this.pushing) this.pushToCloud(); };
+    window.addEventListener('online', retry);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && this.user) {
+        // wymuś ponowne zsynchronizowanie po powrocie do aplikacji
+        if (!this.unsubscribeSnapshot) this.listenToUserDoc(); else { this.dirty = true; this.pushToCloud(); }
+      }
+    });
+    setInterval(retry, 15000);
   },
 
   /* ---- Pomocnik błędów logowania ---- */
@@ -464,6 +508,8 @@ const Sync = {
       this.user = null;
       // Wyczyszczenie wrażliwych danych po wylogowaniu
       Store.state = Seed.build();
+      Store.baseline = { task: {}, role: {} };
+      this.dirty = false;
       try {
         localStorage.removeItem(Store.KEY);
         localStorage.removeItem('kompas_auth_active');
