@@ -132,16 +132,10 @@ const App = {
   },
 
   updateInboxBadge() {
-    const inboxItems = Store.state.tasks.filter(t => !t.done && (t.inbox || !t.date) && !t.recur);
     const badgeEl = document.getElementById('inboxCountBadge');
-    if (badgeEl) {
-      badgeEl.textContent = inboxItems.length;
-    }
+    if (badgeEl) badgeEl.style.display = 'none';
     const mBadge = document.getElementById('mInboxBadge');
-    if (mBadge) {
-      mBadge.textContent = inboxItems.length;
-      mBadge.style.display = inboxItems.length > 0 ? 'inline-flex' : 'none';
-    }
+    if (mBadge) mBadge.style.display = 'none';
   },
 
   toggleInboxSidebar() {
@@ -636,12 +630,7 @@ const App = {
     const mNavSettings = document.getElementById('mNavSettings');
     const mInboxBadge = document.getElementById('mInboxBadge');
 
-    const inboxCount = Store.state.tasks.filter(t => !t.done && (t.inbox || !t.date) && !t.recur).length;
-
-    if (mInboxBadge) {
-      mInboxBadge.textContent = inboxCount;
-      mInboxBadge.style.display = inboxCount > 0 ? 'inline-flex' : 'none';
-    }
+    if (mInboxBadge) mInboxBadge.style.display = 'none';
 
     if (mNavInbox) mNavInbox.classList.toggle('active', this.isSidebarOpen);
     if (mNavSettings) mNavSettings.classList.toggle('active', this.activeModal === 'settings');
@@ -1021,147 +1010,51 @@ const App = {
   /* ==========================================================================
      BOCZNY PANEL: SKRZYNKA MYŚLI (I - III)
      ========================================================================== */
+  /** Notatnik: jedna pusta kartka, zapisywana lokalnie i synchronizowana z chmurą. */
+  getScratchpad() {
+    const s = Store.state;
+    if (typeof s.scratchpad === 'string') return s.scratchpad;
+    // jednorazowa migracja: stare wpisy skrzynki trafiają do notatnika (nic nie ginie)
+    const old = (s.tasks || []).filter(t => !t.done && (t.inbox || !t.date) && !t.recur);
+    return old.map(t => '– ' + t.title + (t.notes ? '\n   ' + t.notes.replace(/\n/g, '\n   ') : '')).join('\n');
+  },
+
+  saveScratchpad(text) {
+    if (Store.state.scratchpad === text) return;
+    Store.state.scratchpad = text;
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps.scratchpad = Date.now();
+    Store.persist(false);
+  },
+
   renderInboxSidebar() {
     const sidebar = document.getElementById('inboxSidebar');
     if (!sidebar) return;
 
     sidebar.classList.toggle('is-collapsed', !this.isSidebarOpen);
 
-    const inboxItems = Store.state.tasks.filter(t => !t.done && (t.inbox || !t.date) && !t.recur);
-    const itemsP1 = inboxItems.filter(t => this.getTaskPriority(t) === 1);
-    const itemsP2 = inboxItems.filter(t => this.getTaskPriority(t) === 2);
-    const itemsP3 = inboxItems.filter(t => this.getTaskPriority(t) === 3);
-
-    const todayDate = D.today();
-    const tomorrowDate = D.addDays(todayDate, 1);
-
-    const renderInboxCard = item => {
-      const p = this.getTaskPriority(item);
-      const pBadgeLabel = p === 1 ? '🔴 I · Pilne' : p === 3 ? '⚪ III · Kiedyś' : '🔵 II · Ważne';
-      const isCollapsed = this.collapsedNotes.has(item.id);
-      return `
-        <div class="inbox-sb-card is-p${p}" data-id="${item.id}">
-          <div class="inbox-sb-card-top">
-            <button class="inbox-sb-p-badge p${p}" data-act="cycleInboxPriority" data-id="${item.id}" title="Kliknij, aby zmienić poziom (I ⇄ II ⇄ III)">
-              ${pBadgeLabel} ⇄
-            </button>
-            <div style="display:flex; align-items:center; gap:2px;">
-              ${item.notes ? `
-                <button class="note-toggle-btn" data-act="toggleNote" data-id="${item.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
-                  ${isCollapsed ? '▸' : '▾'}
-                </button>
-              ` : ''}
-              <button class="task-micro-btn" data-act="editTask" data-id="${item.id}" title="Edytuj">✏️</button>
-              <button type="button" class="task-micro-btn btn-trash" data-act="deleteTask" data-id="${item.id}" title="Usuń trwale">🗑️</button>
-            </div>
-          </div>
-
-          <div class="inbox-sb-card-title" data-act="editTask" data-id="${item.id}">
-            ${linkify(item.title)}
-          </div>
-          ${item.notes ? `
-            <div class="task-notes-box ${isCollapsed ? 'is-collapsed' : ''}" data-act="editTask" data-id="${item.id}" title="Kliknij, aby edytować notatkę">
-              <span class="note-icon">📝</span>
-              <div class="note-content">${linkify(item.notes)}</div>
-            </div>
-          ` : ''}
-
-          <div class="inbox-sb-card-actions">
-            <button class="inbox-plan-chip" data-act="assignTaskToDate" data-id="${item.id}" data-date="${todayDate}" title="Zaplanuj na Dziś (${D.short(todayDate)})">
-              Dziś
-            </button>
-            <button class="inbox-plan-chip" data-act="assignTaskToDate" data-id="${item.id}" data-date="${tomorrowDate}" title="Zaplanuj na Jutro (${D.short(tomorrowDate)})">
-              Jutro
-            </button>
-            <label class="inbox-plan-chip inbox-plan-date-chip" title="Wybierz konkretną datę z kalendarza">
-              <span class="inbox-plan-date-label">📅 Wybierz datę</span>
-              <input type="date" class="inbox-native-date-picker" data-id="${item.id}" aria-label="Wybierz konkretną datę z kalendarza">
-            </label>
-          </div>
-        </div>
-      `;
-    };
+    let ta = document.getElementById('scratchpadText');
+    if (ta) {
+      // nie nadpisuj tego, co właśnie piszesz; zdalne zmiany wczytaj tylko poza fokusem
+      const val = this.getScratchpad();
+      if (document.activeElement !== ta && ta.value !== val) ta.value = val;
+      return;
+    }
 
     sidebar.innerHTML = `
       <div class="inbox-sb-header">
-        <div class="inbox-sb-title">
-          <span>📥 Skrzynka myśli</span>
-          <span class="inbox-pill-count">${inboxItems.length}</span>
-        </div>
-        <button class="inbox-sb-close" data-act="toggleInboxSidebar" title="Zwiń panel skrzynki">✕</button>
+        <div class="inbox-sb-title"><span>📝 Notatnik</span></div>
+        <button class="inbox-sb-close" data-act="toggleInboxSidebar" title="Zwiń notatnik">✕</button>
       </div>
-
-      <!-- Szybki formularz dodawania z wyborem poziomu -->
-      <div class="inbox-sb-add">
-        <form id="inboxSidebarAddForm">
-          <div class="inbox-p-chips">
-            <button type="button" class="p-chip c1 ${this.inboxSelectedPriority === 1 ? 'active' : ''}" data-act="selectInboxPriority" data-priority="1">
-              🔴 I · Pilne
-            </button>
-            <button type="button" class="p-chip c2 ${this.inboxSelectedPriority === 2 ? 'active' : ''}" data-act="selectInboxPriority" data-priority="2">
-              🔵 II · Ważne
-            </button>
-            <button type="button" class="p-chip c3 ${this.inboxSelectedPriority === 3 ? 'active' : ''}" data-act="selectInboxPriority" data-priority="3">
-              ⚪ III · Kiedyś / Link
-            </button>
-          </div>
-
-          <div class="inbox-sb-input-row">
-            <input class="inbox-sb-input" id="inboxSidebarInput" placeholder="+ Dodaj myśl, zadanie lub link..." autocomplete="off">
-            <button type="submit" class="inbox-sb-submit">+</button>
-          </div>
-        </form>
-      </div>
-
-      <!-- 3 działy skrzynki -->
-      <div class="inbox-sb-content">
-        <!-- POZIOM I -->
-        <div class="inbox-sb-tier">
-          <div class="inbox-sb-tier-head t1">
-            <span>🔴 I · Pilne / Na już</span>
-            <span>${itemsP1.length}</span>
-          </div>
-          ${itemsP1.map(renderInboxCard).join('') || '<div class="empty-tasks-hint">Brak pilnych pożarów.</div>'}
-        </div>
-
-        <!-- POZIOM II -->
-        <div class="inbox-sb-tier">
-          <div class="inbox-sb-tier-head t2">
-            <span>🔵 II · Ważne / Ten tydzień</span>
-            <span>${itemsP2.length}</span>
-          </div>
-          ${itemsP2.map(renderInboxCard).join('') || '<div class="empty-tasks-hint">Brak spraw do zaplanowania.</div>'}
-        </div>
-
-        <!-- POZIOM III -->
-        <div class="inbox-sb-tier">
-          <div class="inbox-sb-tier-head t3">
-            <span>⚪ III · Kiedyś / Linki & Pomysły</span>
-            <span>${itemsP3.length}</span>
-          </div>
-          ${itemsP3.map(renderInboxCard).join('') || '<div class="empty-tasks-hint">Brak luźnych notatek i linków.</div>'}
-        </div>
-      </div>
+      <textarea id="scratchpadText" class="scratchpad-text" spellcheck="false" aria-label="Notatnik"></textarea>
     `;
-
-    const form = document.getElementById('inboxSidebarAddForm');
-    const input = document.getElementById('inboxSidebarInput');
-    if (form && input) {
-      form.addEventListener('submit', e => {
-        e.preventDefault();
-        let text = input.value.trim();
-        if (!text) return;
-
-        let priority = this.inboxSelectedPriority || 2;
-        if (text.includes('!1')) { priority = 1; text = text.replace(/!1/g, '').trim(); }
-        else if (text.includes('!2')) { priority = 2; text = text.replace(/!2/g, '').trim(); }
-        else if (text.includes('!3')) { priority = 3; text = text.replace(/!3/g, '').trim(); }
-
-        Store.add({ title: text, inbox: true, date: null, priority, q: priority === 1 ? 1 : priority === 2 ? 2 : 4 });
-        input.value = '';
-        this.showToast(`Dodano do skrzynki (Poziom ${priority === 1 ? 'I' : priority === 3 ? 'III' : 'II'})`);
-      });
-    }
+    ta = document.getElementById('scratchpadText');
+    ta.value = this.getScratchpad();
+    let timer = null;
+    const flush = () => { clearTimeout(timer); this.saveScratchpad(ta.value); };
+    ta.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(flush, 400); });
+    ta.addEventListener('blur', flush);
+    window.addEventListener('pagehide', flush);
   },
 
   /* ==========================================================================

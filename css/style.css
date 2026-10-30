@@ -1340,7 +1340,7 @@ button, input, select, textarea {
    BOCZNY PANEL: SKRZYNKA MYŚLI (I - III)
    ========================================================================== */
 .inbox-sidebar {
-  width: 350px;
+  width: 440px;
   border-left: 1px solid var(--border);
   background: var(--surface);
   display: flex;
@@ -2870,3 +2870,22 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator:hover {
 }
 
 
+
+/* ==========================================================================
+   NOTATNIK (jedna pusta kartka)
+   ========================================================================== */
+.scratchpad-text {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 16px 18px;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.55;
+  -webkit-overflow-scrolling: touch;
+}

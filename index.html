@@ -22,11 +22,11 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="css/style.css?v=10.7">
+  <link rel="stylesheet" href="css/style.css?v=10.8">
 
   <script>
     (function() {
-      const APP_VERSION = '10.6';
+      const APP_VERSION = '10.8';
       try {
         const url = new URL(window.location.href);
         // Jeśli w URL nie ma aktualnej wersji - automatycznie przekieruj, co natychmiast omija 10-minutowy cache CDN GitHub Pages oraz pamięć podręczną Safari/Chrome
@@ -414,8 +414,8 @@
         </button>
         <button class="header-action-btn btn-primary" data-act="openNewTaskModal" title="Dodaj nowe zadanie">+ Zadanie</button>
         <button class="header-action-btn btn-subtle" data-act="openRoutinesModal" title="Cykliczne rutyny i ostrzenie piły">🪚 Rutyny & Cykle</button>
-        <button class="header-action-btn btn-inbox-toggle" id="btnToggleSidebar" data-act="toggleInboxSidebar" title="Pokaż / Ukryj Skrzynkę myśli">
-          <span>📥 Skrzynka</span>
+        <button class="header-action-btn btn-inbox-toggle" id="btnToggleSidebar" data-act="toggleInboxSidebar" title="Pokaż / Ukryj notatnik">
+          <span>📝 Notatnik</span>
           <span class="inbox-pill-count" id="inboxCountBadge">0</span>
         </button>
         <button class="icon-circle-btn theme-toggle" id="btnThemeToggle" title="Przełącz motyw (Jasny / Ciemny)" aria-label="Przełącz motyw"></button>
@@ -452,10 +452,10 @@
       </button>
       <button class="mobile-nav-btn" data-act="toggleInboxSidebar" id="mNavInbox">
         <div class="m-nav-icon-wrap">
-          <span class="m-nav-icon">📥</span>
+          <span class="m-nav-icon">📝</span>
           <span class="m-nav-badge" id="mInboxBadge" style="display:none;">0</span>
         </div>
-        <span class="m-nav-label">Skrzynka</span>
+        <span class="m-nav-label">Notatnik</span>
       </button>
       <button class="mobile-nav-fab" data-act="openNewTaskModal" id="mNavAdd" title="Dodaj nowe zadanie" aria-label="Dodaj nowe zadanie">
         <span class="m-fab-icon">+</span>
@@ -479,14 +479,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=10.7"></script>
+  <script src="js/firebase-config.js?v=10.8"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=10.7"></script>
-  <script src="js/seed.js?v=10.7"></script>
-  <script src="js/sync.js?v=10.7"></script>
-  <script src="js/store.js?v=10.7"></script>
-  <script src="js/app.js?v=10.7"></script>
+  <script src="js/utils.js?v=10.8"></script>
+  <script src="js/seed.js?v=10.8"></script>
+  <script src="js/sync.js?v=10.8"></script>
+  <script src="js/store.js?v=10.8"></script>
+  <script src="js/app.js?v=10.8"></script>
 
   <!-- Niezależna od cache obsługa bramki wejściowej -->
   <script>
