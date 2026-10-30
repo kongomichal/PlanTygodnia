@@ -2888,4 +2888,83 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator:hover {
   font-size: 1rem;
   line-height: 1.55;
   -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+  word-wrap: break-word;
+  white-space: pre-wrap;
 }
+.scratchpad-text b,
+.scratchpad-text strong { font-weight: 800; }
+
+/* Mini-foldery + pasek formatowania pod nagłówkiem */
+.nb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 12px;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+  flex-shrink: 0;
+}
+.nb-tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nb-tabs::-webkit-scrollbar { display: none; }
+.nb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: 140px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--trans);
+  user-select: none;
+}
+.nb-tab:hover { color: var(--text-main); border-color: var(--accent); }
+.nb-tab.is-active {
+  background: var(--accent-glow, var(--surface));
+  border-color: var(--accent);
+  color: var(--text-main);
+}
+.nb-tab-icon { font-size: 0.72rem; }
+.nb-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-tab-del {
+  margin-left: 2px;
+  font-size: 0.65rem;
+  opacity: 0.55;
+  padding: 0 2px;
+  border-radius: 4px;
+}
+.nb-tab-del:hover { opacity: 1; color: var(--crimson); }
+.nb-tab-add { padding: 3px 9px; font-weight: 700; }
+.nb-fmt-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--trans);
+}
+.nb-fmt-btn:hover { background: var(--surface-alt); }
+.nb-fmt-btn.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+

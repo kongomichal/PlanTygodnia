@@ -1027,17 +1027,62 @@ const App = {
     Store.persist(false);
   },
 
+  /* ---------- Mini-foldery notatnika (każdy folder = osobna kartka z HTML, np. pogrubienia) ---------- */
+  _nbTextToHtml(text) {
+    return String(text || '').split('\n').map(l => esc(l) || '<br>').map(l => `<div>${l}</div>`).join('');
+  },
+
+  getNotebookFolders() {
+    const s = Store.state;
+    if (Array.isArray(s.notebookFolders) && s.notebookFolders.length) return s.notebookFolders;
+    // migracja: dotychczasowa kartka trafia do folderu „Ogólne”
+    return [{ id: 'main', name: 'Ogólne', html: this._nbTextToHtml(this.getScratchpad()) }];
+  },
+
+  saveNotebookFolders(folders) {
+    Store.state.notebookFolders = folders;
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps.notebookFolders = Date.now();
+    Store.persist(false);
+  },
+
+  getActiveFolderId(folders) {
+    let id = null;
+    try { id = localStorage.getItem('kompas_nb_active'); } catch (e) {}
+    return folders.some(f => f.id === id) ? id : folders[0].id;
+  },
+
+  setActiveFolderId(id) {
+    try { localStorage.setItem('kompas_nb_active', id); } catch (e) {}
+  },
+
+  renderNotebookTabs() {
+    const bar = document.getElementById('nbTabs');
+    if (!bar) return;
+    const folders = this.getNotebookFolders();
+    const active = this.getActiveFolderId(folders);
+    bar.innerHTML = folders.map(f => `
+      <button class="nb-tab ${f.id === active ? 'is-active' : ''}" data-nb="open" data-id="${esc(f.id)}"
+              title="Kliknij, aby otworzyć • dwuklik, aby zmienić nazwę">
+        <span class="nb-tab-icon">📁</span><span class="nb-tab-name">${esc(f.name)}</span>
+        ${f.id === active && folders.length > 1 ? `<span class="nb-tab-del" data-nb="del" data-id="${esc(f.id)}" title="Usuń folder">✕</span>` : ''}
+      </button>
+    `).join('') + `<button class="nb-tab nb-tab-add" data-nb="add" title="Nowy folder">＋</button>`;
+  },
+
   renderInboxSidebar() {
     const sidebar = document.getElementById('inboxSidebar');
     if (!sidebar) return;
 
     sidebar.classList.toggle('is-collapsed', !this.isSidebarOpen);
 
-    let ta = document.getElementById('scratchpadText');
-    if (ta) {
+    let ed = document.getElementById('scratchpadText');
+    if (ed) {
+      this.renderNotebookTabs();
       // nie nadpisuj tego, co właśnie piszesz; zdalne zmiany wczytaj tylko poza fokusem
-      const val = this.getScratchpad();
-      if (document.activeElement !== ta && ta.value !== val) ta.value = val;
+      const folders = this.getNotebookFolders();
+      const f = folders.find(x => x.id === this.getActiveFolderId(folders));
+      if (document.activeElement !== ed && ed.innerHTML !== f.html) ed.innerHTML = f.html;
       return;
     }
 
@@ -1046,15 +1091,104 @@ const App = {
         <div class="inbox-sb-title"><span>📝 Notatnik</span></div>
         <button class="inbox-sb-close" data-act="toggleInboxSidebar" title="Zwiń notatnik">✕</button>
       </div>
-      <textarea id="scratchpadText" class="scratchpad-text" spellcheck="false" aria-label="Notatnik"></textarea>
+      <div class="nb-toolbar">
+        <div class="nb-tabs" id="nbTabs"></div>
+        <button class="nb-fmt-btn" id="nbBold" data-nb="bold" title="Pogrubienie (Ctrl/⌘+B)"><b>B</b></button>
+      </div>
+      <div id="scratchpadText" class="scratchpad-text" contenteditable="true" spellcheck="false"
+           role="textbox" aria-multiline="true" aria-label="Notatnik"></div>
     `;
-    ta = document.getElementById('scratchpadText');
-    ta.value = this.getScratchpad();
+    ed = document.getElementById('scratchpadText');
+    const boldBtn = document.getElementById('nbBold');
+
+    const loadActive = () => {
+      const folders = this.getNotebookFolders();
+      const f = folders.find(x => x.id === this.getActiveFolderId(folders));
+      ed.innerHTML = f.html;
+      this.renderNotebookTabs();
+    };
+
     let timer = null;
-    const flush = () => { clearTimeout(timer); this.saveScratchpad(ta.value); };
-    ta.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(flush, 400); });
-    ta.addEventListener('blur', flush);
+    const flush = () => {
+      clearTimeout(timer);
+      const folders = this.getNotebookFolders().map(f => ({ ...f }));
+      const f = folders.find(x => x.id === this.getActiveFolderId(folders));
+      if (!f || f.html === ed.innerHTML) return;
+      f.html = ed.innerHTML;
+      this.saveNotebookFolders(folders);
+    };
+
+    ed.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(flush, 400); });
+    ed.addEventListener('blur', flush);
     window.addEventListener('pagehide', flush);
+
+    // wklejanie jako zwykły tekst (bez obcych stylów)
+    ed.addEventListener('paste', e => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+
+    // podświetlenie przycisku B, gdy kursor stoi w pogrubionym tekście
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement !== ed) { boldBtn.classList.remove('is-on'); return; }
+      boldBtn.classList.toggle('is-on', document.queryCommandState('bold'));
+    });
+
+    // nie zabieraj zaznaczenia z edytora przy klikaniu przycisku B
+    boldBtn.addEventListener('mousedown', e => e.preventDefault());
+
+    sidebar.addEventListener('click', e => {
+      const el = e.target.closest('[data-nb]');
+      if (!el) return;
+      const action = el.dataset.nb;
+      if (action === 'bold') {
+        if (document.activeElement !== ed) ed.focus();
+        document.execCommand('bold');
+        boldBtn.classList.toggle('is-on', document.queryCommandState('bold'));
+        flush();
+      } else if (action === 'open') {
+        flush();
+        this.setActiveFolderId(el.dataset.id);
+        loadActive();
+      } else if (action === 'add') {
+        flush();
+        const name = (prompt('Nazwa nowego folderu:', '') || '').trim();
+        if (!name) return;
+        const folders = this.getNotebookFolders().map(f => ({ ...f }));
+        const id = 'nb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        folders.push({ id, name, html: '' });
+        this.saveNotebookFolders(folders);
+        this.setActiveFolderId(id);
+        loadActive();
+        ed.focus();
+      } else if (action === 'del') {
+        e.stopPropagation();
+        const folders = this.getNotebookFolders();
+        const f = folders.find(x => x.id === el.dataset.id);
+        if (!f || folders.length < 2) return;
+        if (!confirm(`Usunąć folder „${f.name}” razem z jego notatkami?`)) return;
+        clearTimeout(timer);
+        this.saveNotebookFolders(folders.filter(x => x.id !== f.id));
+        loadActive();
+      }
+    });
+
+    sidebar.addEventListener('dblclick', e => {
+      const el = e.target.closest('[data-nb="open"]');
+      if (!el) return;
+      flush();
+      const folders = this.getNotebookFolders().map(f => ({ ...f }));
+      const f = folders.find(x => x.id === el.dataset.id);
+      if (!f) return;
+      const name = (prompt('Zmień nazwę folderu:', f.name) || '').trim();
+      if (!name || name === f.name) return;
+      f.name = name;
+      this.saveNotebookFolders(folders);
+      this.renderNotebookTabs();
+    });
+
+    loadActive();
   },
 
   /* ==========================================================================
