@@ -56,12 +56,30 @@ const Store = {
       const cur = map.get(it.id);
       if (!cur) { map.set(it.id, it); return; }
       const sa = this._stampOf(cur), sb = this._stampOf(it);
-      if (sb > sa || (sb === sa && JSON.stringify(it) > JSON.stringify(cur))) map.set(it.id, it);
+      let win = (sb > sa || (sb === sa && JSON.stringify(it) > JSON.stringify(cur))) ? it : cur;
+      if (kind === 'task') win = this._resolveDone(cur, it, win);
+      map.set(it.id, win);
     });
     return [...map.values()].filter(it => {
       const ts = tombs[kind + ':' + it.id];
       return !(ts && ts >= this._stampOf(it));
     });
+  },
+  /**
+   * Stan „wykonane” ma własny znacznik (doneStamp), niezależny od innych zmian.
+   * Dzięki temu np. automatyczne przeniesienie zadania na nieaktualnym urządzeniu
+   * nigdy nie cofnie odhaczenia zrobionego gdzie indziej. Cofnąć je może tylko
+   * świadome odznaczenie (nowszy doneStamp).
+   */
+  _resolveDone(a, b, win) {
+    if (!!a.done === !!b.done) return win;
+    const da = a.doneStamp || 0, db = b.doneStamp || 0;
+    let src;
+    if (da !== db) src = da > db ? a : b;
+    else src = a.done ? a : b; // brak znaczników (stare dane) → wykonane wygrywa
+    const stamp = Math.max(this._stampOf(a), this._stampOf(b));
+    if (src.done) return { ...src, updatedAt: stamp }; // zrobione zostaje zrobione (z oryginalną datą)
+    return { ...win, done: false, doneAt: null, doneStamp: src.doneStamp || 0, updatedAt: stamp };
   },
   /** Przemienne scalanie dwóch stanów – nic nie ginie, wygrywa nowsza zmiana danego elementu. */
   merge(a, b) {

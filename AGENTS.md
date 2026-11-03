@@ -25,3 +25,4 @@ z repozytorium `git@github.com:kongomichal/PlanTygodnia.git` (gałąź `main`).
 - `js/store.js` – stan + scalanie (`merge`); pojedyncze pola synchronizowane przez `fieldStamps`.
 - `js/sync.js` – synchronizacja z Firebase (cały stan).
 - `css/style.css` – style; sekcja „NOTATNIK” na końcu pliku.
+

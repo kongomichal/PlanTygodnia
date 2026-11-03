@@ -1361,6 +1361,7 @@ const App = {
     Store.update(id, {
       done: nextDone,
       doneAt: nextDone ? D.today() : null,
+      doneStamp: Date.now(),
     });
     this.showToast(nextDone ? `✓ Wykonano: „${t.title}” (przeniesiono do archiwum)` : `Przywrócono: „${t.title}”`);
   },
