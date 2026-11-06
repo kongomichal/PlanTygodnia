@@ -492,12 +492,9 @@ const App = {
     }, 120);
   },
 
-  /* Zachowuje dokładną pozycję aktywnego dnia na telefonie bez przeskoków */
+  /* Układ poziomy (dni jeden pod drugim): po przerysowaniu nie przewijamy – tylko podświetlamy aktywny dzień */
   restoreMobileScrollPosition() {
     if (window.innerWidth > 768) return;
-    const boardMain = document.getElementById('boardMain');
-    if (!boardMain) return;
-
     const today = D.today();
     const days = this.showAllDaysInGrid
       ? Store.getWeekDays(this.weekOffset)
@@ -505,12 +502,6 @@ const App = {
 
     if (!this.activeMobileDay || !days.includes(this.activeMobileDay)) {
       this.activeMobileDay = days.includes(today) ? today : days[0];
-    }
-
-    const targetCol = boardMain.querySelector(`.day-column[data-date="${this.activeMobileDay}"]`);
-    if (targetCol) {
-      const left = targetCol.offsetLeft - (boardMain.clientWidth - targetCol.offsetWidth) / 2;
-      boardMain.scrollLeft = Math.max(0, left);
     }
 
     document.querySelectorAll('.day-strip-btn').forEach(btn => {
@@ -557,12 +548,18 @@ const App = {
     }).join('');
   },
 
+  /* Przewija tablicę (pionowo) tak, aby dany dzień był na górze */
+  _scrollBoardToCol(col, smooth) {
+    const boardMain = document.getElementById('boardMain');
+    if (!boardMain || !col) return;
+    const top = col.getBoundingClientRect().top - boardMain.getBoundingClientRect().top + boardMain.scrollTop - 8;
+    boardMain.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+  },
+
   scrollToDay(dateStr, smooth = true) {
     this.activeMobileDay = dateStr;
     const col = document.querySelector(`.day-column[data-date="${dateStr}"]`);
-    if (col) {
-      col.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
-    }
+    if (col) this._scrollBoardToCol(col, smooth);
     document.querySelectorAll('.day-strip-btn').forEach(btn => {
       btn.classList.toggle('is-active', btn.dataset.date === dateStr);
     });
@@ -578,7 +575,7 @@ const App = {
       const date = target.dataset.date || today;
       this.activeMobileDay = date;
       setTimeout(() => {
-        target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
+        this._scrollBoardToCol(target, smooth);
         document.querySelectorAll('.day-strip-btn').forEach(btn => {
           btn.classList.toggle('is-active', btn.dataset.date === date);
         });
@@ -600,21 +597,13 @@ const App = {
         if (this._isRendering) return;
         const cols = Array.from(document.querySelectorAll('.day-column'));
         if (cols.length === 0) return;
-        const center = boardMain.scrollLeft + (boardMain.clientWidth / 2);
-        let closestCol = null;
-        let minDiff = Infinity;
+        // aktywny = ostatni dzień, którego nagłówek minął górną krawędź tablicy
+        const boardTop = boardMain.getBoundingClientRect().top + 40;
+        let current = cols[0];
+        cols.forEach(col => { if (col.getBoundingClientRect().top <= boardTop) current = col; });
 
-        cols.forEach(col => {
-          const colCenter = col.offsetLeft + (col.offsetWidth / 2);
-          const diff = Math.abs(colCenter - center);
-          if (diff < minDiff) {
-            minDiff = diff;
-            closestCol = col;
-          }
-        });
-
-        if (closestCol && closestCol.dataset.date) {
-          const date = closestCol.dataset.date;
+        if (current && current.dataset.date) {
+          const date = current.dataset.date;
           this.activeMobileDay = date;
           document.querySelectorAll('.day-strip-btn').forEach(btn => {
             btn.classList.toggle('is-active', btn.dataset.date === date);
@@ -753,7 +742,7 @@ const App = {
             ` : ''}
 
             <!-- 🎯 STREFA 1: GŁAZ DNIA (POZIOM I - KLUCZOWA SPRAWA - TYLKO AKTYWNE) -->
-            <div>
+            <div class="col-zone col-zone-rock">
               <div class="col-zone-header rock-header">
                 <span>🎯 I · Głaz Dnia</span>
                 <button class="task-micro-btn" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="1" title="Dodaj Głaz do tego dnia">+</button>
@@ -770,7 +759,7 @@ const App = {
             </div>
 
             <!-- 📋 STREFA 2: BIEŻĄCZKA (POZIOM II - TYLKO AKTYWNE ZADANIA) -->
-            <div>
+            <div class="col-zone col-zone-work">
               <div class="col-zone-header">
                 <span>📋 II · Bieżączka (${totalActiveWorkCount})</span>
                 <button class="task-micro-btn" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="2" title="Dodaj zadanie do bieżączki">+</button>

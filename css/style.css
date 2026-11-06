@@ -2968,3 +2968,97 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator:hover {
   color: #fff;
 }
 
+
+
+/* ==========================================================================
+   UKŁAD POZIOMY: każdy dzień = pełna linia (dni jeden pod drugim),
+   wzorowane na widoku telefonu w „Muraven – Plan pracy”
+   ========================================================================== */
+.board-main {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-snap-type: none;
+}
+.week-grid {
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  gap: 14px;
+  align-items: stretch;
+}
+.day-column,
+.day-column.is-today,
+.day-column.is-current-day {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  overflow: visible;
+}
+.day-column.is-today,
+.day-column.is-current-day {
+  background: linear-gradient(180deg, var(--accent-light) 0%, var(--surface) 60px);
+}
+.col-header { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.col-body {
+  flex: none;
+  overflow: visible;
+  padding: 12px 14px 8px;
+}
+.col-footer { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.col-footer .col-quick-add-form { max-width: 560px; }
+
+/* Na komputerze sekcje dnia układają się obok siebie w jednej linii */
+@media (min-width: 769px) {
+  .col-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: start;
+    gap: 14px;
+  }
+  .col-body > .col-completed-box { grid-column: 1 / -1; }
+  .col-body .completed-cards-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+  }
+  .day-column .selfcare-items-list,
+  .day-column.is-today .selfcare-items-list,
+  .day-column.is-current-day .selfcare-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+/* Telefon: dni jeden pod drugim, przewijanie w pionie (bez przesuwania w bok) */
+@media (max-width: 768px) {
+  .board-main {
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-snap-type: none;
+  }
+  .week-grid {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    gap: 12px;
+  }
+  .day-column,
+  .day-column.is-today,
+  .day-column.is-current-day {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto;
+    scroll-snap-align: none;
+  }
+  .col-body {
+    overflow: visible;
+    padding-bottom: 8px;
+  }
+}
