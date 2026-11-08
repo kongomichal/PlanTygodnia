@@ -12,7 +12,7 @@
 const App = {
   weekOffset: 0,
   theme: 'light',
-  isSidebarOpen: window.innerWidth > 768,
+  isSidebarOpen: false,
   isCompletedSidebarOpen: false,
   showAllDaysInGrid: false,
   collapsedNotes: new Set(),
@@ -1064,6 +1064,8 @@ const App = {
     if (!sidebar) return;
 
     sidebar.classList.toggle('is-collapsed', !this.isSidebarOpen);
+    const toggleBtn = document.getElementById('btnToggleSidebar');
+    if (toggleBtn) toggleBtn.classList.toggle('active', this.isSidebarOpen);
 
     let ed = document.getElementById('scratchpadText');
     if (ed) {
