@@ -2967,90 +2967,105 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator:hover {
   border-color: var(--accent);
   color: #fff;
 }
-
-
-
 /* ==========================================================================
-   UKŁAD POZIOMY: każdy dzień = pełna linia (dni jeden pod drugim),
-   wzorowane na widoku telefonu w „Muraven – Plan pracy”
+   UKŁAD KAFELKOWY: max 4 kafelki (dni) w rzędzie, równy rozmiar, symetryczne odstępy
    ========================================================================== */
+
+/* Główny kontener – bez poziomego scrollowania */
 .board-main {
-  overflow-x: hidden;
+  overflow-x: hidden !important;
   overflow-y: auto;
-  scroll-snap-type: none;
+  padding: 14px 16px 20px;
 }
+
+/* Siatka dni: CSS Grid, max 4 kolumny */
 .week-grid {
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-  height: auto;
-  min-height: 0;
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
-  align-items: stretch;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  align-items: start;
 }
+
+/* Każdy kafelek (dzień) – równy rozmiar, żadnego overflow */
 .day-column,
 .day-column.is-today,
 .day-column.is-current-day {
-  flex: 0 0 auto;
-  width: 100%;
-  min-width: 0;
-  max-width: none;
+  flex: unset !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
   height: auto;
-  overflow: visible;
+  overflow: hidden;
 }
+
+/* Bieżący dzień – tylko kolor tła (bez 2x szerokości) */
 .day-column.is-today,
 .day-column.is-current-day {
   background: linear-gradient(180deg, var(--accent-light) 0%, var(--surface) 60px);
+  border-top: 3px solid var(--accent);
 }
-.col-header { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+
+/* Zaokrąglenia nagłówka i stopki */
+.col-header {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.col-footer {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.col-footer .col-quick-add-form {
+  max-width: 100%;
+}
+
+/* Zawartość kafelka: pionowo */
 .col-body {
   flex: none;
   overflow: visible;
-  padding: 12px 14px 8px;
+  padding: 10px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.col-footer { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
-.col-footer .col-quick-add-form { max-width: 560px; }
 
-/* Na komputerze sekcje dnia układają się obok siebie w jednej linii */
-@media (min-width: 769px) {
-  .col-body {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    align-items: start;
-    gap: 14px;
-  }
-  .col-body > .col-completed-box { grid-column: 1 / -1; }
-  .col-body .completed-cards-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 8px;
-  }
-  .day-column .selfcare-items-list,
-  .day-column.is-today .selfcare-items-list,
-  .day-column.is-current-day .selfcare-items-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+/* Sekcja wykonanych – pełna szerokość */
+.col-body > .col-completed-box {
+  width: 100%;
+}
+
+/* ===== RESPONSYWNOŚĆ ===== */
+
+/* Duży tablet / laptop: 3 kolumny */
+@media (max-width: 1280px) {
+  .week-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
-/* Telefon: dni jeden pod drugim, przewijanie w pionie (bez przesuwania w bok) */
-@media (max-width: 768px) {
+/* Tablet: 2 kolumny */
+@media (max-width: 900px) {
+  .week-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+}
+
+/* Telefon: 1 kolumna, pionowe przewijanie */
+@media (max-width: 600px) {
   .board-main {
-    overflow-x: hidden;
+    overflow-x: hidden !important;
     overflow-y: auto;
-    scroll-snap-type: none;
+    padding: 8px 8px calc(76px + env(safe-area-inset-bottom, 12px)) 8px;
   }
   .week-grid {
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    gap: 12px;
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
   .day-column,
   .day-column.is-today,
   .day-column.is-current-day {
-    flex: 0 0 auto !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
