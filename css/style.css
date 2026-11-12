@@ -2660,11 +2660,11 @@ input[type="date"].form-input::-webkit-calendar-picker-indicator:hover {
 .user-auth-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  padding: 3px 10px 3px 6px;
+  padding: 3px 6px;
   cursor: pointer;
   transition: all var(--trans);
   user-select: none;

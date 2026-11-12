@@ -1079,15 +1079,15 @@ const App = {
 
     sidebar.innerHTML = `
       <div class="inbox-sb-header">
-        <div class="inbox-sb-title"><span>📝 Notatnik</span></div>
-        <button class="inbox-sb-close" data-act="toggleInboxSidebar" title="Zwiń notatnik">✕</button>
+        <div class="inbox-sb-title"><span>🗂️ Role - zadania</span></div>
+        <button class="inbox-sb-close" data-act="toggleInboxSidebar" title="Zwiń role - zadania">✕</button>
       </div>
       <div class="nb-toolbar">
         <div class="nb-tabs" id="nbTabs"></div>
         <button class="nb-fmt-btn" id="nbBold" data-nb="bold" title="Pogrubienie (Ctrl/⌘+B)"><b>B</b></button>
       </div>
       <div id="scratchpadText" class="scratchpad-text" contenteditable="true" spellcheck="false"
-           role="textbox" aria-multiline="true" aria-label="Notatnik"></div>
+           role="textbox" aria-multiline="true" aria-label="Role - zadania"></div>
     `;
     ed = document.getElementById('scratchpadText');
     const boldBtn = document.getElementById('nbBold');

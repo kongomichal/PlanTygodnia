@@ -122,7 +122,6 @@ const Sync = {
         <div class="user-auth-pill" onclick="Sync.openAuthModal()" title="Zalogowano jako ${name}. Kliknij, aby otworzyć stan synchronizacji i konto.">
           <span class="sync-dot ${this.status}" id="syncStatusDot" title="Status synchronizacji"></span>
           ${photo ? `<img src="${photo}" class="user-avatar-img" alt="${initial}">` : `<span class="user-avatar-initial">${initial}</span>`}
-          <span class="user-pill-name">${name}</span>
         </div>
       `;
     }
