@@ -1053,7 +1053,7 @@ const App = {
     bar.innerHTML = folders.map(f => `
       <button class="nb-tab ${f.id === active ? 'is-active' : ''}" data-nb="open" data-id="${esc(f.id)}"
               title="Kliknij, aby otworzyć • dwuklik, aby zmienić nazwę">
-        <span class="nb-tab-icon">📁</span><span class="nb-tab-name">${esc(f.name)}</span>
+        <span class="nb-tab-name">${esc(f.name)}</span>
         ${f.id === active && folders.length > 1 ? `<span class="nb-tab-del" data-nb="del" data-id="${esc(f.id)}" title="Usuń folder">✕</span>` : ''}
       </button>
     `).join('') + `<button class="nb-tab nb-tab-add" data-nb="add" title="Nowy folder">＋</button>`;
