@@ -1,9 +1,7 @@
 'use strict';
 
 const APP_LOGO_ICONS = [
-  `<svg class="app-logo-svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#4f46e5"/><circle cx="32" cy="32" r="19" fill="none" stroke="#fff" stroke-width="2.5" opacity="0.9"/><polygon points="32,14 37,32 32,29 27,32" fill="#fbbf24"/><polygon points="32,50 37,32 32,35 27,32" fill="#ffffff" opacity="0.85"/></svg>`,
-  `<svg class="app-logo-svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#0f172a"/><rect x="11" y="11" width="19" height="19" rx="5" fill="#ef4444"/><rect x="34" y="11" width="19" height="19" rx="5" fill="#10b981"/><rect x="11" y="34" width="19" height="19" rx="5" fill="#f59e0b"/><rect x="34" y="34" width="19" height="19" rx="5" fill="#475569"/></svg>`,
-  `<svg class="app-logo-svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#059669"/><rect x="10" y="16" width="44" height="8" rx="4" fill="#fbbf24"/><rect x="14" y="26" width="6" height="24" rx="3" fill="#fff"/><rect x="24" y="26" width="6" height="24" rx="3" fill="#fff"/><rect x="34" y="26" width="6" height="24" rx="3" fill="#fff"/><rect x="44" y="26" width="6" height="24" rx="3" fill="#fff"/></svg>`
+  `<svg class="app-logo-svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#4f46e5"/><circle cx="32" cy="32" r="19" fill="none" stroke="#fff" stroke-width="2.5" opacity="0.9"/><polygon points="32,14 37,32 32,29 27,32" fill="#fbbf24"/><polygon points="32,50 37,32 32,35 27,32" fill="#ffffff" opacity="0.85"/></svg>`
 ];
 
 const App = {
