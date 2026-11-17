@@ -1,10 +1,10 @@
 'use strict';
 
 /**
- * Warstwa danych. Teraz: localStorage.
- * Później: wystarczy podmienić `persist()` / `init()` na adapter Firestore
- * (dokument users/{uid} z polami roles, tasks, lastReview) – reszta aplikacji
- * korzysta wyłącznie z metod tego obiektu.
+ * Warstwa danych (localStorage + automatyczna synchronizacja czasu rzeczywistego z Google Firebase Firestore).
+ * Obsługuje: Role (4 Nogi Stołu), Cele (Tygodniowe/Miesięczne/Kwartalne/Roczne z podziałem na lata),
+ * Zadania z Matrycą Eisenhowera (Q1-Q4), Zakładkę „Na później”, Kalendarz przypomnień,
+ * Ostrzenie Piły (dawne rutyny), Zbiór Myśli/Cytaty, Afirmacje, Moje Zasady oraz Archiwum wykonanych zadań.
  */
 const Store = {
   KEY: 'kompas.v1',
@@ -12,79 +12,289 @@ const Store = {
   subs: new Set(),
 
   init() {
-    try { const raw = localStorage.getItem(this.KEY); if (raw) this.state = JSON.parse(raw); } catch (e) { console.warn(e); }
-    if (!this.state || !Array.isArray(this.state.tasks)) this.state = Seed.build();
-    if (!Array.isArray(this.state.completedDays)) this.state.completedDays = [];
-    this.cleanup();
+    try {
+      const raw = localStorage.getItem(this.KEY);
+      if (raw) this.state = JSON.parse(raw);
+    } catch (e) {
+      console.warn(e);
+    }
+
+    if (!this.state || typeof this.state !== 'object') {
+      this.state = Seed.build();
+    } else {
+      this.normalizeState(this.state);
+    }
+
     this.rebaseline();
     try { localStorage.setItem(this.KEY, JSON.stringify(this.state)); } catch (e) {}
-    // synchronizacja między kartami przeglądarki
+
     window.addEventListener('storage', e => {
-      if (e.key === this.KEY && e.newValue) { this.state = JSON.parse(e.newValue); this.rebaseline(); this.emit(); }
+      if (e.key === this.KEY && e.newValue) {
+        try {
+          this.state = JSON.parse(e.newValue);
+          this.normalizeState(this.state);
+          this.rebaseline();
+          this.emit();
+        } catch (err) {}
+      }
     });
   },
 
-  /* ---- śledzenie zmian per element (podstawa bezpiecznej synchronizacji) ---- */
-  _fp(item) { const c = { ...item }; delete c.updatedAt; return JSON.stringify(c); },
-  baseline: { task: {}, role: {} },
+  /**
+   * Upewnia się, że stan ma wszystkie nowe tablice i migruje ewentualne zadania/rutyny ze starego formatu.
+   */
+  normalizeState(s) {
+    const def = Seed.build();
+    if (!s.year) s.year = new Date().getFullYear();
+    if (!s.theme) s.theme = 'light';
+    if (!s.deleted) s.deleted = {};
+    if (!s.fieldStamps) s.fieldStamps = {};
+
+    // Role (4 Nogi Stołu)
+    if (!Array.isArray(s.roles) || s.roles.length === 0) {
+      s.roles = def.roles;
+    } else {
+      // Jeśli są tylko stare 3 role (r_saw, r_firm, r_home), uzupełnij do 4 nóg stołu
+      const hasLegacyOnly = s.roles.every(r => ['r_saw', 'r_firm', 'r_home'].includes(r.id));
+      if (hasLegacyOnly && s.roles.length === 3) {
+        s.roles = def.roles;
+      }
+    }
+
+    const defaultRoleId = s.roles[0]?.id || 'r_body';
+    const workRoleId = s.roles.find(r => /praca|firma/i.test(r.name))?.id || s.roles[s.roles.length - 1]?.id || defaultRoleId;
+    const mindRoleId = s.roles.find(r => /umysł|rozwój|studia/i.test(r.name))?.id || defaultRoleId;
+
+    const mapLegacyRole = (oldId) => {
+      if (!oldId) return workRoleId;
+      if (s.roles.some(r => r.id === oldId)) return oldId;
+      if (oldId === 'r_saw') return defaultRoleId;
+      if (oldId === 'r_firm') return workRoleId;
+      if (oldId === 'r_home') return workRoleId;
+      return workRoleId;
+    };
+
+    if (!Array.isArray(s.tasks)) s.tasks = [];
+    if (!Array.isArray(s.later)) s.later = [];
+    if (!Array.isArray(s.reminders)) s.reminders = [];
+    if (!Array.isArray(s.saw)) s.saw = [];
+    if (!Array.isArray(s.rules)) s.rules = [];
+    if (!Array.isArray(s.affirmations)) s.affirmations = [];
+    if (!Array.isArray(s.quotes)) s.quotes = [];
+    if (!Array.isArray(s.archive)) s.archive = [];
+    if (!s.goals || typeof s.goals !== 'object') s.goals = def.goals;
+
+    // Migracja zadań ze starej struktury (jeśli występują t.recur, t.done lub t.inbox w s.tasks)
+    const remainingTasks = [];
+    s.tasks.forEach(t => {
+      if (!t || !t.title) return;
+
+      // 1. Stare rutyny (t.recur) -> przenosimy do Ostrzenia Piły (s.saw)
+      if (t.recur) {
+        const sawId = 'saw_' + t.id;
+        if (!s.saw.some(x => x.id === sawId || x.title.toLowerCase() === t.title.toLowerCase()) && !s.deleted['saw:' + sawId]) {
+          let freqType = 'daily';
+          let dow = null;
+          let dayOfMonth = null;
+          let cycleLabel = 'Codziennie';
+
+          if (t.recur.unit === 'week') {
+            freqType = 'weekly';
+            dow = t.recur.dow != null ? t.recur.dow : (t.date ? D.dow(t.date) : 0);
+            const dowNames = ['W każdy poniedziałek', 'W każdy wtorek', 'W każdą środę', 'W każdy czwartek', 'W każdy piątek', 'W każdą sobotę', 'W każdą niedzielę'];
+            cycleLabel = dowNames[dow] || 'Co tydzień';
+          } else if (t.recur.unit === 'month') {
+            freqType = 'monthly';
+            dayOfMonth = t.recur.dayOfMonth || (t.date ? D.parse(t.date).getDate() : 1);
+            cycleLabel = `Co miesiąc (${dayOfMonth}. dzień)`;
+          }
+
+          s.saw.push({
+            id: sawId,
+            title: t.title,
+            freqType,
+            dow,
+            dayOfMonth,
+            cycleLabel,
+            dim: t.roleId === 'r_saw' ? 'Ciało & Zdrowie' : 'Praca & System',
+            doneDays: Array.isArray(t.history) ? [...t.history] : [],
+            notes: t.notes || '',
+            createdAt: t.createdAt || Date.now(),
+            updatedAt: t.updatedAt || Date.now()
+          });
+        }
+        return;
+      }
+
+      // 2. Stare zadania wykonane (t.done) -> przenosimy do Archiwum (s.archive)
+      if (t.done) {
+        const archId = 'arch_' + t.id;
+        if (!s.archive.some(a => a.id === archId) && !s.deleted['archive:' + archId]) {
+          const doneDate = t.doneAt || t.date || D.today();
+          const yr = parseInt(String(doneDate).slice(0, 4), 10) || s.year;
+          s.archive.unshift({
+            id: archId,
+            title: t.title,
+            roleId: mapLegacyRole(t.roleId),
+            q: t.q || (t.priority === 1 ? 1 : 2),
+            doneAt: doneDate,
+            year: yr,
+            createdAt: t.createdAt || Date.now(),
+            updatedAt: t.updatedAt || Date.now()
+          });
+        }
+        return;
+      }
+
+      // 3. Stare zadania ze skrzynki (t.inbox) -> przenosimy do „Na później” (s.later)
+      if (t.inbox) {
+        const latId = 'lat_' + t.id;
+        if (!s.later.some(l => l.id === latId) && !s.deleted['later:' + latId]) {
+          s.later.push({
+            id: latId,
+            title: t.title,
+            createdAt: t.createdAt || Date.now(),
+            updatedAt: t.updatedAt || Date.now()
+          });
+        }
+        return;
+      }
+
+      // 4. Aktywne zadanie tygodniowe
+      remainingTasks.push({
+        ...t,
+        roleId: mapLegacyRole(t.roleId),
+        q: Number(t.q) || (t.priority === 1 ? 1 : 2),
+        year: t.year || (t.date ? parseInt(String(t.date).slice(0, 4), 10) : s.year) || s.year
+      });
+    });
+    s.tasks = remainingTasks;
+
+    // Gwarancja obecności przywróconych pozycji Ostrzenia Piły: „Wyjście na spacer” i „Pisanie dziennika”
+    const hasWalk = s.saw.some(x => /spacer/i.test(x.title));
+    if (!hasWalk && !s.deleted['saw:saw_walk']) {
+      s.saw.unshift({
+        id: 'saw_walk',
+        title: 'Wyjście na spacer',
+        freqType: 'daily',
+        dow: null,
+        dayOfMonth: null,
+        cycleLabel: 'Codziennie',
+        dim: 'Ciało & Zdrowie',
+        doneDays: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      });
+    }
+
+    const hasJournal = s.saw.some(x => /dziennik/i.test(x.title));
+    if (!hasJournal && !s.deleted['saw:saw_journal']) {
+      s.saw.splice(1, 0, {
+        id: 'saw_journal',
+        title: 'Pisanie dziennika',
+        freqType: 'daily',
+        dow: null,
+        dayOfMonth: null,
+        cycleLabel: 'Codziennie',
+        dim: 'Umysł & Rozwój',
+        doneDays: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      });
+    }
+
+    // Upewnij się, że istnieją obiekty celów dla bieżącego roku
+    if (!s.goals[s.year]) s.goals[s.year] = {};
+    s.roles.forEach(r => {
+      if (!s.goals[s.year][r.id]) {
+        s.goals[s.year][r.id] = { weekly: '', monthly: '', quarterly: '', yearly: '' };
+      }
+    });
+
+    return s;
+  },
+
+  /* ---- Śledzenie zmian per element (bezpieczna synchronizacja z Firebase) ---- */
+  COLLECTIONS: ['tasks', 'roles', 'later', 'reminders', 'saw', 'archive', 'affirmations', 'quotes', 'rules'],
+  baseline: {},
+
+  _fp(item) {
+    const c = { ...item };
+    delete c.updatedAt;
+    return JSON.stringify(c);
+  },
+
   rebaseline() {
     const s = this.state;
-    this.baseline = { task: {}, role: {} };
-    (s.tasks || []).forEach(t => { this.baseline.task[t.id] = this._fp(t); });
-    (s.roles || []).forEach(r => { this.baseline.role[r.id] = this._fp(r); });
-  },
-  /** Oznacza zmienione elementy znacznikiem czasu i zapisuje usunięcia jako „nagrobki”. */
-  stamp() {
-    const s = this.state, now = Date.now();
-    if (!s.deleted) s.deleted = {};
-    [['task', s.tasks || []], ['role', s.roles || []]].forEach(([kind, list]) => {
-      const base = this.baseline[kind], seen = {};
-      list.forEach(it => {
-        seen[it.id] = true;
-        const fp = this._fp(it);
-        if (base[it.id] !== fp) { it.updatedAt = now; base[it.id] = fp; }
-      });
-      Object.keys(base).forEach(id => {
-        if (!seen[id]) { s.deleted[kind + ':' + id] = now; delete base[id]; }
+    this.baseline = {};
+    this.COLLECTIONS.forEach(col => {
+      this.baseline[col] = {};
+      (s[col] || []).forEach(it => {
+        if (it && it.id) this.baseline[col][it.id] = this._fp(it);
       });
     });
   },
-  _stampOf(it) { return it.updatedAt || it.createdAt || 0; },
-  _mergeItems(kind, la, lb, tombs) {
+
+  stamp() {
+    const s = this.state;
+    const now = Date.now();
+    if (!s.deleted) s.deleted = {};
+    this.COLLECTIONS.forEach(col => {
+      const list = s[col] || [];
+      const base = this.baseline[col] || {};
+      const seen = {};
+      list.forEach(it => {
+        if (!it || !it.id) return;
+        seen[it.id] = true;
+        const fp = this._fp(it);
+        if (base[it.id] !== fp) {
+          it.updatedAt = now;
+          base[it.id] = fp;
+        }
+      });
+      Object.keys(base).forEach(id => {
+        if (!seen[id]) {
+          s.deleted[col + ':' + id] = now;
+          delete base[id];
+        }
+      });
+      this.baseline[col] = base;
+    });
+  },
+
+  _stampOf(it) {
+    return (it && (it.updatedAt || it.createdAt)) || 0;
+  },
+
+  _mergeList(col, la, lb, tombs) {
     const map = new Map();
     [...(la || []), ...(lb || [])].forEach(it => {
+      if (!it || !it.id) return;
       const cur = map.get(it.id);
-      if (!cur) { map.set(it.id, it); return; }
-      const sa = this._stampOf(cur), sb = this._stampOf(it);
-      let win = (sb > sa || (sb === sa && JSON.stringify(it) > JSON.stringify(cur))) ? it : cur;
-      if (kind === 'task') win = this._resolveDone(cur, it, win);
+      if (!cur) {
+        map.set(it.id, it);
+        return;
+      }
+      const sa = this._stampOf(cur);
+      const sb = this._stampOf(it);
+      const win = (sb > sa || (sb === sa && JSON.stringify(it) > JSON.stringify(cur))) ? it : cur;
       map.set(it.id, win);
     });
     return [...map.values()].filter(it => {
-      const ts = tombs[kind + ':' + it.id];
+      const ts = tombs[col + ':' + it.id];
       return !(ts && ts >= this._stampOf(it));
     });
   },
+
   /**
-   * Stan „wykonane” ma własny znacznik (doneStamp), niezależny od innych zmian.
-   * Dzięki temu np. automatyczne przeniesienie zadania na nieaktualnym urządzeniu
-   * nigdy nie cofnie odhaczenia zrobionego gdzie indziej. Cofnąć je może tylko
-   * świadome odznaczenie (nowszy doneStamp).
+   * Przemienne scalanie stanu lokalnego ze stanem z chmury Firebase.
    */
-  _resolveDone(a, b, win) {
-    if (!!a.done === !!b.done) return win;
-    const da = a.doneStamp || 0, db = b.doneStamp || 0;
-    let src;
-    if (da !== db) src = da > db ? a : b;
-    else src = a.done ? a : b; // brak znaczników (stare dane) → wykonane wygrywa
-    const stamp = Math.max(this._stampOf(a), this._stampOf(b));
-    if (src.done) return { ...src, updatedAt: stamp }; // zrobione zostaje zrobione (z oryginalną datą)
-    return { ...win, done: false, doneAt: null, doneStamp: src.doneStamp || 0, updatedAt: stamp };
-  },
-  /** Przemienne scalanie dwóch stanów – nic nie ginie, wygrywa nowsza zmiana danego elementu. */
   merge(a, b) {
     if (!b) return a;
     if (!a) return b;
+    this.normalizeState(a);
+    this.normalizeState(b);
+
     const out = { ...b, ...a };
     const limit = Date.now() - 90 * 864e5;
     const tombs = {};
@@ -93,230 +303,103 @@ const Store = {
     }));
     Object.keys(tombs).forEach(k => { if (tombs[k] < limit) delete tombs[k]; });
     out.deleted = tombs;
-    out.tasks = this._mergeItems('task', a.tasks, b.tasks, tombs);
-    out.roles = this._mergeItems('role', a.roles, b.roles, tombs);
 
-    // pojedyncze ustawienia (autoRollover, lastReview…)
-    const fa = a.fieldStamps || {}, fb = b.fieldStamps || {};
-    out.fieldStamps = {};
-    new Set([...Object.keys(fa), ...Object.keys(fb)]).forEach(k => {
-      const winB = (fb[k] || 0) > (fa[k] || 0);
-      out[k] = winB ? b[k] : a[k];
-      out.fieldStamps[k] = Math.max(fa[k] || 0, fb[k] || 0);
+    this.COLLECTIONS.forEach(col => {
+      out[col] = this._mergeList(col, a[col], b[col], tombs);
     });
 
-    // ukończone dni
-    const da = a.dayStamps || {}, db = b.dayStamps || {};
-    const ca = new Set(a.completedDays || []), cb = new Set(b.completedDays || []);
-    out.dayStamps = {};
-    const days = new Set([...ca, ...cb, ...Object.keys(da), ...Object.keys(db)]);
-    const done = [];
-    days.forEach(d => {
-      const ta = da[d] || 0, tb = db[d] || 0;
-      const on = ta > tb ? ca.has(d) : tb > ta ? cb.has(d) : (ca.has(d) || cb.has(d));
-      if (on) done.push(d);
-      if (ta || tb) out.dayStamps[d] = Math.max(ta, tb);
-    });
-    out.completedDays = done.sort();
-
-    // cele tygodnia
-    const wa = a.weekGoalStamps || {}, wb = b.weekGoalStamps || {};
-    const ga = a.weekGoals || {}, gb = b.weekGoals || {};
-    out.weekGoals = {}; out.weekGoalStamps = {};
-    new Set([...Object.keys(ga), ...Object.keys(gb)]).forEach(k => {
-      const ta = wa[k] || 0, tb = wb[k] || 0;
-      let v;
-      if (tb > ta) v = gb[k]; else if (ta > tb) v = ga[k];
-      else v = (ga[k] || '') >= (gb[k] || '') ? ga[k] : gb[k];
-      out.weekGoals[k] = v === undefined ? '' : v;
-      if (ta || tb) out.weekGoalStamps[k] = Math.max(ta, tb);
+    // Scalanie celów (goals) według znaczników czasu
+    const fa = a.fieldStamps || {};
+    const fb = b.fieldStamps || {};
+    out.fieldStamps = { ...fb, ...fa };
+    Object.keys(fb).forEach(k => {
+      if ((fb[k] || 0) > (fa[k] || 0)) {
+        out.fieldStamps[k] = fb[k];
+      }
     });
 
-    out.createdAt = Math.min(a.createdAt || Infinity, b.createdAt || Infinity);
-    if (!isFinite(out.createdAt)) out.createdAt = Date.now();
+    // Scalanie obiektu goals[year][roleId][horizon]
+    out.goals = {};
+    const allYears = new Set([...Object.keys(a.goals || {}), ...Object.keys(b.goals || {})]);
+    allYears.forEach(yr => {
+      out.goals[yr] = {};
+      const ga = (a.goals && a.goals[yr]) || {};
+      const gb = (b.goals && b.goals[yr]) || {};
+      const roleIds = new Set([...Object.keys(ga), ...Object.keys(gb)]);
+      roleIds.forEach(rId => {
+        out.goals[yr][rId] = {};
+        ['weekly', 'monthly', 'quarterly', 'yearly'].forEach(h => {
+          const stampKey = `goal:${yr}:${rId}:${h}`;
+          const ta = fa[stampKey] || 0;
+          const tb = fb[stampKey] || 0;
+          const va = ga[rId]?.[h] || '';
+          const vb = gb[rId]?.[h] || '';
+          if (tb > ta) out.goals[yr][rId][h] = vb;
+          else if (ta > tb) out.goals[yr][rId][h] = va;
+          else out.goals[yr][rId][h] = va.length >= vb.length ? va : vb;
+        });
+      });
+    });
+
     out.updatedAt = Math.max(a.updatedAt || 0, b.updatedAt || 0);
-    return out;
+    return this.normalizeState(out);
   },
-  /** Podpis stanu do porównań (niezależny od kolejności i znaczników globalnych). */
+
   sig(s) {
-    const c = { ...s }; delete c.updatedAt;
-    c.tasks = [...(c.tasks || [])].sort((x, y) => (x.id > y.id ? 1 : -1));
-    c.roles = [...(c.roles || [])].sort((x, y) => (x.id > y.id ? 1 : -1));
+    if (!s) return '';
+    const c = { ...s };
+    delete c.updatedAt;
+    this.COLLECTIONS.forEach(col => {
+      c[col] = [...(s[col] || [])].sort((x, y) => (String(x.id) > String(y.id) ? 1 : -1));
+    });
     const norm = v => Array.isArray(v) ? v.map(norm)
       : (v && typeof v === 'object') ? Object.keys(v).sort().reduce((o, k) => (o[k] = norm(v[k]), o), {}) : v;
     return JSON.stringify(norm(c));
   },
 
-  /* ---- ukończone dni i płynne okno 7 dni ---- */
-  isDayCompleted(dateStr) {
-    return Array.isArray(this.state.completedDays) && this.state.completedDays.includes(dateStr);
-  },
-  toggleDayCompleted(dateStr) {
-    if (!Array.isArray(this.state.completedDays)) this.state.completedDays = [];
-    const idx = this.state.completedDays.indexOf(dateStr);
-    if (idx >= 0) {
-      this.state.completedDays.splice(idx, 1);
-    } else {
-      this.state.completedDays.push(dateStr);
-    }
-    if (!this.state.dayStamps) this.state.dayStamps = {};
-    this.state.dayStamps[dateStr] = Date.now();
-    this.persist();
-  },
-  getWeekDays(offset = 0) {
-    const today = D.today();
-    const monday = D.addDays(D.weekStart(today), offset * 7);
-    return [0, 1, 2, 3, 4, 5, 6].map(i => D.addDays(monday, i));
-  },
-  getWeekGoal(ws) {
-    if (!this.state.weekGoals) this.state.weekGoals = {};
-    return this.state.weekGoals[ws] || '';
-  },
-  setWeekGoal(ws, goal) {
-    if (!this.state.weekGoals) this.state.weekGoals = {};
-    this.state.weekGoals[ws] = goal;
-    if (!this.state.weekGoalStamps) this.state.weekGoalStamps = {};
-    this.state.weekGoalStamps[ws] = Date.now();
-    this.persist();
-  },
-  getRollingDays(offset = 0) {
-    const today = D.today();
-    const baseMonday = D.weekStart(today);
-    const completed = new Set(this.state.completedDays || []);
-
-    // Znajdź pierwszy nieukończony dzień począwszy od początku bieżącego tygodnia
-    let cur = baseMonday;
-    while (completed.has(cur)) {
-      cur = D.addDays(cur, 1);
-    }
-    const firstActive = cur;
-
-    if (offset === 0) {
-      const days = [];
-      let scan = firstActive;
-      while (days.length < 7) {
-        if (!completed.has(scan)) {
-          days.push(scan);
-        }
-        scan = D.addDays(scan, 1);
-      }
-      return { firstActive, start: days[0], days, baseMonday };
-    } else if (offset > 0) {
-      let scan = firstActive;
-      let skipped = 0;
-      const targetSkip = offset * 7;
-      while (skipped < targetSkip) {
-        if (!completed.has(scan)) {
-          skipped++;
-        }
-        scan = D.addDays(scan, 1);
-      }
-      const days = [];
-      while (days.length < 7) {
-        if (!completed.has(scan)) {
-          days.push(scan);
-        }
-        scan = D.addDays(scan, 1);
-      }
-      return { firstActive, start: days[0], days, baseMonday };
-    } else {
-      const start = D.addDays(firstActive, offset * 7);
-      const days = [0, 1, 2, 3, 4, 5, 6].map(i => D.addDays(start, i));
-      return { firstActive, start, days, baseMonday };
-    }
-  },
-
-  /** Usuwa jednorazowe zadania zrobione ponad 60 dni temu – żeby lista nie puchła. */
-  cleanup() {
-    const limit = D.addDays(D.today(), -60);
-    this.state.tasks = this.state.tasks.filter(t => !(t.done && !t.recur && t.doneAt && t.doneAt < limit));
-  },
-
   persist(emit = true, syncCloud = true) {
     this.stamp();
     this.state.updatedAt = Date.now();
-    try { localStorage.setItem(this.KEY, JSON.stringify(this.state)); } catch (e) { console.warn(e); }
+    try {
+      localStorage.setItem(this.KEY, JSON.stringify(this.state));
+    } catch (e) {
+      console.warn(e);
+    }
     if (emit) this.emit();
     const sync = (typeof Sync !== 'undefined' ? Sync : window.Sync);
     if (syncCloud && sync && typeof sync.pushToCloud === 'function') {
       sync.pushToCloud();
     }
   },
+
   emit() { this.subs.forEach(f => f()); },
   subscribe(f) { this.subs.add(f); },
 
-  /* ---- zadania ---- */
-  get(id) { return this.state.tasks.find(t => t.id === id); },
-  make(p) {
-    return {
-      id: uid(), title: '', notes: '', checklist: [], roleId: null, priority: 2, q: null, date: null, recur: null,
-      inbox: false, done: false, doneAt: null, focus: null, rock: null, history: [], createdAt: Date.now(), ...p,
-    };
-  },
-  add(p) { const t = this.make(p); this.state.tasks.unshift(t); this.persist(); return t; },
-  addMany(list) { list.forEach(p => this.state.tasks.unshift(this.make(p))); this.persist(); },
-  update(id, patch) {
-    const t = this.get(id); if (!t) return null;
-    Object.assign(t, patch, { updatedAt: Date.now() }); this.persist(); return t;
-  },
-  updateMany(ids, patch) {
-    ids.forEach(id => { const t = this.get(id); if (t) Object.assign(t, patch, { updatedAt: Date.now() }); });
-    this.persist();
-  },
-  replace(task) {
-    const i = this.state.tasks.findIndex(t => t.id === task.id);
-    if (i >= 0) this.state.tasks[i] = task; else this.state.tasks.unshift(task);
-    this.persist();
-  },
-  remove(id) {
-    const sId = String(id);
-    this.state.tasks = this.state.tasks.filter(t => String(t.id) !== sId);
-    this.persist();
+  /* ---- Eksport i Import pełnego pliku JSON ---- */
+  exportJSON() {
+    return JSON.stringify(this.state, null, 2);
   },
 
-  /* ---- role ---- */
-  role(id) { return this.state.roles.find(r => r.id === id); },
-  saveRole(r) {
-    const i = this.state.roles.findIndex(x => x.id === r.id);
-    if (i >= 0) this.state.roles[i] = r; else this.state.roles.push({ ...r, id: r.id || 'r_' + uid() });
-    this.persist();
-  },
-  removeRole(id) {
-    this.state.roles = this.state.roles.filter(r => r.id !== id);
-    this.state.tasks.forEach(t => { if (t.roleId === id) t.roleId = null; });
-    this.persist();
-  },
-
-  set(key, val) {
-    this.state[key] = val;
-    if (!this.state.fieldStamps) this.state.fieldStamps = {};
-    this.state.fieldStamps[key] = Date.now();
-    this.persist();
-  },
-
-  /* ---- import / eksport ---- */
-  exportJSON() { return JSON.stringify(this.state, null, 2); },
   importJSON(obj) {
-    if (!obj || !Array.isArray(obj.tasks) || !Array.isArray(obj.roles)) throw new Error('Nieprawidłowy plik');
-    // import = zastąpienie danych: stare elementy dostają nagrobki, nowe – świeże znaczniki
-    const old = this.state, now = Date.now() - 2;
+    if (!obj || typeof obj !== 'object') throw new Error('Nieprawidłowy plik JSON');
+    const old = this.state;
+    const now = Date.now() - 2;
+    this.normalizeState(obj);
     obj.deleted = { ...(old.deleted || {}), ...(obj.deleted || {}) };
-    const keep = new Set([...(obj.tasks || []).map(t => 'task:' + t.id), ...(obj.roles || []).map(r => 'role:' + r.id)]);
-    (old.tasks || []).forEach(t => { if (!keep.has('task:' + t.id)) obj.deleted['task:' + t.id] = now; });
-    (old.roles || []).forEach(r => { if (!keep.has('role:' + r.id)) obj.deleted['role:' + r.id] = now; });
+
+    this.COLLECTIONS.forEach(col => {
+      const keep = new Set((obj[col] || []).map(it => it.id));
+      (old[col] || []).forEach(it => {
+        if (it && it.id && !keep.has(it.id)) {
+          obj.deleted[col + ':' + it.id] = now;
+        }
+      });
+    });
+
     this.state = obj;
-    this.baseline = { task: {}, role: {} };
+    this.rebaseline();
     this.persist(true, true);
-  },
-  reset() {
-    const old = this.state, now = Date.now() - 2, fresh = Seed.build();
-    fresh.deleted = { ...(old.deleted || {}) };
-    (old.tasks || []).forEach(t => { fresh.deleted['task:' + t.id] = now; });
-    (old.roles || []).forEach(r => { fresh.deleted['role:' + r.id] = now; });
-    this.state = fresh;
-    this.baseline = { task: {}, role: {} };
-    this.persist(true, true);
-  },
+  }
 };
 
 window.Store = Store;

@@ -4,32 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Plan Tygodnia</title>
-  <meta name="description" content="Spokojna, minimalistyczna rozkładówka tygodniowa, nawyków i priorytetów.">
+  <meta name="description" content="Spokojny planer tygodnia, ról, celów, Matrycy Eisenhowera i Ostrzenia Piły.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Plan Tygodnia">
   <meta name="application-name" content="Plan Tygodnia">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#f1f5f9">
+  <meta name="theme-color" content="#f4f6fb" id="metaThemeColor">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="icon.svg?v=12.0">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-  <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="css/style.css?v=11.6">
+  <link rel="stylesheet" href="css/style.css?v=12.0">
 
   <script>
     (function() {
-      const APP_VERSION = '11.6';
+      const APP_VERSION = '12.0';
       try {
         const url = new URL(window.location.href);
-        // Jeśli w URL nie ma aktualnej wersji - automatycznie przekieruj, co natychmiast omija 10-minutowy cache CDN GitHub Pages oraz pamięć podręczną Safari/Chrome
         if (url.searchParams.get('v') !== APP_VERSION) {
           url.searchParams.set('v', APP_VERSION);
           window.location.replace(url.toString());
@@ -37,7 +36,6 @@
         }
       } catch (e) {}
 
-      // Wyrejestrowanie Service Workera i bezwzględne usunięcie wszystkich pamięci podręcznych CacheStorage
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(regs => {
           for (const reg of regs) reg.unregister();
@@ -52,7 +50,6 @@
   </script>
 
   <script>
-    // Natychmiastowe przywrócenie sesji bez migania ekranu logowania
     try {
       if (localStorage.getItem('kompas_auth_active') === '1') {
         document.documentElement.classList.add('is-authenticated');
@@ -60,54 +57,23 @@
     } catch(e) {}
   </script>
 
-  <!-- Dedykowane, wbudowane style ekranu logowania (brak ryzyka błędu cache) -->
   <style>
-    /* Natychmiastowe ukrycie bramki logowania gdy użytkownik jest już zalogowany */
-    html.is-authenticated #screenAuth {
-      display: none !important;
-    }
-    html.is-authenticated #screenApp {
-      display: flex !important;
-    }
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      background: #f1f5f9;
-      color: #0f172a;
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      overflow: hidden;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    [data-theme="dark"] body {
-      background: #090d16;
-      color: #f8fafc;
-    }
-
-    /* 1. EKRAN WEJŚCIA / BRAMKA LOGOWANIA */
+    html.is-authenticated #screenAuth { display: none !important; }
+    html.is-authenticated #screenApp { display: flex !important; }
     #screenAuth {
       position: fixed;
       inset: 0;
-      width: 100%;
       width: 100vw;
-      width: 100dvw;
-      height: 100%;
       min-height: 100vh;
-      min-height: 100dvh;
       background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, #0f172a 45%, #090d16 100%);
       color: #f8fafc;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: max(20px, env(safe-area-inset-top, 20px)) max(16px, env(safe-area-inset-right, 16px)) max(20px, env(safe-area-inset-bottom, 20px)) max(16px, env(safe-area-inset-left, 16px));
-      box-sizing: border-box;
+      padding: 20px;
       z-index: 999999;
       overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
     }
-
     .auth-portal-card {
       margin: auto;
       width: 100%;
@@ -115,20 +81,10 @@
       background: rgba(15, 23, 42, 0.94);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 24px;
-      padding: 38px 30px;
-      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
+      padding: 36px 28px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8);
       text-align: center;
-      box-sizing: border-box;
-      animation: authCardIn 0.35s ease-out;
     }
-
-    @keyframes authCardIn {
-      from { opacity: 0; transform: translateY(12px) scale(0.98); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-
     .auth-portal-brand {
       display: flex;
       align-items: center;
@@ -136,27 +92,16 @@
       gap: 12px;
       margin-bottom: 10px;
     }
-
-    .auth-portal-icon {
-      font-size: 2.2rem;
-      line-height: 1;
-    }
-
     .auth-portal-title {
-      font-size: 1.65rem;
+      font-size: 1.6rem;
       font-weight: 800;
-      letter-spacing: -0.03em;
-      margin: 0;
       color: #ffffff;
     }
-
     .auth-portal-subtitle {
-      font-size: 0.88rem;
+      font-size: 0.86rem;
       color: #94a3b8;
-      line-height: 1.5;
-      margin: 0 0 26px 0;
+      margin: 0 0 24px 0;
     }
-
     .btn-portal-google {
       display: flex;
       align-items: center;
@@ -171,53 +116,30 @@
       font-size: 0.95rem;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      box-sizing: border-box;
-      min-height: 48px;
     }
-
-    .btn-portal-google:hover {
-      background: #f8fafc;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-    }
-
-    .btn-portal-google:active {
-      transform: translateY(0);
-    }
-
     .auth-portal-divider {
       display: flex;
       align-items: center;
       gap: 12px;
-      margin: 22px 0;
+      margin: 20px 0;
     }
-
-    .auth-portal-divider::before,
-    .auth-portal-divider::after {
+    .auth-portal-divider::before, .auth-portal-divider::after {
       content: '';
       flex: 1;
       height: 1px;
       background: rgba(255, 255, 255, 0.12);
     }
-
     .auth-portal-divider span {
       font-size: 0.74rem;
       color: #64748b;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
       font-weight: 700;
     }
-
     .auth-portal-form {
       display: flex;
       flex-direction: column;
       gap: 12px;
-      width: 100%;
-      box-sizing: border-box;
     }
-
     .portal-input {
       width: 100%;
       padding: 12px 16px;
@@ -225,30 +147,9 @@
       border: 1px solid rgba(255, 255, 255, 0.14);
       background: rgba(255, 255, 255, 0.05);
       color: #ffffff;
-      font-size: 16px; /* Zapobiega automatycznemu powiększaniu na iOS Safari */
-      outline: none;
-      box-sizing: border-box;
-      transition: all 0.2s;
-      min-height: 46px;
+      font-size: 16px;
     }
-
-    .portal-input:focus {
-      border-color: #6366f1;
-      background: rgba(255, 255, 255, 0.08);
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
-    }
-
-    .portal-input::placeholder {
-      color: #64748b;
-    }
-
-    .portal-btn-row {
-      display: flex;
-      gap: 10px;
-      width: 100%;
-      margin-top: 4px;
-    }
-
+    .portal-btn-row { display: flex; gap: 10px; }
     .btn-portal-submit {
       flex: 1;
       padding: 12px 16px;
@@ -256,17 +157,8 @@
       border: none;
       background: #4f46e5;
       color: #ffffff;
-      font-size: 0.92rem;
       font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-      min-height: 46px;
     }
-
-    .btn-portal-submit:hover {
-      background: #4338ca;
-    }
-
     .btn-portal-register {
       flex: 1;
       padding: 12px 16px;
@@ -274,26 +166,16 @@
       border: 1px solid rgba(255, 255, 255, 0.16);
       background: transparent;
       color: #e2e8f0;
-      font-size: 0.92rem;
       font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      min-height: 46px;
     }
-
-    .btn-portal-register:hover {
-      background: rgba(255, 255, 255, 0.06);
-    }
-
     .auth-portal-footer {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       font-size: 0.74rem;
       color: #64748b;
-      margin-top: 22px;
+      margin-top: 20px;
     }
-
     .auth-error-box {
       background: rgba(239, 68, 68, 0.16);
       border: 1px solid rgba(239, 68, 68, 0.45);
@@ -301,57 +183,27 @@
       padding: 12px 16px;
       border-radius: 12px;
       font-size: 0.84rem;
-      line-height: 1.45;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
       text-align: left;
     }
-
-    @media (max-width: 480px) {
-      #screenAuth {
-        padding: max(16px, env(safe-area-inset-top, 16px)) 12px max(20px, env(safe-area-inset-bottom, 20px)) 12px;
-        align-items: flex-start;
-      }
-      .auth-portal-card {
-        padding: 26px 18px;
-        border-radius: 20px;
-        margin: auto 0;
-      }
-      .auth-portal-icon {
-        font-size: 1.8rem;
-      }
-      .auth-portal-title {
-        font-size: 1.45rem;
-      }
-      .auth-portal-subtitle {
-        font-size: 0.82rem;
-        margin-bottom: 20px;
-      }
-    }
-
-    /* 2. GŁÓWNY EKRAN PLANERA - CAŁKOWICIE UKRYTY DOMYŚLNIE */
-    #screenApp {
-      display: none;
-    }
+    #screenApp { display: none; }
   </style>
 </head>
 <body>
-  <!-- ============================================================== -->
-  <!-- 1. BRAMKA LOGOWANIA (OSOBNY EKRAN WEJŚCIA)                       -->
-  <!-- ============================================================== -->
+
+  <!-- 1. BRAMKA LOGOWANIA FIREBASE -->
   <div id="screenAuth">
     <div class="auth-portal-card">
       <div class="auth-portal-brand">
-        <span class="auth-portal-icon">📅</span>
+        <img src="icon.svg?v=12.0" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
         <h1 class="auth-portal-title">Plan Tygodnia</h1>
       </div>
       <p class="auth-portal-subtitle">
-        Twój osobisty planer tygodnia, rutyn i priorytetów. Zaloguj się, aby uzyskać dostęp do swoich zadań.
+        Zaloguj się, aby zsynchronizować swoje prywatne zadania, cele i Ostrzenie Piły z chmurą Google Firebase.
       </p>
 
-      <!-- Komunikat o ewentualnym błędzie logowania -->
       <div id="authErrorBox" class="auth-error-box" style="display:none;"></div>
 
-      <!-- Logowanie Google jednym kliknięciem -->
       <button class="btn-portal-google" id="btnPortalGoogle" onclick="handleAuthAction('google')">
         <svg width="20" height="20" viewBox="0 0 18 18">
           <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
@@ -362,9 +214,7 @@
         <span id="btnPortalGoogleText">Kontynuuj przez Google</span>
       </button>
 
-      <div class="auth-portal-divider">
-        <span>lub adres e-mail</span>
-      </div>
+      <div class="auth-portal-divider"><span>lub adres e-mail</span></div>
 
       <div class="auth-portal-form">
         <input type="email" id="authPortalEmail" placeholder="Twój adres e-mail" class="portal-input" autocomplete="username">
@@ -375,120 +225,269 @@
         </div>
       </div>
 
-      <div style="margin-top:16px;">
-        <button type="button" style="background:transparent; border:none; color:#94a3b8; font-size:0.78rem; text-decoration:underline; cursor:pointer;" onclick="handleAuthAction('offline')">
-          Przejdź w trybie lokalnym / offline (bez logowania) ➔
-        </button>
-      </div>
-
       <div class="auth-portal-footer">
         <span>🔒</span>
-        <span>Bezpieczna synchronizacja Google Firebase</span>
+        <span>Prywatne dane chronione w Google Firebase</span>
       </div>
     </div>
   </div>
 
-  <!-- ============================================================== -->
-  <!-- 2. GŁÓWNY EKRAN PLANERA (WŁĄCZANY DOPIERO PO ZALOGOWANIU)        -->
-  <!-- ============================================================== -->
+  <!-- 2. GŁÓWNA APLIKACJA (PO ZALOGOWANIU) -->
   <div id="screenApp" class="app-layout">
-    <!-- Górna belka: Kompas Tygodnia i nawigacja -->
+
+    <!-- EKRAN POWITALNY: 7 NAWYKÓW STEPHENA COVEYA & MOJE ZASADY -->
+    <div id="welcomeOverlay" class="welcome-overlay">
+      <div class="welcome-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h2 style="font-size:1.25rem; font-weight:800;">🧭 Codzienny Kompas & 7 Nawyków</h2>
+            <p style="font-size:0.82rem; color:var(--text-muted);">Przeczytaj spokojnie przed rozpoczęciem dnia</p>
+          </div>
+          <button class="btn" onclick="App.closeWelcome()">Zamknij ✕</button>
+        </div>
+
+        <!-- Afirmacja przewodnia -->
+        <div style="background:var(--emerald-light); border:1px solid var(--emerald-border); padding:12px 16px; border-radius:var(--radius-md);">
+          <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; color:var(--emerald);">✨ Afirmacja na dziś</div>
+          <div id="welcomeAffirmation" style="font-weight:700; font-size:0.92rem; margin-top:2px;"></div>
+        </div>
+
+        <!-- 7 Nawyków Stephena Coveya -->
+        <div class="habits-simple-grid">
+          <div class="habit-simple-item"><strong>1. Bądź proaktywny</strong><br><span style="color:var(--text-muted);">Skupiam się wyłącznie na tym, na co mam wpływ.</span></div>
+          <div class="habit-simple-item"><strong>2. Zaczynaj z wizją końca</strong><br><span style="color:var(--text-muted);">Działam w zgodzie z moimi Rolami i Celami.</span></div>
+          <div class="habit-simple-item"><strong>3. Rób najpierw to, co najważniejsze</strong><br><span style="color:var(--text-muted);">Najpierw sprawy Ważne (Ćwiartka II), potem reszta.</span></div>
+          <div class="habit-simple-item"><strong>4. Myśl Wygrana-Wygrana</strong><br><span style="color:var(--text-muted);">Szukam rozwiązań korzystnych dla obu stron.</span></div>
+          <div class="habit-simple-item"><strong>5. Najpierw zrozum, potem bądź zrozumiany</strong><br><span style="color:var(--text-muted);">Uważnie słucham zanim odpowiem.</span></div>
+          <div class="habit-simple-item"><strong>6. Synergia</strong><br><span style="color:var(--text-muted);">Twórcza współpraca daje lepsze efekty.</span></div>
+          <div class="habit-simple-item" style="grid-column:1 / -1; border-left-color:var(--emerald);">
+            <strong>7. Ostrzenie Piły (Codzienna Odnowa)</strong> — Dbam o Ciało (spacer, ruch), Umysł (dziennik, rozwój), Ducha i Relacje.
+          </div>
+        </div>
+
+        <!-- Moje osobiste zasady (zapisywane w Firebase) -->
+        <div style="background:var(--surface-alt); padding:14px 16px; border-radius:var(--radius-md); border:1px solid var(--border);">
+          <div style="font-size:0.8rem; font-weight:800; margin-bottom:6px;">📜 Moje osobiste zasady:</div>
+          <ul id="welcomeRulesList" style="padding-left:6px; font-size:0.83rem; display:flex; flex-direction:column; gap:4px;"></ul>
+          <form onsubmit="event.preventDefault(); App.addRule(this);" style="display:flex; gap:6px; margin-top:10px;">
+            <input type="text" name="ruleText" class="input-clean" placeholder="+ Dopisz własną zasadę (zapisze się w Firebase)...">
+            <button type="submit" class="btn btn-primary">Dodaj</button>
+          </form>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end;">
+          <button class="btn btn-primary" style="padding:10px 22px; font-size:0.9rem;" onclick="App.closeWelcome()">
+            Przeczytałem — Przejdź do planu tygodnia →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NAGŁÓWEK GŁÓWNY -->
     <header class="app-header">
       <div class="header-left">
         <div class="app-brand">
-          <span class="brand-icon">📅</span>
-          <span class="brand-name">Plan Tygodnia</span>
+          <img src="icon.svg?v=12.0" class="app-logo-svg" alt="Plan Tygodnia">
+          <span>Plan Tygodnia</span>
         </div>
-
-        <div class="week-nav">
-          <button class="nav-arrow-btn" data-act="prevWeek" title="Poprzedni tydzień" aria-label="Poprzedni tydzień">‹</button>
-          <button class="nav-range-btn" data-act="currentWeek" id="weekRangeLabel">Bieżący tydzień</button>
-          <button class="nav-arrow-btn" data-act="nextWeek" title="Następny tydzień" aria-label="Następny tydzień">›</button>
-        </div>
+        <select class="year-select" id="yearSelect" onchange="App.setYear(this.value)" title="Podział na lata">
+          <option value="2025">2025</option>
+          <option value="2026" selected>2026</option>
+          <option value="2027">2027</option>
+          <option value="2028">2028</option>
+        </select>
       </div>
 
+      <nav class="nav-tabs">
+        <button class="tab-btn active" data-tab="plan" onclick="App.switchTab('plan')">📅 Plan Tygodnia</button>
+        <button class="tab-btn" data-tab="matrix" onclick="App.switchTab('matrix')">🧭 Matryca Eisenhowera</button>
+        <button class="tab-btn" data-tab="saw" onclick="App.switchTab('saw')">🪚 Ostrzenie Piły</button>
+        <button class="tab-btn" data-tab="goals" onclick="App.switchTab('goals')">🎯 Cele</button>
+        <button class="tab-btn" data-tab="mind" onclick="App.switchTab('mind')">💭 Myśli & Afirmacje</button>
+        <button class="tab-btn" data-tab="archive" onclick="App.switchTab('archive')">🗄️ Archiwum</button>
+      </nav>
+
       <div class="header-right">
-        <button class="header-action-btn btn-subtle" id="btnToggleCompleted" data-act="toggleCompletedSidebar" title="Pokaż / Ukryj listę wykonanych dni">
-          <span>✅ Wykonane</span>
-          <span class="inbox-pill-count" id="completedCountBadge">0</span>
-        </button>
-        <button class="header-action-btn btn-primary" data-act="openNewTaskModal" title="Dodaj nowe zadanie">+ Zadanie</button>
-        <button class="header-action-btn btn-subtle" data-act="openRoutinesModal" title="Cykliczne rutyny i ostrzenie piły">🪚 Rutyny & Cykle</button>
-        <button class="header-action-btn btn-inbox-toggle" id="btnToggleSidebar" data-act="toggleInboxSidebar" title="Pokaż / Ukryj role - zadania">
-          <span>🗂️ Role - zadania</span>
-          <span class="inbox-pill-count" id="inboxCountBadge">0</span>
-        </button>
-        <button class="icon-circle-btn theme-toggle" id="btnThemeToggle" title="Przełącz motyw (Jasny / Ciemny)" aria-label="Przełącz motyw"></button>
-        <button class="icon-circle-btn" data-act="openSettings" title="Ustawienia i kopia zapasowa" aria-label="Ustawienia">⚙️</button>
+        <button class="btn" onclick="App.openWelcome()" title="Pokaż 7 Nawyków i Moje Zasady">📜 Zasady</button>
+        <button class="btn btn-later" onclick="App.toggleLater()">📥 Na później (<span id="laterCount">0</span>)</button>
+        <button class="btn" onclick="App.exportJSON()" title="Pobierz pełny zapis do pliku JSON">💾 JSON</button>
+        <button class="icon-circle-btn" id="btnThemeToggle" onclick="App.toggleTheme()" title="Przełącz motyw">🌙</button>
       </div>
     </header>
 
-    <!-- Pasek wyboru dni tygodnia dla urządzeń mobilnych -->
-    <div class="mobile-day-strip" id="mobileDayStrip"></div>
+    <!-- GŁÓWNA PRZESTRZEŃ ROBOCZA -->
+    <main class="main-container">
 
-    <!-- Główna przestrzeń: Lewy panel Wykonane + Rozkładówka 7 dni + Prawy panel Skrzynki -->
-    <div class="spread-container" id="spreadContainer">
-      <!-- LEWA STRONA: BOCZNY PANEL WYKONANYCH DNI -->
-      <aside class="completed-sidebar is-collapsed" id="completedSidebar"></aside>
+      <!-- ==================== ZAKŁADKA 1: PLAN TYGODNIA ==================== -->
+      <section id="view_plan" class="tab-section">
 
-      <!-- ŚRODEK: 7 DNI TYGODNIA W ZASIĘGU WZROKU -->
-      <main class="board-main" id="boardMain">
-        <div class="week-grid" id="weekDaysGrid">
-          <!-- 7 kolumn tygodnia generowanych przez JS -->
+        <!-- Pasek celów tygodniowych na górze -->
+        <div class="goals-strip">
+          <div class="goals-strip-list" id="goalsStripItems"></div>
+          <button class="btn" onclick="App.switchTab('goals')">Edytuj cele →</button>
         </div>
-      </main>
 
-      <!-- PRAWA STRONA: BOCZNY PANEL SKRZYNKI MYŚLI (I - III) -->
-      <aside class="inbox-sidebar is-collapsed" id="inboxSidebar">
-        <!-- Generowany dynamicznie przez JS -->
-      </aside>
-    </div>
-
-    <!-- Dolny pasek nawigacyjny na telefon (Mobile Bottom Nav) -->
-    <nav class="mobile-bottom-bar" id="mobileBottomBar">
-      <button class="mobile-nav-btn active" data-act="mobileNavPlan" id="mNavPlan">
-        <span class="m-nav-icon">📅</span>
-        <span class="m-nav-label">Planer</span>
-      </button>
-      <button class="mobile-nav-btn" data-act="toggleInboxSidebar" id="mNavInbox">
-        <div class="m-nav-icon-wrap">
-          <span class="m-nav-icon">🗂️</span>
-          <span class="m-nav-badge" id="mInboxBadge" style="display:none;">0</span>
+        <!-- Ostrzenie Piły na głównym ekranie: Codzienne + Cotygodniowe -->
+        <div class="saw-today-panel">
+          <div>
+            <div class="saw-subbox-title">
+              <span>☀️ Codzienne Ostrzenie Piły (na dziś)</span>
+            </div>
+            <div class="saw-pills-wrap" id="sawDailyOnPlan"></div>
+          </div>
+          <div>
+            <div class="saw-subbox-title">
+              <span>📅 Cotygodniowe i cykliczne w tym tygodniu</span>
+              <button class="btn" style="padding:2px 8px; font-size:0.72rem;" onclick="App.switchTab('saw')">Zarządzaj →</button>
+            </div>
+            <div class="saw-pills-wrap" id="sawWeeklyOnPlan"></div>
+          </div>
         </div>
-        <span class="m-nav-label">Role - zadania</span>
-      </button>
-      <button class="mobile-nav-fab" data-act="openNewTaskModal" id="mNavAdd" title="Dodaj nowe zadanie" aria-label="Dodaj nowe zadanie">
-        <span class="m-fab-icon">+</span>
-      </button>
-      <button class="mobile-nav-btn" data-act="openRoutinesModal" id="mNavRoutines">
-        <span class="m-nav-icon">🪚</span>
-        <span class="m-nav-label">Rutyny</span>
-      </button>
-      <button class="mobile-nav-btn" data-act="openSettings" id="mNavSettings">
-        <span class="m-nav-icon">⚙️</span>
-        <span class="m-nav-label">Ustawienia</span>
-      </button>
-    </nav>
+
+        <!-- 4 Karty Ról (Stół z 4 Nogami) -->
+        <div class="roles-grid" id="rolesGrid"></div>
+
+        <!-- Pełnowymiarowy Kalendarz Miesięczny na dole -->
+        <div class="section-box">
+          <div class="section-head">
+            <div>
+              <h2>📅 Kalendarz przypomnień</h2>
+              <span style="font-size:0.78rem; color:var(--text-muted);">Kliknij w dowolny dzień, aby wpisać lub zobaczyć przypomnienie</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="btn" onclick="App.changeMonth(-1)">◀</button>
+              <strong id="calMonthTitle" style="min-width:140px; text-align:center;">Listopad 2026</strong>
+              <button class="btn" onclick="App.changeMonth(1)">▶</button>
+            </div>
+          </div>
+          <div class="cal-weekdays">
+            <div>Pon</div><div>Wt</div><div>Śr</div><div>Czw</div><div>Pt</div><div>Sob</div><div>Nd</div>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </div>
+
+      </section>
+
+      <!-- ==================== ZAKŁADKA 2: MATRYCA EISENHOWERA ==================== -->
+      <section id="view_matrix" class="tab-section" style="display:none;">
+        <div style="margin-bottom:16px;">
+          <h2 style="font-size:1.2rem; font-weight:800;">🧭 Matryca Eisenhowera</h2>
+          <p style="font-size:0.82rem; color:var(--text-muted);">Wszystkie Twoje zadania z bieżącego tygodnia podzielone na 4 ćwiartki priorytetów</p>
+        </div>
+        <div class="matrix-2x2" id="matrixGrid"></div>
+      </section>
+
+      <!-- ==================== ZAKŁADKA 3: OSTRZENIE PIŁY ==================== -->
+      <section id="view_saw" class="tab-section" style="display:none;">
+        <div class="section-box">
+          <div class="section-head">
+            <div>
+              <h2>🪚 Ostrzenie Piły (Dawne Rutyny)</h2>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Codzienne nawyki (Spacer, Dziennik) oraz zadania cotygodniowe i comiesięczne</p>
+            </div>
+            <button class="btn btn-primary" onclick="App.openAddSawModal()">+ Dodaj do Ostrzenia Piły</button>
+          </div>
+          <div id="sawContainer"></div>
+        </div>
+      </section>
+
+      <!-- ==================== ZAKŁADKA 4: CELE ==================== -->
+      <section id="view_goals" class="tab-section" style="display:none;">
+        <div class="section-box">
+          <div class="section-head">
+            <div>
+              <h2>🎯 Cele dla moich Ról (4 Nogi Stołu) — Rok <span class="yearLabel">2026</span></h2>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Cele tygodniowe automatycznie wyświetlają się nad Twoim planem tygodnia</p>
+            </div>
+          </div>
+          <div id="goalsTableContainer" style="overflow-x:auto;"></div>
+        </div>
+      </section>
+
+      <!-- ==================== ZAKŁADKA 5: MYŚLI & AFIRMACJE ==================== -->
+      <section id="view_mind" class="tab-section" style="display:none;">
+        <div class="matrix-2x2">
+          <div class="section-box">
+            <div class="section-head">
+              <h2>✨ Afirmacje</h2>
+            </div>
+            <form onsubmit="event.preventDefault(); App.addAffirmation();" style="display:flex; gap:8px; margin-bottom:14px;">
+              <input type="text" id="affInput" class="input-clean" placeholder="+ Wpisz nową afirmację...">
+              <button type="submit" class="btn btn-primary">Dodaj</button>
+            </form>
+            <div id="affList" style="display:flex; flex-direction:column; gap:8px;"></div>
+          </div>
+
+          <div class="section-box">
+            <div class="section-head">
+              <h2>💭 Zbiór Myśli & Cytaty</h2>
+            </div>
+            <form onsubmit="event.preventDefault(); App.addQuote();" style="display:flex; gap:8px; margin-bottom:14px;">
+              <input type="text" id="quoteInput" class="input-clean" placeholder="+ Wpisz myśl lub cytat...">
+              <button type="submit" class="btn btn-primary">Dodaj</button>
+            </form>
+            <div id="quoteList" style="display:flex; flex-direction:column; gap:8px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ZAKŁADKA 6: ARCHIWUM WYKONANYCH ZADAŃ ==================== -->
+      <section id="view_archive" class="tab-section" style="display:none;">
+        <div class="section-box">
+          <div class="section-head">
+            <div>
+              <h2>🗄️ Archiwum Wykonanych Zadań — Rok <span class="yearLabel">2026</span></h2>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Data wykonania to dokładny moment odkliknięcia zadania</p>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn" onclick="App.exportJSON()">💾 Zapisz plik JSON</button>
+              <label class="btn" style="cursor:pointer;">
+                📂 Wczytaj plik JSON
+                <input type="file" accept=".json" style="display:none;" onchange="App.importJSON(event)">
+              </label>
+            </div>
+          </div>
+          <div id="archiveTableContainer"></div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- BOCZNA SZUFLADA „NA PÓŹNIEJ” -->
+    <aside id="laterDrawer" class="drawer">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;">
+        <div>
+          <h3 style="font-size:0.95rem; font-weight:800;">📥 Na później</h3>
+          <span style="font-size:0.75rem; color:var(--text-muted);">Pomysły do przeprocesowania</span>
+        </div>
+        <button class="btn" onclick="App.toggleLater()">✕</button>
+      </div>
+      <form onsubmit="event.preventDefault(); App.addLater();" style="display:flex; gap:6px;">
+        <input type="text" id="laterInput" class="input-clean" placeholder="+ Wpisz pomysł na później...">
+        <button type="submit" class="btn btn-primary">+</button>
+      </form>
+      <div id="laterList" style="display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1;"></div>
+    </aside>
+
   </div>
 
   <!-- Modale i powiadomienia -->
-  <div class="modal-root" id="modalRoot"></div>
+  <div id="modalRoot"></div>
   <div class="toast-root" id="toastRoot"></div>
 
   <!-- Firebase SDK (v10 compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=11.6"></script>
+  <script src="js/firebase-config.js?v=12.0"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=11.6"></script>
-  <script src="js/seed.js?v=11.6"></script>
-  <script src="js/sync.js?v=11.6"></script>
-  <script src="js/store.js?v=11.6"></script>
-  <script src="js/app.js?v=11.6"></script>
+  <script src="js/utils.js?v=12.0"></script>
+  <script src="js/seed.js?v=12.0"></script>
+  <script src="js/sync.js?v=12.0"></script>
+  <script src="js/store.js?v=12.0"></script>
+  <script src="js/app.js?v=12.0"></script>
 
-  <!-- Niezależna od cache obsługa bramki wejściowej -->
   <script>
     window.handleAuthAction = async function(type) {
       const errorBox = document.getElementById('authErrorBox');
@@ -500,31 +499,11 @@
       const googleText = document.getElementById('btnPortalGoogleText');
 
       function showError(msg) {
-        if (errorBox) {
-          errorBox.textContent = msg;
-          errorBox.style.display = 'block';
-        } else {
-          alert(msg);
-        }
+        if (errorBox) { errorBox.textContent = msg; errorBox.style.display = 'block'; }
+        else alert(msg);
       }
-      function clearError() {
-        if (errorBox) {
-          errorBox.textContent = '';
-          errorBox.style.display = 'none';
-        }
-      }
+      if (errorBox) { errorBox.textContent = ''; errorBox.style.display = 'none'; }
 
-      clearError();
-
-      // Awaryjny tryb offline
-      if (type === 'offline') {
-        document.getElementById('screenAuth').style.display = 'none';
-        document.getElementById('screenApp').style.display = 'flex';
-        if (window.App && typeof window.App.renderAll === 'function') window.App.renderAll();
-        return;
-      }
-
-      // Inicjalizacja Firebase jeśli jeszcze nie wystartował
       if (!window.firebase || !firebase.apps || !firebase.apps.length) {
         try {
           if (window.FIREBASE_CONFIG) firebase.initializeApp(window.FIREBASE_CONFIG);
@@ -539,41 +518,28 @@
       function setAuthSuccess() {
         try { localStorage.setItem('kompas_auth_active', '1'); } catch(e){}
         document.documentElement.classList.add('is-authenticated');
-        const screenAuth = document.getElementById('screenAuth');
-        const screenApp = document.getElementById('screenApp');
-        if (screenAuth) screenAuth.style.display = 'none';
-        if (screenApp) screenApp.style.display = 'flex';
+        document.getElementById('screenAuth').style.display = 'none';
+        document.getElementById('screenApp').style.display = 'flex';
         if (window.Sync && typeof window.Sync.listenToUserDoc === 'function') {
           window.Sync.listenToUserDoc();
         }
-        const app = (window.App || (typeof App !== 'undefined' ? App : null));
-        if (app && typeof app.renderAll === 'function') app.renderAll();
+        if (window.App && typeof window.App.renderAll === 'function') window.App.renderAll();
       }
 
-      // Logowanie Google
       if (type === 'google') {
         if (btnGoogle) btnGoogle.disabled = true;
         if (googleText) googleText.textContent = 'Otwieranie Google...';
         const provider = new firebase.auth.GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
-
         try {
           const res = await auth.signInWithPopup(provider);
           if (res && res.user) setAuthSuccess();
         } catch (err) {
-          console.error('Google Auth Error:', err);
           if (err.code === 'auth/popup-blocked') {
-            try {
-              await auth.signInWithRedirect(provider);
-              return;
-            } catch(e2) {
-              showError('Błąd logowania Google: ' + e2.message);
-            }
-          } else if (err.code === 'auth/unauthorized-domain') {
-            showError('⚠️ Domena kongomichal.github.io nie została dodana w Firebase Console! Dodaj ją w Authentication -> Settings -> Authorized domains.');
-          } else {
-            showError('Błąd Google: ' + (err.message || err.code));
+            await auth.signInWithRedirect(provider);
+            return;
           }
+          showError('Błąd Google: ' + (err.message || err.code));
         } finally {
           if (btnGoogle) btnGoogle.disabled = false;
           if (googleText) googleText.textContent = 'Kontynuuj przez Google';
@@ -583,49 +549,15 @@
 
       const email = emailEl ? emailEl.value.trim() : '';
       const pass = passEl ? passEl.value : '';
+      if (!email || !pass) { showError('Wpisz adres e-mail oraz hasło.'); return; }
 
-      if (!email) {
-        showError('Wpisz swój adres e-mail.');
-        if (emailEl) emailEl.focus();
-        return;
-      }
-      if (!pass) {
-        showError('Wpisz hasło.');
-        if (passEl) passEl.focus();
-        return;
-      }
-
-      // Logowanie E-mail
       if (type === 'login') {
         if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = 'Logowanie...'; }
         try {
           const res = await auth.signInWithEmailAndPassword(email, pass);
           if (res && res.user) setAuthSuccess();
         } catch (err) {
-          console.warn('Login email error:', err);
-          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-            // Automatyczna rejestracja nowego konta
-            try {
-              const regRes = await auth.createUserWithEmailAndPassword(email, pass);
-              if (regRes && regRes.user) setAuthSuccess();
-              return;
-            } catch (regErr) {
-              if (regErr.code === 'auth/email-already-in-use') {
-                showError('Niepoprawne hasło dla tego konta.');
-              } else if (regErr.code === 'auth/weak-password') {
-                showError('Hasło musi mieć co najmniej 6 znaków.');
-              } else if (regErr.code === 'auth/operation-not-allowed') {
-                showError('⚠️ Logowanie przez E-mail nie zostało włączone w Firebase Console! Włącz je w Authentication -> Sign-in method -> Email/Password.');
-              } else {
-                showError('Błąd: ' + regErr.message);
-              }
-              return;
-            }
-          } else if (err.code === 'auth/operation-not-allowed') {
-            showError('⚠️ Logowanie przez E-mail nie zostało włączone w Firebase Console! Włącz je w Authentication -> Sign-in method -> Email/Password.');
-          } else {
-            showError('Błąd: ' + (err.message || err.code));
-          }
+          showError('Błąd logowania: ' + (err.message || err.code));
         } finally {
           if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.textContent = 'Zaloguj się'; }
         }
@@ -635,15 +567,7 @@
           const regRes = await auth.createUserWithEmailAndPassword(email, pass);
           if (regRes && regRes.user) setAuthSuccess();
         } catch (err) {
-          if (err.code === 'auth/email-already-in-use') {
-            showError('Konto z tym adresem już istnieje. Wpisz hasło i kliknij "Zaloguj się".');
-          } else if (err.code === 'auth/weak-password') {
-            showError('Hasło musi mieć minimum 6 znaków.');
-          } else if (err.code === 'auth/operation-not-allowed') {
-            showError('⚠️ Logowanie E-mail nie jest włączone w Firebase Console!');
-          } else {
-            showError('Błąd: ' + err.message);
-          }
+          showError('Błąd rejestracji: ' + (err.message || err.code));
         } finally {
           if (btnRegister) { btnRegister.disabled = false; btnRegister.textContent = 'Zarejestruj'; }
         }

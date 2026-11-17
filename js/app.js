@@ -1,2272 +1,860 @@
 'use strict';
 
 /**
- * PLAN TYGODNIA · Główny kontroler aplikacji
- * - Rozkładówka tygodniowa na 1 ekranie (Siatka 7 dni Pon–Niedz)
- * - 🛡️ Baza dla siebie & Zdrowie na samej górze każdego dnia
- * - 🎯 Głaz Tygodnia (Kompas) + Głaz Dnia (Priorytet I)
- * - 📋 Bieżączka (Priorytet II)
- * - 📥 Boczny panel Skrzynki myśli z podziałem na poziomy I, II, III
- * - 🪚 Panel cyklicznych rutyn (co tydzień w dany dzień, co 3 miesiące / kwartalnie)
+ * Główny kontroler UI aplikacji Plan Tygodnia.
+ * Wszystkie dane użytkownika są przechowywane w Store.state i automatycznie synchronizowane z Google Firebase Firestore.
  */
 const App = {
-  weekOffset: 0,
-  theme: 'light',
-  isSidebarOpen: false,
-  isCompletedSidebarOpen: false,
-  showAllDaysInGrid: false,
-  collapsedNotes: new Set(),
-  expandedDoneDays: new Set(),
-  _isRendering: false,
-  _fromRoutinesTable: false,
-  inboxSelectedPriority: 2, // 1, 2, 3
-  activeModal: null, // null | 'routines' | 'routine_form' | 'task' | 'settings'
-  activeMobileDay: null,
+  activeTab: 'plan',
+  calYear: new Date().getFullYear(),
+  calMonth: new Date().getMonth(),
 
   init() {
     Store.init();
-    try {
-      const savedCollapsed = JSON.parse(localStorage.getItem('kompas_collapsed_notes') || '[]');
-      this.collapsedNotes = new Set(savedCollapsed);
-    } catch (e) {
-      this.collapsedNotes = new Set();
-    }
-    try {
-      const savedDoneDays = JSON.parse(localStorage.getItem('kompas_expanded_done_days') || '[]');
-      this.expandedDoneDays = new Set(savedDoneDays);
-    } catch (e) {
-      this.expandedDoneDays = new Set();
-    }
-    this.autoRolloverOverdueTasks();
+    this.calYear = Store.state.year || new Date().getFullYear();
     this.initTheme();
-    this.bindEvents();
-    this.renderAll();
-    this.initMobileScrollSync();
-    this.scrollToCurrentDayOnMobile();
 
     if (window.Sync && typeof window.Sync.init === 'function') {
       window.Sync.init();
     }
 
-    Store.subscribe(() => {
-      this.renderAll();
-    });
-
-    window.addEventListener('resize', () => {
-      this.updateMobileBottomNav();
-    }, { passive: true });
+    Store.subscribe(() => this.renderAll());
+    this.renderAll();
   },
 
-  /* ============ Motyw Jasny / Ciemny ============ */
   initTheme() {
-    const saved = localStorage.getItem('kompas.theme') || 'light';
-    this.setTheme(saved);
-  },
-
-  setTheme(theme) {
-    this.theme = theme;
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('kompas.theme', theme);
-    const meta = document.getElementById('metaThemeColor');
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#090d16' : '#f8fafc');
+    const th = Store.state?.theme || localStorage.getItem('kompas_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', th);
     const btn = document.getElementById('btnThemeToggle');
-    if (btn) {
-      btn.innerHTML = theme === 'dark' ? '☀️' : '🌙';
-      btn.title = theme === 'dark' ? 'Przełącz na jasny motyw' : 'Przełącz na ciemny motyw';
-    }
+    if (btn) btn.textContent = th === 'dark' ? '☀️' : '🌙';
   },
 
   toggleTheme() {
-    this.setTheme(this.theme === 'dark' ? 'light' : 'dark');
+    const cur = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('kompas_theme', next); } catch (e) {}
+    Store.state.theme = next;
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps.theme = Date.now();
+    Store.persist();
+    const btn = document.getElementById('btnThemeToggle');
+    if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
   },
 
-  /* ============ Nawigacja tygodniami ============ */
-  prevWeek() {
-    this.weekOffset--;
+  today() {
+    return D.today();
+  },
+
+  nowStamp() {
+    const d = new Date();
+    return `${this.today()} ${D.pad(d.getHours())}:${D.pad(d.getMinutes())}`;
+  },
+
+  getCurrentWeekDates() {
+    const ws = D.weekStart(this.today());
+    return [0, 1, 2, 3, 4, 5, 6].map(i => D.addDays(ws, i));
+  },
+
+  /* ---- NAWIGACJA I WYBÓR ROKU ---- */
+  switchTab(tab) {
+    this.activeTab = tab;
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+    document.querySelectorAll('.tab-section').forEach(sec => {
+      sec.style.display = (sec.id === 'view_' + tab) ? 'block' : 'none';
+    });
     this.renderAll();
   },
 
-  nextWeek() {
-    this.weekOffset++;
-    this.renderAll();
+  setYear(yr) {
+    const y = Number(yr) || new Date().getFullYear();
+    Store.state.year = y;
+    this.calYear = y;
+    if (!Store.state.goals[y]) Store.state.goals[y] = {};
+    Store.state.roles.forEach(r => {
+      if (!Store.state.goals[y][r.id]) {
+        Store.state.goals[y][r.id] = { weekly: '', monthly: '', quarterly: '', yearly: '' };
+      }
+    });
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps.year = Date.now();
+    Store.persist();
   },
 
-  currentWeek() {
-    this.weekOffset = 0;
-    this.renderAll();
+  /* ---- EKRAN POWITALNY: 7 NAWYKÓW STEPHENA COVEYA & MOJE ZASADY ---- */
+  openWelcome() {
+    this.renderWelcome();
+    const el = document.getElementById('welcomeOverlay');
+    if (el) el.classList.remove('hidden');
   },
 
-  updateWeekNav() {
-    const days = this.showAllDaysInGrid
-      ? Store.getWeekDays(this.weekOffset)
-      : Store.getRollingDays(this.weekOffset).days;
-    const start = days[0];
-    const end = days[days.length - 1];
-    const labelEl = document.getElementById('weekRangeLabel');
-    if (labelEl) {
-      if (this.weekOffset === 0) {
-        labelEl.textContent = `Bieżący rozkład (${D.short(start)} – ${D.short(end)})`;
+  closeWelcome() {
+    const el = document.getElementById('welcomeOverlay');
+    if (el) el.classList.add('hidden');
+  },
+
+  renderWelcome() {
+    const affBox = document.getElementById('welcomeAffirmation');
+    if (affBox) {
+      const firstAff = Store.state.affirmations?.[0];
+      const text = typeof firstAff === 'object' ? firstAff.text : firstAff;
+      affBox.textContent = text ? `„${text}”` : 'Działam proaktywnie, spokojnie i skupiam się na tym, co najważniejsze.';
+    }
+
+    const rulesList = document.getElementById('welcomeRulesList');
+    if (rulesList) {
+      const rules = Store.state.rules || [];
+      if (rules.length === 0) {
+        rulesList.innerHTML = `<li style="color:var(--text-dim); list-style:none;">Brak dopisanych własnych zasad — możesz dodać je poniżej.</li>`;
       } else {
-        labelEl.textContent = `${D.short(start)} – ${D.short(end)}`;
+        rulesList.innerHTML = rules.map(r => {
+          const txt = typeof r === 'object' ? r.text : r;
+          const id = typeof r === 'object' ? r.id : txt;
+          return `
+            <li style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 0;">
+              <span>• ${esc(txt)}</span>
+              <button class="del-btn" onclick="App.removeRule('${esc(id)}')" title="Usuń zasadę">✕</button>
+            </li>
+          `;
+        }).join('');
       }
     }
-
-    // Kompas tygodnia: Główny cel tygodnia
-    const ws = D.weekStart(start);
-    const goalInput = document.getElementById('weekGoalInput');
-    if (goalInput) {
-      goalInput.value = Store.getWeekGoal(ws);
-      goalInput.onchange = () => {
-        Store.setWeekGoal(ws, goalInput.value.trim());
-        this.showToast('Zapisano cel tygodnia 🎯');
-      };
-    }
   },
 
-  /* ============ Pomocnik priorytetów (I, II, III) ============ */
-  getTaskPriority(t) {
-    if (t.priority === 1 || t.priority === 2 || t.priority === 3) return t.priority;
-    if (t.inbox && t.title && (t.title.startsWith('http') || t.title.includes('://'))) return 3;
-    if (t.rock != null || t.q === 1) return 1;
-    return 2;
+  addRule(form) {
+    const inp = form.ruleText;
+    const text = (inp.value || '').trim();
+    if (!text) return;
+    Store.state.rules.push({ id: 'rule_' + uid(), text, createdAt: Date.now() });
+    inp.value = '';
+    Store.persist();
+    this.renderWelcome();
   },
 
-  updateInboxBadge() {
-    const badgeEl = document.getElementById('inboxCountBadge');
-    if (badgeEl) badgeEl.style.display = 'none';
-    const mBadge = document.getElementById('mInboxBadge');
-    if (mBadge) mBadge.style.display = 'none';
+  removeRule(id) {
+    Store.state.rules = (Store.state.rules || []).filter(r => (r.id || r) !== id);
+    Store.persist();
+    this.renderWelcome();
   },
 
-  toggleInboxSidebar() {
-    this.isSidebarOpen = !this.isSidebarOpen;
-    if (this.isSidebarOpen && window.innerWidth <= 768 && this.isCompletedSidebarOpen) {
-      this.isCompletedSidebarOpen = false;
-      this.renderCompletedSidebar();
-    }
-    const sidebar = document.getElementById('inboxSidebar');
-    const btn = document.getElementById('btnToggleSidebar');
-    if (sidebar) sidebar.classList.toggle('is-collapsed', !this.isSidebarOpen);
-    if (btn) btn.classList.toggle('active', this.isSidebarOpen);
-    this.updateMobileBottomNav();
-  },
+  /* ---- WIDOK 1: PLAN TYGODNIA (CELE + OSTRZENIE PIŁY NA DZIŚ/TYDZIEŃ + ROLE + KALENDARZ) ---- */
+  renderPlan() {
+    const y = Store.state.year;
+    const gYear = Store.state.goals?.[y] || {};
 
-  toggleCompletedSidebar() {
-    this.isCompletedSidebarOpen = !this.isCompletedSidebarOpen;
-    if (this.isCompletedSidebarOpen && window.innerWidth <= 768 && this.isSidebarOpen) {
-      this.isSidebarOpen = false;
-      const sidebar = document.getElementById('inboxSidebar');
-      const btn = document.getElementById('btnToggleSidebar');
-      if (sidebar) sidebar.classList.add('is-collapsed');
-      if (btn) btn.classList.remove('active');
-    }
-    this.renderCompletedSidebar();
-    this.updateMobileBottomNav();
-  },
-
-  toggleShowCompletedInGrid(val) {
-    this.showAllDaysInGrid = !!val;
-    this.renderAll();
-  },
-
-  /* Zwijanie / rozwijanie pojedynczej notatki */
-  toggleNote(id) {
-    if (this.collapsedNotes.has(id)) {
-      this.collapsedNotes.delete(id);
-    } else {
-      this.collapsedNotes.add(id);
-    }
-    try {
-      localStorage.setItem('kompas_collapsed_notes', JSON.stringify([...this.collapsedNotes]));
-    } catch (e) {
-      console.warn(e);
-    }
-
-    const isNowCollapsed = this.collapsedNotes.has(id);
-    const noteEls = document.querySelectorAll(`[data-id="${id}"] .selfcare-note-line, [data-id="${id}"] .task-notes-box`);
-    const btnEls = document.querySelectorAll(`button[data-act="toggleNote"][data-id="${id}"]`);
-
-    noteEls.forEach(el => el.classList.toggle('is-collapsed', isNowCollapsed));
-    btnEls.forEach(btn => {
-      btn.textContent = isNowCollapsed ? '▸' : '▾';
-      btn.title = isNowCollapsed ? 'Rozwiń opis' : 'Zwiń opis';
-    });
-  },
-
-  /* Rozwijanie / zwijanie archiwum wykonanych zadań danego dnia */
-  toggleDoneDrawer(dateStr) {
-    if (this.expandedDoneDays.has(dateStr)) {
-      this.expandedDoneDays.delete(dateStr);
-    } else {
-      this.expandedDoneDays.add(dateStr);
-    }
-    try {
-      localStorage.setItem('kompas_expanded_done_days', JSON.stringify([...this.expandedDoneDays]));
-    } catch (e) {
-      console.warn(e);
-    }
-
-    const box = document.querySelector(`.col-completed-box[data-date="${dateStr}"]`);
-    if (box) {
-      const isExp = this.expandedDoneDays.has(dateStr);
-      box.classList.toggle('is-expanded', isExp);
-      box.classList.toggle('is-collapsed', !isExp);
-      const content = box.querySelector('.col-completed-drawer-content');
-      if (content) content.classList.toggle('is-collapsed', !isExp);
-      const chev = box.querySelector('.completed-chevron');
-      if (chev) chev.textContent = isExp ? '▾' : '▸';
-      const btn = box.querySelector('.col-completed-toggle-btn');
-      if (btn) btn.title = isExp ? 'Zwiń wykonane zadania' : 'Rozwiń wykonane zadania';
-    }
-  },
-
-  /* Automatyczne przenoszenie zaległych zadań z przeszłości (z wyłączeniem rutyn i Zdrowie & Ja) */
-  autoRolloverOverdueTasks() {
-    if (Store.state.autoRollover === false) return;
-    const today = D.today();
-    let rolled = 0;
-    Store.state.tasks.forEach(t => {
-      // Wyklucz rutyny i Zdrowie & Ja:
-      if (t.recur || t.inbox) return;
-      if (t.roleId === 'r_saw' || t.zone === 'selfcare') return;
-
-      if (t.date && t.date < today && !t.done) {
-        t.originalDate = t.originalDate || t.date;
-        t.date = today;
-        rolled++;
-      }
-    });
-
-    if (rolled > 0) {
-      Store.persist();
-      console.log(`Przeniesiono ${rolled} zaległych zadań na dziś (${today}).`);
-    }
-  },
-
-  /* Zakończenie dnia (odklikanie) -> niewykonane zadania przechodzą na następny dzień, dzień trafia do lewego panelu */
-  finishDay(dateStr) {
-    const wasCompleted = Store.isDayCompleted(dateStr);
-    Store.toggleDayCompleted(dateStr);
-    const isNowCompleted = Store.isDayCompleted(dateStr);
-
-    if (isNowCompleted) {
-      // Zadania niewykonane przechodzą automatycznie na następny dzień:
-      // (z wyłączeniem rutyn i czynności zdrowie & ja)
-      let rolledCount = 0;
-      const nextDate = D.addDays(dateStr, 1);
-
-      if (Store.state.autoRollover !== false) {
-        Store.state.tasks.forEach(t => {
-          if (t.recur || t.inbox) return;
-          if (t.roleId === 'r_saw' || t.zone === 'selfcare') return;
-
-          if (t.date === dateStr && !t.done) {
-            t.originalDate = t.originalDate || dateStr;
-            t.date = nextDate;
-            rolledCount++;
-          }
-        });
-      }
-
-      if (rolledCount > 0) {
-        Store.persist();
-        this.showToast(`Dzień zakończony! Przeniesiono ${rolledCount} niewykonanych zadań na ${D.long(nextDate)} ➡️`);
-      } else {
-        this.showToast(`Dzień ${D.long(dateStr)} odklikany i schowany do wykonanych! ✅`);
-      }
-
-      // Otwórz boczny panel wykonanych po lewej stronie
-      this.isCompletedSidebarOpen = true;
-    } else {
-      this.showToast(`Przywrócono ${D.long(dateStr)} do rozkładówki.`);
-    }
-
-    this.renderAll();
-  },
-
-  /* Przywrócenie odklikanego dnia do rozkładówki */
-  restoreDay(dateStr) {
-    if (Store.isDayCompleted(dateStr)) {
-      Store.toggleDayCompleted(dateStr);
-      this.showToast(`Przywrócono dzień ${D.long(dateStr)} do rozkładówki.`);
-      this.renderAll();
-    }
-  },
-
-  /* Podgląd zawartości zakończonego dnia */
-  previewCompletedDay(dateStr) {
-    const root = document.getElementById('modalRoot');
-    if (!root) return;
-
-    const d = D.parse(dateStr);
-    const dow = D.dow(dateStr);
-    const dayName = D.DOW_LONG[dow];
-    const dayTasks = Store.state.tasks.filter(t => t.date === dateStr);
-    const rockTasks = dayTasks.filter(t => this.getTaskPriority(t) === 1);
-    const standardTasks = dayTasks.filter(t => this.getTaskPriority(t) === 2 || this.getTaskPriority(t) === 3);
-    const dayRoutines = Store.state.tasks.filter(t => t.recur && Recur.matchesDate(t, dateStr));
-    const selfcareRoutines = dayRoutines.filter(r => !this.isWorkRoutine(r));
-    const recurringWork = dayRoutines.filter(r => this.isWorkRoutine(r));
-
-    root.innerHTML = `
-      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
-        <div class="modal modal-large">
-          <div class="modal-header">
-            <div>
-              <h2>✅ Zakończony dzień: ${cap(dayName)}, ${d.getDate()} ${D.MON_GEN[d.getMonth()]}</h2>
-              <p style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
-                Dzień został odklikany i przeniesiony do listy wykonanych po lewej stronie ekranu.
-              </p>
-            </div>
-            <button class="icon-circle-btn" onclick="App.closeModal()">✕</button>
+    // 1. Kompaktowy pasek celów tygodniowych na górze
+    const stripEl = document.getElementById('goalsStripItems');
+    if (stripEl) {
+      stripEl.innerHTML = Store.state.roles.map(r => {
+        const gw = gYear[r.id]?.weekly || '';
+        return `
+          <div class="goal-strip-item">
+            <strong>${r.emoji} ${esc(r.name)}:</strong>
+            <span style="color:${gw ? 'var(--text-main)' : 'var(--text-dim)'};">${gw ? esc(gw) : 'ustal cel w zakładce Cele'}</span>
           </div>
+        `;
+      }).join('');
+    }
 
-          <div style="display:flex; flex-direction:column; gap:14px; max-height:65vh; overflow-y:auto; padding-right:4px;">
-            ${selfcareRoutines.length > 0 ? `
-              <div style="padding:10px 12px; background:var(--emerald-light); border:1px solid rgba(16,185,129,0.3); border-radius:var(--radius-md);">
-                <div style="font-weight:700; font-size:0.82rem; color:var(--emerald); margin-bottom:8px;">🛡️ Zdrowie & Ja</div>
-                <div style="display:flex; flex-direction:column; gap:6px;">
-                  ${selfcareRoutines.map(r => {
-                    const isDone = Recur.isDoneOn(r, dateStr);
-                    return `
-                      <div style="font-size:0.82rem; display:flex; align-items:center; gap:6px; color:${isDone ? 'var(--text-main)' : 'var(--text-muted)'}; text-decoration:${isDone ? 'none' : 'line-through'};">
-                        <span>${isDone ? '✅' : '⚪'}</span>
-                        <span>${esc(r.title)}</span>
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-            ` : ''}
+    // 2. Sekcja Ostrzenia Piły na ekranie głównym:
+    //    - Lewa kolumna: Codzienne rzeczy do wykonania dzisiaj (np. Spacer, Dziennik)
+    //    - Prawa kolumna: Cotygodniowe i cykliczne zadania przypadające w tym tygodniu
+    this.renderTodaySawOnPlan();
 
-            <div>
-              <div style="font-weight:700; font-size:0.82rem; color:var(--crimson); margin-bottom:6px;">🎯 Głaz Dnia (I)</div>
-              ${rockTasks.length > 0 ? rockTasks.map(t => `
-                <div style="padding:6px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:4px; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
-                  <span>${t.done ? '✅' : '⚪'}</span>
-                  <span style="${t.done ? 'text-decoration:line-through; color:var(--text-muted);' : ''}">${esc(t.title)}</span>
-                </div>
-              `).join('') : '<div style="font-size:0.75rem; color:var(--text-muted);">Brak głazu dnia.</div>'}
+    // 3. 4 Karty Ról (Stół z 4 Nogami)
+    const rolesGrid = document.getElementById('rolesGrid');
+    if (rolesGrid) {
+      const activeTasks = (Store.state.tasks || []).filter(t => (t.year || y) === y);
+      rolesGrid.innerHTML = Store.state.roles.map(r => {
+        const rTasks = activeTasks.filter(t => t.roleId === r.id);
+        const gw = gYear[r.id]?.weekly || '';
+        return `
+          <div class="role-card" style="border-top: 3px solid ${r.color};">
+            <div class="role-card-head">
+              <div class="role-card-title">${r.emoji} ${esc(r.name)}</div>
+              <span class="role-badge-count">${rTasks.length}</span>
             </div>
-
-            <div>
-              <div style="font-weight:700; font-size:0.82rem; color:var(--blue); margin-bottom:6px;">📋 Bieżączka (II)</div>
-              ${(standardTasks.length + recurringWork.length) > 0 ? `
-                ${recurringWork.map(r => {
-                  const isDone = Recur.isDoneOn(r, dateStr);
-                  return `
-                    <div style="padding:6px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:4px; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
-                      <span>${isDone ? '✅' : '⚪'}</span>
-                      <span style="${isDone ? 'text-decoration:line-through; color:var(--text-muted);' : ''}">${esc(r.title)}</span>
-                      <small style="color:var(--blue); margin-left:auto;">🔄 Cykliczne</small>
-                    </div>
-                  `;
-                }).join('')}
-                ${standardTasks.map(t => `
-                  <div style="padding:6px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:4px; font-size:0.82rem; display:flex; align-items:center; gap:6px;">
-                    <span>${t.done ? '✅' : '⚪'}</span>
-                    <span style="${t.done ? 'text-decoration:line-through; color:var(--text-muted);' : ''}">${esc(t.title)}</span>
+            ${gw ? `<div class="role-goal-banner">🎯 ${esc(gw)}</div>` : ''}
+            <div class="task-list">
+              ${rTasks.length ? rTasks.map(t => `
+                <div class="task-row">
+                  <div class="task-row-left">
+                    <button class="check-btn" onclick="App.completeTask('${esc(t.id)}')" title="Odhacz jako wykonane (trafi do Archiwum z dzisiejszą datą)">✓</button>
+                    <span>${esc(t.title)}</span>
                   </div>
-                `).join('')}
-              ` : '<div style="font-size:0.75rem; color:var(--text-muted);">Brak zadań bieżących.</div>'}
-            </div>
-          </div>
-
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:12px; border-top:1px solid var(--border);">
-            <button class="header-action-btn" onclick="App.restoreDay('${dateStr}'); App.closeModal();">
-              ↩️ Przywróć ten dzień do rozkładówki
-            </button>
-            <button class="header-action-btn btn-primary" onclick="App.closeModal()">Zamknij</button>
-          </div>
-        </div>
-      </div>
-    `;
-  },
-
-  /* Lewy panel: Wykonane dni */
-  renderCompletedSidebar() {
-    const sidebar = document.getElementById('completedSidebar');
-    if (!sidebar) return;
-
-    sidebar.classList.toggle('is-collapsed', !this.isCompletedSidebarOpen);
-
-    const completedSet = new Set(Store.state.completedDays || []);
-    // Pokaż wszystkie odklikane dni w archiwum posortowane od najnowszego:
-    const completedDates = [...completedSet].sort().reverse();
-
-    const badgeEl = document.getElementById('completedCountBadge');
-    if (badgeEl) badgeEl.textContent = completedDates.length;
-    const mCompBadge = document.getElementById('mCompletedBadge');
-    if (mCompBadge) {
-      mCompBadge.textContent = completedDates.length;
-      mCompBadge.style.display = completedDates.length > 0 ? 'inline-flex' : 'none';
-    }
-
-    const btnToggle = document.getElementById('btnToggleCompleted');
-    if (btnToggle) {
-      btnToggle.classList.toggle('btn-primary', this.isCompletedSidebarOpen);
-      btnToggle.classList.toggle('btn-subtle', !this.isCompletedSidebarOpen);
-    }
-
-    sidebar.innerHTML = `
-      <div class="completed-sb-header">
-        <div class="completed-sb-title">
-          <span>✅</span>
-          <span>Wykonane</span>
-          <span class="completed-pill-count">${completedDates.length}</span>
-        </div>
-        <button class="inbox-sb-close" data-act="toggleCompletedSidebar" title="Zwiń listę wykonanych">✕</button>
-      </div>
-
-      <div class="completed-sb-content">
-        <div style="padding:7px 10px; background:var(--surface-alt); border-radius:var(--radius-sm); border:1px solid var(--border-subtle); display:flex; align-items:center; justify-content:space-between;">
-          <span style="font-size:0.72rem; color:var(--text-muted);">Pokaż odklikane w siatce:</span>
-          <label style="position:relative; display:inline-flex; align-items:center; cursor:pointer;">
-            <input type="checkbox" ${this.showAllDaysInGrid ? 'checked' : ''} onchange="App.toggleShowCompletedInGrid(this.checked)" style="cursor:pointer;">
-          </label>
-        </div>
-
-        ${completedDates.length === 0 ? `
-          <div style="text-align:center; padding:32px 12px; color:var(--text-dim); font-size:0.8rem; line-height:1.5;">
-            <div style="font-size:2rem; margin-bottom:8px; opacity:0.7;">🏁</div>
-            Brak odklikanych dni w archiwum.<br>
-            <span style="font-size:0.72rem; color:var(--text-muted); display:block; margin-top:8px;">
-              Gdy odhaczysz dzień przyciskiem <strong>✓</strong> w nagłówku kolumny, dzień schowa się tutaj, a niewykonane zadania przejdą na kolejny dzień!
-            </span>
-          </div>
-        ` : `
-          <div style="display:flex; flex-direction:column; gap:8px;">
-            ${completedDates.map(dateStr => {
-              const d = D.parse(dateStr);
-              const dow = D.dow(dateStr);
-              const dayName = D.DOW_LONG[dow];
-              const dayTasks = Store.state.tasks.filter(t => t.date === dateStr);
-              const doneTasks = dayTasks.filter(t => t.done).length;
-              const totalTasks = dayTasks.length;
-              const routinesCount = Store.state.tasks.filter(t => t.recur && Recur.matchesDate(t, dateStr)).length;
-
-              return `
-                <div class="completed-day-card" data-date="${dateStr}">
-                  <div class="completed-day-card-header">
-                    <div style="display:flex; align-items:center; gap:6px;">
-                      <span style="color:var(--emerald); font-weight:bold; font-size:0.95rem;">✓</span>
-                      <div>
-                        <div style="font-weight:700; font-size:0.85rem; text-transform:capitalize;">${dayName}</div>
-                        <div style="font-size:0.72rem; color:var(--text-muted);">${d.getDate()} ${D.MON_GEN[d.getMonth()]}</div>
-                      </div>
-                    </div>
-                    <button class="task-micro-btn" data-act="restoreDay" data-date="${dateStr}" title="Przywróć dzień do rozkładówki tygodnia">↩️</button>
-                  </div>
-                  <div class="completed-day-card-stats">
-                    <span>📋 ${doneTasks}/${totalTasks} zadań</span>
-                    <span>🛡️ ${routinesCount} rutyn</span>
-                  </div>
-                  <button class="completed-day-view-btn" data-act="previewCompletedDay" data-date="${dateStr}">
-                    👁️ Zobacz zadania tego dnia
-                  </button>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `}
-      </div>
-    `;
-  },
-
-  /* ============ Główny render ============ */
-  renderAll() {
-    this._isRendering = true;
-    this.updateWeekNav();
-    this.renderCompletedSidebar();
-    this.renderWeekDaysGrid();
-    this.renderInboxSidebar();
-    this.updateInboxBadge();
-    this.renderMobileDayStrip();
-    this.updateMobileBottomNav();
-    if (this.activeModal === 'routines') {
-      this.openRoutinesModal();
-    }
-    this.restoreMobileScrollPosition();
-    setTimeout(() => {
-      this._isRendering = false;
-    }, 120);
-  },
-
-  /* Układ poziomy (dni jeden pod drugim): po przerysowaniu nie przewijamy – tylko podświetlamy aktywny dzień */
-  restoreMobileScrollPosition() {
-    if (window.innerWidth > 768) return;
-    const today = D.today();
-    const days = this.showAllDaysInGrid
-      ? Store.getWeekDays(this.weekOffset)
-      : Store.getRollingDays(this.weekOffset).days;
-
-    if (!this.activeMobileDay || !days.includes(this.activeMobileDay)) {
-      this.activeMobileDay = days.includes(today) ? today : days[0];
-    }
-
-    document.querySelectorAll('.day-strip-btn').forEach(btn => {
-      btn.classList.toggle('is-active', btn.dataset.date === this.activeMobileDay);
-    });
-  },
-
-  /* ============ Pasek wyboru dni na telefonach ============ */
-  renderMobileDayStrip() {
-    const strip = document.getElementById('mobileDayStrip');
-    if (!strip) return;
-
-    const today = D.today();
-    const days = this.showAllDaysInGrid
-      ? Store.getWeekDays(this.weekOffset)
-      : Store.getRollingDays(this.weekOffset).days;
-
-    if (!days || days.length === 0) {
-      strip.innerHTML = '';
-      return;
-    }
-
-    if (!this.activeMobileDay || !days.includes(this.activeMobileDay)) {
-      this.activeMobileDay = days.includes(today) ? today : days[0];
-    }
-
-    strip.innerHTML = days.map(dateStr => {
-      const isToday = dateStr === today;
-      const isActive = dateStr === this.activeMobileDay;
-      const isCompleted = Store.isDayCompleted(dateStr);
-      const d = D.parse(dateStr);
-      const dow = D.dow(dateStr);
-      const dayShort = D.DOW_SHORT[dow];
-      const dayNum = d.getDate();
-
-      return `
-        <button class="day-strip-btn ${isActive ? 'is-active' : ''} ${isToday ? 'is-today' : ''} ${isCompleted ? 'is-completed' : ''}"
-                data-act="mobileSelectDay" data-date="${dateStr}" title="${dayShort} ${dayNum} ${isToday ? '(Dziś)' : ''}">
-          <span class="day-strip-dow">${dayShort}</span>
-          <span class="day-strip-num">${dayNum}</span>
-          ${isCompleted ? '<span class="day-strip-dot is-check">✓</span>' : (isToday ? '<span class="day-strip-dot"></span>' : '')}
-        </button>
-      `;
-    }).join('');
-  },
-
-  /* Przewija tablicę (pionowo) tak, aby dany dzień był na górze */
-  _scrollBoardToCol(col, smooth) {
-    const boardMain = document.getElementById('boardMain');
-    if (!boardMain || !col) return;
-    const top = col.getBoundingClientRect().top - boardMain.getBoundingClientRect().top + boardMain.scrollTop - 8;
-    boardMain.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
-  },
-
-  scrollToDay(dateStr, smooth = true) {
-    this.activeMobileDay = dateStr;
-    const col = document.querySelector(`.day-column[data-date="${dateStr}"]`);
-    if (col) this._scrollBoardToCol(col, smooth);
-    document.querySelectorAll('.day-strip-btn').forEach(btn => {
-      btn.classList.toggle('is-active', btn.dataset.date === dateStr);
-    });
-  },
-
-  scrollToCurrentDayOnMobile(smooth = false) {
-    if (window.innerWidth > 768) return;
-    const today = D.today();
-    const target = document.querySelector(`.day-column[data-date="${today}"]`) ||
-                   document.querySelector('.day-column.is-current-day') ||
-                   document.querySelector('.day-column');
-    if (target) {
-      const date = target.dataset.date || today;
-      this.activeMobileDay = date;
-      setTimeout(() => {
-        this._scrollBoardToCol(target, smooth);
-        document.querySelectorAll('.day-strip-btn').forEach(btn => {
-          btn.classList.toggle('is-active', btn.dataset.date === date);
-        });
-      }, 70);
-    }
-  },
-
-  initMobileScrollSync() {
-    const boardMain = document.getElementById('boardMain');
-    if (!boardMain || this._mobileScrollSyncBound) return;
-    this._mobileScrollSyncBound = true;
-    let scrollTimeout = null;
-
-    boardMain.addEventListener('scroll', () => {
-      if (this._isRendering) return;
-      if (window.innerWidth > 768) return;
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        if (this._isRendering) return;
-        const cols = Array.from(document.querySelectorAll('.day-column'));
-        if (cols.length === 0) return;
-        // aktywny = ostatni dzień, którego nagłówek minął górną krawędź tablicy
-        const boardTop = boardMain.getBoundingClientRect().top + 40;
-        let current = cols[0];
-        cols.forEach(col => { if (col.getBoundingClientRect().top <= boardTop) current = col; });
-
-        if (current && current.dataset.date) {
-          const date = current.dataset.date;
-          this.activeMobileDay = date;
-          document.querySelectorAll('.day-strip-btn').forEach(btn => {
-            btn.classList.toggle('is-active', btn.dataset.date === date);
-          });
-        }
-      }, 50);
-    }, { passive: true });
-  },
-
-  updateMobileBottomNav() {
-    const mNavPlan = document.getElementById('mNavPlan');
-    const mNavInbox = document.getElementById('mNavInbox');
-    const mNavSettings = document.getElementById('mNavSettings');
-    const mInboxBadge = document.getElementById('mInboxBadge');
-
-    if (mInboxBadge) mInboxBadge.style.display = 'none';
-
-    if (mNavInbox) mNavInbox.classList.toggle('active', this.isSidebarOpen);
-    if (mNavSettings) mNavSettings.classList.toggle('active', this.activeModal === 'settings');
-    if (mNavPlan) mNavPlan.classList.toggle('active', !this.isSidebarOpen && !this.isCompletedSidebarOpen && this.activeModal !== 'settings');
-  },
-
-  /* Pomocnik strefy rutyny: 'selfcare' (Zdrowie & Ja) vs 'standard' (Bieżączka / KSeF / praca) */
-  isWorkRoutine(r) {
-    if (!r) return false;
-    if (r.zone === 'standard') return true;
-    if (r.zone === 'selfcare') return false;
-    if (r.roleId === 'r_firm' || r.roleId === 'r_home') return true;
-    if (r.title && /faktur|ksef|podat|zus|firma|zamknięcie|rozliczen|przelew/i.test(r.title)) return true;
-    return false;
-  },
-
-  /* ==========================================================================
-     ROZKŁADÓWKA: 7 DNI TYGODNIA (PONIEDZIAŁEK – NIEDZIELA)
-     ========================================================================== */
-  renderWeekDaysGrid() {
-    const grid = document.getElementById('weekDaysGrid');
-    if (!grid) return;
-
-    const today = D.today();
-    const completedSet = new Set(Store.state.completedDays || []);
-
-    const days = this.showAllDaysInGrid
-      ? Store.getWeekDays(this.weekOffset)
-      : Store.getRollingDays(this.weekOffset).days;
-    const tasks = Store.state.tasks.filter(t => !t.inbox && !t.recur);
-
-    if (days.length === 0) {
-      grid.innerHTML = `
-        <div style="flex:1; max-width:600px; margin:40px auto; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); text-align:center;">
-          <div style="font-size:3rem; margin-bottom:12px;">🏆</div>
-          <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:6px;">Wszystkie dni w tym okresie zostały odklikane!</h2>
-          <p style="font-size:0.85rem; color:var(--text-muted); max-width:420px; margin-bottom:16px;">
-            Wszystkie zakończone dni znajdują się na liście „Wykonane” po lewej stronie ekranu.
-          </p>
-          <button class="header-action-btn btn-primary" onclick="App.toggleShowCompletedInGrid(true)">Pokaż wszystkie dni w siatce</button>
-        </div>
-      `;
-      return;
-    }
-
-    // Dzień o statusie bieżącym (rozciągany 2x na pulpicie):
-    const currentActiveDate = (this.weekOffset === 0)
-      ? (days.includes(today) ? today : days[0])
-      : null;
-
-    grid.innerHTML = days.map(dateStr => {
-      const isToday = dateStr === today;
-      const isCurrentFocus = dateStr === currentActiveDate;
-      const isCompleted = Store.isDayCompleted(dateStr);
-      const dayTasks = tasks.filter(t => t.date === dateStr);
-      const d = D.parse(dateStr);
-      const dow = D.dow(dateStr);
-      const dayName = D.DOW_LONG[dow].toUpperCase();
-
-      // Rutyny przypadające na ten dzień:
-      const dayRoutines = Store.state.tasks.filter(t => t.recur && Recur.matchesDate(t, dateStr));
-
-      // 🛡️ BAZA: Zdrowie & Ja:
-      const selfcareRoutines = dayRoutines.filter(r => !this.isWorkRoutine(r));
-      const activeSelfcare = selfcareRoutines.filter(r => !Recur.isDoneOn(r, dateStr));
-      const doneSelfcare = selfcareRoutines.filter(r => Recur.isDoneOn(r, dateStr));
-
-      // 📋 BIEŻĄCZKA: Cykliczne sprawy operacyjne (np. KSeF, faktury, firma, dom):
-      const recurringWorkTasks = dayRoutines.filter(r => this.isWorkRoutine(r));
-      const activeRecurringWork = recurringWorkTasks.filter(r => !Recur.isDoneOn(r, dateStr));
-      const doneRecurringWork = recurringWorkTasks.filter(r => Recur.isDoneOn(r, dateStr));
-
-      // Zadania dnia: Głaz (I) i Bieżączka (II)
-      const rockTasks = dayTasks.filter(t => this.getTaskPriority(t) === 1);
-      const activeRockTasks = rockTasks.filter(t => !t.done);
-      const doneRockTasks = rockTasks.filter(t => t.done);
-
-      const standardTasks = dayTasks.filter(t => this.getTaskPriority(t) === 2 || this.getTaskPriority(t) === 3);
-      const activeStandardTasks = standardTasks.filter(t => !t.done);
-      const doneStandardTasks = standardTasks.filter(t => t.done);
-
-      const totalActiveWorkCount = activeStandardTasks.length + activeRecurringWork.length;
-      const totalDoneCount = doneRockTasks.length + doneStandardTasks.length + doneRecurringWork.length + doneSelfcare.length;
-      const isDoneDrawerExpanded = this.expandedDoneDays.has(dateStr);
-
-      const finishBtnLabel = isCompleted
-        ? '✓ Zrobione'
-        : (isCurrentFocus ? '✓ Zakończ dzień' : '✓');
-
-      return `
-        <div class="day-column ${isToday ? 'is-today' : ''} ${isCurrentFocus ? 'is-current-day' : ''} ${isCompleted ? 'is-completed' : ''}" data-date="${dateStr}">
-          <!-- Nagłówek dnia -->
-          <div class="col-header">
-            <div class="col-header-info">
-              <span class="col-day-name">${dayName}</span>
-              <span class="col-day-date">${d.getDate()} ${D.MON_GEN[d.getMonth()]}</span>
-              ${isToday ? '<span class="col-badge-today">Dziś</span>' : (isCurrentFocus ? '<span class="col-badge-today col-badge-focus">Bieżący</span>' : '')}
-            </div>
-            <button class="btn-col-finish ${isCompleted ? 'is-completed' : ''}" data-act="toggleDayCompleted" data-date="${dateStr}" title="${isCompleted ? 'Cofnij zakończenie dnia' : 'Zakończ dzień (schowaj do wykonanych)'}">
-              ${finishBtnLabel}
-            </button>
-          </div>
-
-          <!-- Przewijana zawartość kolumny -->
-          <div class="col-body">
-            <!-- 🛡️ STREFA 0: BAZA DLA SIEBIE & ZDROWIE (NA SAMEJ GÓRZE!) -->
-            ${selfcareRoutines.length > 0 ? `
-              <div class="col-selfcare-box">
-                <div class="selfcare-box-title">
-                  <span>🛡️ Zdrowie & Ja (${doneSelfcare.length}/${selfcareRoutines.length})</span>
-                </div>
-                ${activeSelfcare.length > 0 ? `
-                  <div class="selfcare-items-list">
-                    ${activeSelfcare.map(r => this.renderSelfcareItemPill(r, dateStr, false)).join('')}
-                  </div>
-                ` : `
-                  <div class="selfcare-all-done-hint">✓ Wszystkie nawyki na dziś odhaczone! 🎉</div>
-                `}
-              </div>
-            ` : ''}
-
-            <!-- 🎯 STREFA 1: GŁAZ DNIA (POZIOM I - KLUCZOWA SPRAWA - TYLKO AKTYWNE) -->
-            <div class="col-zone col-zone-rock">
-              <div class="col-zone-header rock-header">
-                <span>🎯 I · Głaz Dnia</span>
-                <button class="task-micro-btn" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="1" title="Dodaj Głaz do tego dnia">+</button>
-              </div>
-              <div class="col-cards-list">
-                ${activeRockTasks.length > 0
-                  ? activeRockTasks.map(t => this.renderTaskCard(t)).join('')
-                  : (doneRockTasks.length > 0
-                      ? `<div class="empty-rock-slot is-done-celebrate" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="1">🏆 Głaz Dnia zrealizowany! (+ Dodaj kolejny)</div>`
-                      : `<div class="empty-rock-slot" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="1">+ Ustal Głaz dnia</div>`
-                    )
-                }
-              </div>
-            </div>
-
-            <!-- 📋 STREFA 2: BIEŻĄCZKA (POZIOM II - TYLKO AKTYWNE ZADANIA) -->
-            <div class="col-zone col-zone-work">
-              <div class="col-zone-header">
-                <span>📋 II · Bieżączka (${totalActiveWorkCount})</span>
-                <button class="task-micro-btn" data-act="showColQuickAdd" data-date="${dateStr}" data-priority="2" title="Dodaj zadanie do bieżączki">+</button>
-              </div>
-              <div class="col-cards-list">
-                <!-- Aktywne sprawy cykliczne w bieżączce -->
-                ${activeRecurringWork.map(r => this.renderRecurringWorkCard(r, dateStr, false)).join('')}
-
-                <!-- Aktywne zadania jednorazowe -->
-                ${activeStandardTasks.length > 0
-                  ? activeStandardTasks.map(t => this.renderTaskCard(t)).join('')
-                  : (activeRecurringWork.length === 0 ? '<div class="empty-tasks-hint">Brak bieżących zadań. Widok czysty! ✨</div>' : '')
-                }
-              </div>
-            </div>
-
-            <!-- 🗂️ WYSUWANY FOLDER WYKONANYCH ZADAŃ DNIA (CZYSTY WIDOK) -->
-            ${totalDoneCount > 0 ? `
-              <div class="col-completed-box ${isDoneDrawerExpanded ? 'is-expanded' : 'is-collapsed'}" data-date="${dateStr}">
-                <button class="col-completed-toggle-btn" data-act="toggleDoneDrawer" data-date="${dateStr}" title="${isDoneDrawerExpanded ? 'Zwiń wykonane zadania' : 'Rozwiń wykonane zadania'}">
-                  <div class="completed-toggle-left">
-                    <span class="completed-check-icon">✓</span>
-                    <span class="completed-toggle-label">Wykonane dzisiaj</span>
-                    <span class="completed-badge">${totalDoneCount}</span>
-                  </div>
-                  <span class="completed-chevron">${isDoneDrawerExpanded ? '▾' : '▸'}</span>
-                </button>
-                <div class="col-completed-drawer-content ${isDoneDrawerExpanded ? '' : 'is-collapsed'}">
-                  <div class="col-cards-list completed-cards-list">
-                    <!-- Wykonane Głazy -->
-                    ${doneRockTasks.map(t => this.renderTaskCard(t, true)).join('')}
-                    <!-- Wykonane Zadania Bieżące -->
-                    ${doneStandardTasks.map(t => this.renderTaskCard(t, true)).join('')}
-                    <!-- Wykonane Rutyny Operacyjne -->
-                    ${doneRecurringWork.map(r => this.renderRecurringWorkCard(r, dateStr, true)).join('')}
-                    <!-- Wykonane Rutyny Zdrowie & Ja -->
-                    ${doneSelfcare.map(r => this.renderSelfcareCompletedCard(r, dateStr)).join('')}
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span class="q-tag q${t.q || 2}" onclick="App.cycleTaskQ('${esc(t.id)}')" title="Kliknij, aby zmienić ćwiartkę Matrycy (Q1–Q4)">Q${t.q || 2}</span>
+                    <button class="del-btn" onclick="App.deleteTask('${esc(t.id)}')" title="Usuń">✕</button>
                   </div>
                 </div>
-              </div>
-            ` : ''}
-          </div>
-
-          <!-- Szybkie dodawanie na dole kolumny -->
-          <div class="col-footer">
-            <form class="col-quick-add-form" data-date="${dateStr}">
-              <input class="col-quick-add-input" placeholder="+ Dodaj zadanie (Enter)..." autocomplete="off">
-              <button type="submit" class="col-add-btn" title="Dodaj zadanie">+</button>
+              `).join('') : `<div style="font-size:0.76rem; color:var(--text-dim); padding:8px 2px;">Brak wpisanych zadań w tym tygodniu</div>`}
+            </div>
+            <form class="quick-form" onsubmit="event.preventDefault(); App.addTaskToRole('${esc(r.id)}', this);">
+              <input type="text" name="title" class="input-clean" placeholder="+ Dodaj zadanie..." required>
+              <button type="submit" class="btn btn-primary">+</button>
             </form>
           </div>
+        `;
+      }).join('');
+    }
+  },
+
+  renderTodaySawOnPlan() {
+    const dailyBox = document.getElementById('sawDailyOnPlan');
+    const weeklyBox = document.getElementById('sawWeeklyOnPlan');
+    if (!dailyBox || !weeklyBox) return;
+
+    const today = this.today();
+    const weekDates = this.getCurrentWeekDates();
+    const allSaw = Store.state.saw || [];
+
+    const dailyItems = allSaw.filter(s => (s.freqType || 'daily') === 'daily');
+    const periodicItems = allSaw.filter(s => (s.freqType || 'daily') !== 'daily');
+
+    // Render codziennych rzeczy na dziś
+    dailyBox.innerHTML = dailyItems.length ? dailyItems.map(s => {
+      const isDoneToday = Array.isArray(s.doneDays) && s.doneDays.includes(today);
+      return `
+        <div class="saw-pill ${isDoneToday ? 'is-done' : ''}" onclick="App.toggleSawDay('${esc(s.id)}', '${today}')">
+          <span>${isDoneToday ? '✓' : '○'}</span>
+          <span>${esc(s.title)}</span>
+        </div>
+      `;
+    }).join('') : `<span style="font-size:0.78rem; color:var(--text-dim);">Brak codziennych nawyków</span>`;
+
+    // Render cotygodniowych / cyklicznych zadań na ten tydzień
+    weeklyBox.innerHTML = periodicItems.length ? periodicItems.map(s => {
+      // Sprawdź czy w bieżącym tygodniu zostało już odhaczone (w dowolny dzień tygodnia lub w przypisany dzień)
+      const targetDate = (s.freqType === 'weekly' && s.dow != null) ? weekDates[s.dow] : today;
+      const isDoneThisWeek = Array.isArray(s.doneDays) && s.doneDays.some(d => weekDates.includes(d));
+      const toggleDate = isDoneThisWeek
+        ? (s.doneDays.find(d => weekDates.includes(d)) || targetDate)
+        : targetDate;
+
+      return `
+        <div class="saw-pill ${isDoneThisWeek ? 'is-done' : ''}" onclick="App.toggleSawDay('${esc(s.id)}', '${toggleDate}')">
+          <span>${isDoneThisWeek ? '✓' : '○'}</span>
+          <span>${esc(s.title)}</span>
+          <span class="saw-pill-cycle">${esc(s.cycleLabel || 'Co tydzień')}</span>
+        </div>
+      `;
+    }).join('') : `<span style="font-size:0.78rem; color:var(--text-dim);">Brak zadań cotygodniowych — dodaj je w zakładce „🪚 Ostrzenie Piły”</span>`;
+  },
+
+  addTaskToRole(roleId, form) {
+    const title = (form.title.value || '').trim();
+    if (!title) return;
+    Store.state.tasks.push({
+      id: 't_' + uid(),
+      title,
+      roleId,
+      q: 2,
+      year: Store.state.year,
+      createdAt: Date.now()
+    });
+    form.title.value = '';
+    Store.persist();
+  },
+
+  cycleTaskQ(id) {
+    const t = Store.state.tasks.find(x => x.id === id);
+    if (!t) return;
+    t.q = ((Number(t.q) || 2) % 4) + 1;
+    Store.persist();
+  },
+
+  completeTask(id) {
+    const idx = Store.state.tasks.findIndex(x => x.id === id);
+    if (idx < 0) return;
+    const [t] = Store.state.tasks.splice(idx, 1);
+    Store.state.archive.unshift({
+      id: 'arch_' + uid(),
+      title: t.title,
+      roleId: t.roleId,
+      q: t.q || 2,
+      doneAt: this.nowStamp(),
+      year: Store.state.year,
+      createdAt: Date.now()
+    });
+    Store.persist();
+    this.showToast(`Wykonano: „${t.title}” (zapisano w Archiwum)`);
+  },
+
+  deleteTask(id) {
+    Store.state.tasks = Store.state.tasks.filter(x => x.id !== id);
+    Store.persist();
+  },
+
+  /* ---- KALENDARZ MIESIĘCZNY NA DOLE ---- */
+  changeMonth(delta) {
+    this.calMonth += delta;
+    if (this.calMonth < 0) { this.calMonth = 11; this.calYear--; }
+    if (this.calMonth > 11) { this.calMonth = 0; this.calYear++; }
+    this.renderCalendar();
+  },
+
+  renderCalendar() {
+    const titleEl = document.getElementById('calMonthTitle');
+    const gridEl = document.getElementById('calGrid');
+    if (!titleEl || !gridEl) return;
+
+    titleEl.textContent = `${D.MON_NOM[this.calMonth]} ${this.calYear}`;
+
+    const first = new Date(this.calYear, this.calMonth, 1);
+    const startOffset = (first.getDay() + 6) % 7;
+    const daysInMonth = new Date(this.calYear, this.calMonth + 1, 0).getDate();
+    const total = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+    const today = this.today();
+
+    let html = '';
+    for (let i = 0; i < total; i++) {
+      const d = new Date(this.calYear, this.calMonth, 1 - startOffset + i);
+      const dStr = D.toStr(d);
+      const isCur = d.getMonth() === this.calMonth;
+      const rems = (Store.state.reminders || []).filter(r => r.date === dStr);
+
+      html += `
+        <div class="cal-cell ${isCur ? '' : 'other'} ${dStr === today ? 'today' : ''}" onclick="App.openCalendarDayModal('${dStr}')">
+          <div class="cal-num">
+            <span>${d.getDate()}</span>
+            <span style="font-size:0.68rem; color:var(--accent); opacity:0.7;">+</span>
+          </div>
+          ${rems.map(r => `
+            <div class="cal-chip" title="${esc(r.title)}">
+              <span style="overflow:hidden; text-overflow:ellipsis;">🔔 ${esc(r.title)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+    gridEl.innerHTML = html;
+  },
+
+  openCalendarDayModal(dateStr) {
+    const root = document.getElementById('modalRoot');
+    if (!root) return;
+    const rems = (Store.state.reminders || []).filter(r => r.date === dateStr);
+    root.innerHTML = `
+      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
+        <div class="modal" style="max-width:480px;">
+          <div class="modal-header">
+            <h3>📅 Przypomnienia na dzień: ${dateStr}</h3>
+            <button class="btn" onclick="App.closeModal()">✕</button>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            ${rems.length ? rems.map(r => `
+              <div class="task-row">
+                <span>🔔 ${esc(r.title)}</span>
+                <button class="del-btn" onclick="App.deleteReminder('${esc(r.id)}', '${dateStr}')">🗑️</button>
+              </div>
+            `).join('') : `<div style="font-size:0.82rem; color:var(--text-dim);">Brak przypomnień w tym dniu.</div>`}
+          </div>
+          <form onsubmit="event.preventDefault(); App.addReminder('${dateStr}', this);" style="display:flex; gap:8px; margin-top:8px;">
+            <input type="text" name="title" class="input-clean" placeholder="Wpisz przypomnienie na ${dateStr}..." required autofocus>
+            <button type="submit" class="btn btn-primary">Dodaj</button>
+          </form>
+        </div>
+      </div>
+    `;
+  },
+
+  addReminder(dateStr, form) {
+    const title = (form.title.value || '').trim();
+    if (!title) return;
+    Store.state.reminders.push({
+      id: 'rem_' + uid(),
+      date: dateStr,
+      title,
+      createdAt: Date.now()
+    });
+    Store.persist();
+    this.openCalendarDayModal(dateStr);
+  },
+
+  deleteReminder(id, dateStr) {
+    Store.state.reminders = (Store.state.reminders || []).filter(r => r.id !== id);
+    Store.persist();
+    this.openCalendarDayModal(dateStr);
+  },
+
+  closeModal() {
+    const root = document.getElementById('modalRoot');
+    if (root) root.innerHTML = '';
+  },
+
+  /* ---- ZAKŁADKA 2: MATRYCA EISENHOWERA (OSOBNA ZAKŁADKA) ---- */
+  renderMatrix() {
+    const grid = document.getElementById('matrixGrid');
+    if (!grid) return;
+
+    const meta = [
+      { q: 1, title: '🔥 Ćwiartka I: Pilne i Ważne', sub: 'Zrób od razu (kryzysy, pilne terminy)' },
+      { q: 2, title: '💎 Ćwiartka II: Niepilne, ale Ważne', sub: 'Najważniejsza ćwiartka: planowanie, rozwój, cele ról' },
+      { q: 3, title: '⚡ Ćwiartka III: Pilne, ale Nieważne', sub: 'Bieżączka i rozproszenia do ograniczenia' },
+      { q: 4, title: '🗑️ Ćwiartka IV: Niepilne i Nieważne', sub: 'Pożeracze czasu do eliminacji' }
+    ];
+
+    const y = Store.state.year;
+    const tasks = (Store.state.tasks || []).filter(t => (t.year || y) === y);
+
+    grid.innerHTML = meta.map(m => {
+      const list = tasks.filter(t => (Number(t.q) || 2) === m.q);
+      return `
+        <div class="quad-card q${m.q}">
+          <div>
+            <h3 style="font-size:0.96rem; font-weight:800;">${m.title} (${list.length})</h3>
+            <p style="font-size:0.76rem; color:var(--text-muted);">${m.sub}</p>
+          </div>
+          <div class="task-list" style="flex:1;">
+            ${list.length ? list.map(t => {
+              const r = Store.state.roles.find(x => x.id === t.roleId);
+              return `
+                <div class="task-row">
+                  <div class="task-row-left">
+                    <button class="check-btn" onclick="App.completeTask('${esc(t.id)}')">✓</button>
+                    <span>${esc(t.title)}</span>
+                  </div>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">${r ? r.emoji + ' ' + esc(r.name) : ''}</span>
+                  <span class="q-tag q${t.q || 2}" onclick="App.cycleTaskQ('${esc(t.id)}')">Q${t.q || 2}</span>
+                </div>
+              `;
+            }).join('') : `<div style="color:var(--text-dim); font-size:0.8rem; margin:auto 0; text-align:center;">Brak zadań w tej ćwiartce</div>`}
+          </div>
+          <form class="quick-form" onsubmit="event.preventDefault(); App.addTaskFromMatrix(${m.q}, this);">
+            <input type="text" name="title" class="input-clean" placeholder="+ Dodaj do Ćwiartki ${m.q}..." required>
+            <select name="roleId" class="input-clean" style="max-width:140px;">
+              ${Store.state.roles.map(r => `<option value="${esc(r.id)}">${r.emoji} ${esc(r.name)}</option>`).join('')}
+            </select>
+            <button type="submit" class="btn btn-primary">+</button>
+          </form>
         </div>
       `;
     }).join('');
-
-    // Obsługa formularzy szybkiego dodawania na dole kolumn
-    grid.querySelectorAll('.col-quick-add-form').forEach(form => {
-      form.addEventListener('submit', e => {
-        e.preventDefault();
-        const input = form.querySelector('.col-quick-add-input');
-        let text = input.value.trim();
-        if (!text) return;
-        const date = form.dataset.date;
-        let priority = 2;
-        if (text.includes('!1')) { priority = 1; text = text.replace(/!1/g, '').trim(); }
-        else if (text.includes('!2')) { priority = 2; text = text.replace(/!2/g, '').trim(); }
-
-        input.blur();
-        this.activeMobileDay = date;
-        Store.add({ title: text, date, priority, q: priority === 1 ? 1 : 2 });
-        input.value = '';
-        this.showToast(priority === 1 ? 'Dodano Głaz Dnia 🎯' : 'Dodano do bieżączki 📋');
-      });
-    });
   },
 
-  /* Pigułka rutyny Zdrowie & Ja */
-  renderSelfcareItemPill(r, dateStr, isDone = false) {
-    const streak = Recur.streak(r);
-    const isCollapsed = this.collapsedNotes.has(r.id);
-    return `
-      <div class="selfcare-item-pill ${isDone ? 'is-done' : ''}" data-act="toggleRoutineDay" data-id="${r.id}" data-date="${dateStr}" title="${esc(r.title)}${r.notes ? ` — 📝 ${esc(r.notes)}` : ''}">
-        <div class="selfcare-pill-top">
-          <span class="selfcare-check-circle">${isDone ? '✓' : ''}</span>
-          <span class="selfcare-title">${esc(r.title)}</span>
-          ${streak > 0 ? `<span class="selfcare-streak">🔥${streak}</span>` : ''}
-          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
-            ${r.notes ? `
-              <button class="note-toggle-btn" data-act="toggleNote" data-id="${r.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
-                ${isCollapsed ? '▸' : '▾'}
-              </button>
-            ` : ''}
-            <button class="selfcare-edit-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj tę rutynę">✏️</button>
-            <button type="button" class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń tę rutynę" style="font-size:0.75rem; padding:1px 3px;">🗑️</button>
-          </div>
+  addTaskFromMatrix(q, form) {
+    const title = (form.title.value || '').trim();
+    if (!title) return;
+    Store.state.tasks.push({
+      id: 't_' + uid(),
+      title,
+      roleId: form.roleId.value || Store.state.roles[0].id,
+      q,
+      year: Store.state.year,
+      createdAt: Date.now()
+    });
+    form.title.value = '';
+    Store.persist();
+  },
+
+  /* ---- ZAKŁADKA 3: OSTRZENIE PIŁY (CODZIENNE + COTYGODNIOWE + CYKLICZNE) ---- */
+  renderSaw() {
+    const container = document.getElementById('sawContainer');
+    if (!container) return;
+
+    const weekDates = this.getCurrentWeekDates();
+    const daysShort = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb', 'Nd'];
+    const allSaw = Store.state.saw || [];
+
+    const groups = [
+      { key: 'daily', title: '☀️ Codzienne rzeczy do wykonania (każdego dnia)', items: allSaw.filter(s => (s.freqType || 'daily') === 'daily') },
+      { key: 'weekly', title: '📅 Cotygodniowe zadania i rytuały', items: allSaw.filter(s => s.freqType === 'weekly') },
+      { key: 'monthly', title: '🗓️ Comiesięczne / Kwartalne / Roczne', items: allSaw.filter(s => s.freqType === 'monthly') }
+    ];
+
+    container.innerHTML = groups.map(g => `
+      <div style="margin-bottom:22px;">
+        <div style="font-size:0.88rem; font-weight:800; margin-bottom:8px; color:var(--text-main);">
+          ${g.title} (${g.items.length})
         </div>
-        ${r.notes ? `
-          <div class="selfcare-note-line ${isCollapsed ? 'is-collapsed' : ''}" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować notatkę">
-            <span>📝 ${linkify(r.notes)}</span>
-          </div>
-        ` : ''}
-      </div>
-    `;
-  },
-
-  /* Karta rutyny operacyjnej w Bieżączce */
-  renderRecurringWorkCard(r, dateStr, isDone = false) {
-    const streak = Recur.streak(r);
-    const isCollapsed = this.collapsedNotes.has(r.id);
-    return `
-      <div class="task-card ${isDone ? 'is-done' : ''} is-recurring-standard" data-id="${r.id}">
-        <div class="task-card-main">
-          <button class="task-checkbox-btn" data-act="toggleRoutineDay" data-id="${r.id}" data-date="${dateStr}" title="${isDone ? 'Cofnij wykonanie' : 'Odhacz jako zrobione na ten dzień'}">
-            ${isDone ? '✓' : ''}
-          </button>
-          <div class="task-title" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować">
-            ${linkify(r.title)}
-          </div>
-          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
-            ${r.notes ? `
-              <button class="note-toggle-btn" data-act="toggleNote" data-id="${r.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
-                ${isCollapsed ? '▸' : '▾'}
-              </button>
-            ` : ''}
-            <button class="task-micro-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj rutynę i notatki">✏️</button>
-          </div>
-        </div>
-
-        ${r.notes ? `
-          <div class="task-notes-box ${isCollapsed ? 'is-collapsed' : ''}" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować notatkę">
-            <span class="note-icon">📝</span>
-            <div class="note-content">${linkify(r.notes)}</div>
-          </div>
-        ` : ''}
-
-        <div class="task-card-footer">
-          <button class="task-p-badge p-routine" data-act="editRoutine" data-id="${r.id}" title="Zmień cykl lub edytuj rutynę">
-            🔄 ${Recur.label(r.recur)}
-          </button>
-          <div class="task-micro-actions">
-            ${streak > 0 ? `<span class="selfcare-streak" style="margin-right:4px;">🔥${streak}</span>` : ''}
-            <button type="button" class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
-          </div>
-        </div>
-      </div>
-    `;
-  },
-
-  /* Karta wykonanej rutyny Zdrowie & Ja w archiwum dnia */
-  renderSelfcareCompletedCard(r, dateStr) {
-    const streak = Recur.streak(r);
-    const isCollapsed = this.collapsedNotes.has(r.id);
-    return `
-      <div class="task-card is-done is-recurring-selfcare" data-id="${r.id}">
-        <div class="task-card-main">
-          <button class="task-checkbox-btn" data-act="toggleRoutineDay" data-id="${r.id}" data-date="${dateStr}" title="Cofnij odhaczenie nawyku">
-            ✓
-          </button>
-          <div class="task-title" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować">
-            ${linkify(r.title)}
-          </div>
-          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
-            ${r.notes ? `
-              <button class="note-toggle-btn" data-act="toggleNote" data-id="${r.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
-                ${isCollapsed ? '▸' : '▾'}
-              </button>
-            ` : ''}
-            <button class="task-micro-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj rutynę i notatki">✏️</button>
-          </div>
-        </div>
-
-        ${r.notes ? `
-          <div class="task-notes-box ${isCollapsed ? 'is-collapsed' : ''}" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować notatkę">
-            <span class="note-icon">📝</span>
-            <div class="note-content">${linkify(r.notes)}</div>
-          </div>
-        ` : ''}
-
-        <div class="task-card-footer">
-          <span class="task-p-badge" style="background:var(--emerald-light); color:var(--emerald); border:1px solid rgba(16,185,129,0.3);">
-            🛡️ Zdrowie & Ja
-          </span>
-          <div class="task-micro-actions">
-            ${streak > 0 ? `<span class="selfcare-streak" style="margin-right:4px;">🔥${streak}</span>` : ''}
-            <button type="button" class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
-          </div>
-        </div>
-      </div>
-    `;
-  },
-
-  /* Pojedyncza karta zadania w kolumnie */
-  renderTaskCard(t) {
-    const isP1 = this.getTaskPriority(t) === 1;
-    const isCollapsed = this.collapsedNotes.has(t.id);
-
-    return `
-      <div class="task-card ${t.done ? 'is-done' : ''} ${isP1 ? 'is-rock' : 'is-standard'}" data-id="${t.id}">
-        <div class="task-card-main">
-          <button class="task-checkbox-btn" data-act="toggleDone" data-id="${t.id}" title="${t.done ? 'Cofnij' : 'Odhacz jako zrobione'}">
-            ${t.done ? '✓' : ''}
-          </button>
-          <div class="task-title" data-act="editTask" data-id="${t.id}" title="Kliknij, aby edytować">
-            ${linkify(t.title)}
-            ${t.originalDate ? `<span class="task-rollover-badge" title="Przeniesione automatycznie z dnia ${D.long(t.originalDate)}">↩️ z ${D.short(t.originalDate)}</span>` : ''}
-          </div>
-          <div style="display:flex; align-items:center; gap:2px; flex-shrink:0;">
-            ${t.notes ? `
-              <button class="note-toggle-btn" data-act="toggleNote" data-id="${t.id}" title="${isCollapsed ? 'Rozwiń opis' : 'Zwiń opis'}">
-                ${isCollapsed ? '▸' : '▾'}
-              </button>
-            ` : ''}
-            <button class="task-micro-btn" data-act="editTask" data-id="${t.id}" title="Edytuj zadanie i notatki">✏️</button>
-          </div>
-        </div>
-
-        ${t.notes ? `
-          <div class="task-notes-box ${isCollapsed ? 'is-collapsed' : ''}" data-act="editTask" data-id="${t.id}" title="Kliknij, aby edytować notatkę">
-            <span class="note-icon">📝</span>
-            <div class="note-content">${linkify(t.notes)}</div>
-          </div>
-        ` : ''}
-
-        <div class="task-card-footer">
-          <button class="task-p-badge ${isP1 ? 'p1' : 'p2'}" data-act="togglePriorityLevel" data-id="${t.id}" title="Przełącz priorytet (I ⇄ II)">
-            ${isP1 ? 'I · Głaz' : 'II · Zwykłe'}
-          </button>
-
-          <div class="task-micro-actions">
-            <button class="task-micro-btn" data-act="postponeTask" data-id="${t.id}" title="Przełóż na jutro (➡️)">➡️</button>
-            <button type="button" class="task-micro-btn btn-trash" data-act="deleteTask" data-id="${t.id}" title="Usuń">🗑️</button>
-          </div>
-        </div>
-      </div>
-    `;
-  },
-
-  /* ==========================================================================
-     BOCZNY PANEL: SKRZYNKA MYŚLI (I - III)
-     ========================================================================== */
-  /** Notatnik: jedna pusta kartka, zapisywana lokalnie i synchronizowana z chmurą. */
-  getScratchpad() {
-    const s = Store.state;
-    if (typeof s.scratchpad === 'string') return s.scratchpad;
-    // jednorazowa migracja: stare wpisy skrzynki trafiają do notatnika (nic nie ginie)
-    const old = (s.tasks || []).filter(t => !t.done && (t.inbox || !t.date) && !t.recur);
-    return old.map(t => '– ' + t.title + (t.notes ? '\n   ' + t.notes.replace(/\n/g, '\n   ') : '')).join('\n');
-  },
-
-  saveScratchpad(text) {
-    if (Store.state.scratchpad === text) return;
-    Store.state.scratchpad = text;
-    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
-    Store.state.fieldStamps.scratchpad = Date.now();
-    Store.persist(false);
-  },
-
-  /* ---------- Mini-foldery notatnika (każdy folder = osobna kartka z HTML, np. pogrubienia) ---------- */
-  _nbTextToHtml(text) {
-    return String(text || '').split('\n').map(l => esc(l) || '<br>').map(l => `<div>${l}</div>`).join('');
-  },
-
-  getNotebookFolders() {
-    const s = Store.state;
-    if (Array.isArray(s.notebookFolders) && s.notebookFolders.length) return s.notebookFolders;
-    // migracja: dotychczasowa kartka trafia do folderu „Ogólne”
-    return [{ id: 'main', name: 'Ogólne', html: this._nbTextToHtml(this.getScratchpad()) }];
-  },
-
-  saveNotebookFolders(folders) {
-    Store.state.notebookFolders = folders;
-    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
-    Store.state.fieldStamps.notebookFolders = Date.now();
-    Store.persist(false);
-  },
-
-  getActiveFolderId(folders) {
-    let id = null;
-    try { id = localStorage.getItem('kompas_nb_active'); } catch (e) {}
-    return folders.some(f => f.id === id) ? id : folders[0].id;
-  },
-
-  setActiveFolderId(id) {
-    try { localStorage.setItem('kompas_nb_active', id); } catch (e) {}
-  },
-
-  renderNotebookTabs() {
-    const bar = document.getElementById('nbTabs');
-    if (!bar) return;
-    const folders = this.getNotebookFolders();
-    const active = this.getActiveFolderId(folders);
-    bar.innerHTML = folders.map(f => `
-      <button class="nb-tab ${f.id === active ? 'is-active' : ''}" data-nb="open" data-id="${esc(f.id)}"
-              title="Kliknij, aby otworzyć • dwuklik, aby zmienić nazwę">
-        <span class="nb-tab-name">${esc(f.name)}</span>
-        ${f.id === active && folders.length > 1 ? `<span class="nb-tab-del" data-nb="del" data-id="${esc(f.id)}" title="Usuń folder">✕</span>` : ''}
-      </button>
-    `).join('') + `<button class="nb-tab nb-tab-add" data-nb="add" title="Nowy folder">＋</button>`;
-  },
-
-  renderInboxSidebar() {
-    const sidebar = document.getElementById('inboxSidebar');
-    if (!sidebar) return;
-
-    sidebar.classList.toggle('is-collapsed', !this.isSidebarOpen);
-    const toggleBtn = document.getElementById('btnToggleSidebar');
-    if (toggleBtn) toggleBtn.classList.toggle('active', this.isSidebarOpen);
-
-    let ed = document.getElementById('scratchpadText');
-    if (ed) {
-      this.renderNotebookTabs();
-      // nie nadpisuj tego, co właśnie piszesz; zdalne zmiany wczytaj tylko poza fokusem
-      const folders = this.getNotebookFolders();
-      const f = folders.find(x => x.id === this.getActiveFolderId(folders));
-      if (document.activeElement !== ed && ed.innerHTML !== f.html) ed.innerHTML = f.html;
-      return;
-    }
-
-    sidebar.innerHTML = `
-      <div class="inbox-sb-header">
-        <div class="inbox-sb-title"><span>🗂️ Role - zadania</span></div>
-        <button class="inbox-sb-close" data-act="toggleInboxSidebar" title="Zwiń role - zadania">✕</button>
-      </div>
-      <div class="nb-toolbar">
-        <div class="nb-tabs" id="nbTabs"></div>
-        <button class="nb-fmt-btn" id="nbBold" data-nb="bold" title="Pogrubienie (Ctrl/⌘+B)"><b>B</b></button>
-      </div>
-      <div id="scratchpadText" class="scratchpad-text" contenteditable="true" spellcheck="false"
-           role="textbox" aria-multiline="true" aria-label="Role - zadania"></div>
-    `;
-    ed = document.getElementById('scratchpadText');
-    const boldBtn = document.getElementById('nbBold');
-
-    const loadActive = () => {
-      const folders = this.getNotebookFolders();
-      const f = folders.find(x => x.id === this.getActiveFolderId(folders));
-      ed.innerHTML = f.html;
-      this.renderNotebookTabs();
-    };
-
-    let timer = null;
-    const flush = () => {
-      clearTimeout(timer);
-      const folders = this.getNotebookFolders().map(f => ({ ...f }));
-      const f = folders.find(x => x.id === this.getActiveFolderId(folders));
-      if (!f || f.html === ed.innerHTML) return;
-      f.html = ed.innerHTML;
-      this.saveNotebookFolders(folders);
-    };
-
-    ed.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(flush, 400); });
-    ed.addEventListener('blur', flush);
-    window.addEventListener('pagehide', flush);
-
-    // wklejanie jako zwykły tekst (bez obcych stylów)
-    ed.addEventListener('paste', e => {
-      e.preventDefault();
-      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      document.execCommand('insertText', false, text);
-    });
-
-    // podświetlenie przycisku B, gdy kursor stoi w pogrubionym tekście
-    document.addEventListener('selectionchange', () => {
-      if (document.activeElement !== ed) { boldBtn.classList.remove('is-on'); return; }
-      boldBtn.classList.toggle('is-on', document.queryCommandState('bold'));
-    });
-
-    // nie zabieraj zaznaczenia z edytora przy klikaniu przycisku B
-    boldBtn.addEventListener('mousedown', e => e.preventDefault());
-
-    sidebar.addEventListener('click', e => {
-      const el = e.target.closest('[data-nb]');
-      if (!el) return;
-      const action = el.dataset.nb;
-      if (action === 'bold') {
-        if (document.activeElement !== ed) ed.focus();
-        document.execCommand('bold');
-        boldBtn.classList.toggle('is-on', document.queryCommandState('bold'));
-        flush();
-      } else if (action === 'open') {
-        flush();
-        this.setActiveFolderId(el.dataset.id);
-        loadActive();
-      } else if (action === 'add') {
-        flush();
-        const name = (prompt('Nazwa nowego folderu:', '') || '').trim();
-        if (!name) return;
-        const folders = this.getNotebookFolders().map(f => ({ ...f }));
-        const id = 'nb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-        folders.push({ id, name, html: '' });
-        this.saveNotebookFolders(folders);
-        this.setActiveFolderId(id);
-        loadActive();
-        ed.focus();
-      } else if (action === 'del') {
-        e.stopPropagation();
-        const folders = this.getNotebookFolders();
-        const f = folders.find(x => x.id === el.dataset.id);
-        if (!f || folders.length < 2) return;
-        if (!confirm(`Usunąć folder „${f.name}” razem z jego notatkami?`)) return;
-        clearTimeout(timer);
-        this.saveNotebookFolders(folders.filter(x => x.id !== f.id));
-        loadActive();
-      }
-    });
-
-    sidebar.addEventListener('dblclick', e => {
-      const el = e.target.closest('[data-nb="open"]');
-      if (!el) return;
-      flush();
-      const folders = this.getNotebookFolders().map(f => ({ ...f }));
-      const f = folders.find(x => x.id === el.dataset.id);
-      if (!f) return;
-      const name = (prompt('Zmień nazwę folderu:', f.name) || '').trim();
-      if (!name || name === f.name) return;
-      f.name = name;
-      this.saveNotebookFolders(folders);
-      this.renderNotebookTabs();
-    });
-
-    loadActive();
-  },
-
-  /* ==========================================================================
-     ZDARZENIA I INTERAKCJE
-     ========================================================================== */
-  bindEvents() {
-    document.addEventListener('click', e => {
-      const btn = e.target.closest('[data-act]');
-      if (!btn) return;
-      const act = btn.dataset.act;
-
-      if (act === 'prevWeek') {
-        this.prevWeek();
-      } else if (act === 'nextWeek') {
-        this.nextWeek();
-      } else if (act === 'currentWeek') {
-        this.currentWeek();
-      } else if (act === 'toggleInboxSidebar') {
-        this.toggleInboxSidebar();
-      } else if (act === 'toggleCompletedSidebar') {
-        this.toggleCompletedSidebar();
-      } else if (act === 'restoreDay') {
-        e.stopPropagation();
-        this.restoreDay(btn.dataset.date);
-      } else if (act === 'previewCompletedDay') {
-        e.stopPropagation();
-        this.previewCompletedDay(btn.dataset.date);
-      } else if (act === 'toggleNote') {
-        e.stopPropagation();
-        this.toggleNote(btn.dataset.id);
-      } else if (act === 'toggleDayCompleted') {
-        e.stopPropagation();
-        this.finishDay(btn.dataset.date);
-      } else if (act === 'toggleDoneDrawer') {
-        e.stopPropagation();
-        this.toggleDoneDrawer(btn.dataset.date);
-      } else if (act === 'toggleDone') {
-        e.stopPropagation();
-        this.toggleTaskDone(btn.dataset.id);
-      } else if (act === 'toggleRoutineDay') {
-        e.stopPropagation();
-        this.toggleRoutineOnDay(btn.dataset.id, btn.dataset.date);
-      } else if (act === 'togglePriorityLevel') {
-        e.stopPropagation();
-        this.togglePriorityLevel(btn.dataset.id);
-      } else if (act === 'cycleInboxPriority') {
-        e.stopPropagation();
-        this.cycleInboxPriority(btn.dataset.id);
-      } else if (act === 'selectInboxPriority') {
-        this.inboxSelectedPriority = parseInt(btn.dataset.priority, 10);
-        this.renderInboxSidebar();
-      } else if (act === 'assignTaskToDate') {
-        e.stopPropagation();
-        this.assignTaskToDate(btn.dataset.id, btn.dataset.date);
-      } else if (act === 'postponeTask') {
-        e.stopPropagation();
-        this.postponeTask(btn.dataset.id);
-      } else if (act === 'editTask') {
-        e.stopPropagation();
-        this.openNewTaskModal(null, 2, btn.dataset.id);
-      } else if (act === 'editRoutine') {
-        e.stopPropagation();
-        this._fromRoutinesTable = (this.activeModal === 'routines');
-        this.openRoutineModal({ editId: btn.dataset.id });
-      } else if (act === 'deleteRoutine') {
-        e.preventDefault();
-        e.stopPropagation();
-        this.deleteRoutine(btn.dataset.id);
-      } else if (act === 'deleteTask') {
-        e.preventDefault();
-        e.stopPropagation();
-        this.confirmDelete(btn.dataset.id);
-      } else if (act === 'openNewTaskModal') {
-        this.openNewTaskModal();
-      } else if (act === 'openRoutinesModal') {
-        this.openRoutinesModal();
-      } else if (act === 'openNewRoutineModal') {
-        this._fromRoutinesTable = (this.activeModal === 'routines');
-        this.openRoutineModal({ defaultFreq: btn.dataset.freq || null });
-      } else if (act === 'showColQuickAdd') {
-        const date = btn.dataset.date;
-        const priority = parseInt(btn.dataset.priority || '1', 10);
-        this.openNewTaskModal(date, priority);
-      } else if (act === 'openSettings') {
-        this.openSettings();
-      } else if (act === 'mobileNavPlan') {
-        if (this.isSidebarOpen) {
-          this.isSidebarOpen = false;
-          const s = document.getElementById('inboxSidebar');
-          if (s) s.classList.add('is-collapsed');
-        }
-        if (this.isCompletedSidebarOpen) {
-          this.isCompletedSidebarOpen = false;
-          this.renderCompletedSidebar();
-        }
-        this.scrollToCurrentDayOnMobile(true);
-        this.updateMobileBottomNav();
-      } else if (act === 'mobileSelectDay') {
-        e.stopPropagation();
-        this.scrollToDay(btn.dataset.date);
-      }
-    });
-
-    // Obsługa wyboru konkretnej daty w karcie skrzynki myśli
-    document.addEventListener('change', e => {
-      if (e.target && e.target.classList.contains('inbox-native-date-picker')) {
-        const taskId = e.target.dataset.id;
-        const chosenDate = e.target.value;
-        if (taskId && chosenDate) {
-          this.assignTaskToDate(taskId, chosenDate);
-        }
-      }
-    });
-
-    // Bezpośrednie wywołanie kalendarza przy kliknięciu w etykietę daty
-    document.addEventListener('click', e => {
-      const chip = e.target.closest('.inbox-plan-date-chip');
-      if (chip) {
-        const input = chip.querySelector('.inbox-native-date-picker');
-        if (input && e.target !== input) {
-          try {
-            if (typeof input.showPicker === 'function') {
-              input.showPicker();
-            } else {
-              input.focus();
-              input.click();
-            }
-          } catch (err) {}
-        }
-      }
-    });
-
-    // Automatyczne sprawdzanie nowej wersji przy powrocie do aplikacji (np. z uśpienia / tła na telefonie)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        const lastCheck = parseInt(sessionStorage.getItem('last_update_check') || '0', 10);
-        if (Date.now() - lastCheck > 60000) {
-          sessionStorage.setItem('last_update_check', Date.now().toString());
-          fetch('index.html?check=' + Date.now(), { cache: 'no-store' })
-            .then(res => res.text())
-            .then(html => {
-              const match = html.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
-              if (match && match[1] && match[1] !== '10.5') {
-                window.location.reload();
-              }
-            })
-            .catch(() => {});
-        }
-      }
-    });
-
-    // Motyw
-    const themeBtn = document.getElementById('btnThemeToggle');
-    if (themeBtn) themeBtn.addEventListener('click', () => this.toggleTheme());
-
-    // Klawisz Escape
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') this.closeModal();
-    });
-  },
-
-  /* ==========================================================================
-     METODY OPERACJI NA ZADANIACH
-     ========================================================================== */
-  toggleTaskDone(id) {
-    const t = Store.get(id);
-    if (!t) return;
-    if (t.date) this.activeMobileDay = t.date;
-    const nextDone = !t.done;
-    Store.update(id, {
-      done: nextDone,
-      doneAt: nextDone ? D.today() : null,
-      doneStamp: Date.now(),
-    });
-    this.showToast(nextDone ? `✓ Wykonano: „${t.title}” (przeniesiono do archiwum)` : `Przywrócono: „${t.title}”`);
-  },
-
-  toggleRoutineOnDay(id, dateStr) {
-    const t = Store.get(id);
-    if (!t) return;
-    if (dateStr) this.activeMobileDay = dateStr;
-    const history = Array.isArray(t.history) ? [...t.history] : [];
-    const idx = history.indexOf(dateStr);
-
-    if (idx >= 0) {
-      history.splice(idx, 1);
-      Store.update(id, { history });
-      this.showToast(`Przywrócono „${t.title}”`);
-    } else {
-      history.push(dateStr);
-      Store.update(id, { history });
-      const streak = Recur.streak({ history });
-      this.showToast(`✓ Wykonano „${t.title}”! (Seria: ${streak} 🔥)`);
-    }
-  },
-
-  togglePriorityLevel(id) {
-    const t = Store.get(id);
-    if (!t) return;
-    const cur = this.getTaskPriority(t);
-    const next = cur === 1 ? 2 : 1;
-    Store.update(id, {
-      priority: next,
-      q: next === 1 ? 1 : 2,
-    });
-    this.showToast(next === 1 ? '🎯 Przeniesiono do Głazu Dnia' : '📋 Przeniesiono do Bieżączki');
-  },
-
-  cycleInboxPriority(id) {
-    const t = Store.get(id);
-    if (!t) return;
-    const cur = this.getTaskPriority(t);
-    const next = cur === 1 ? 2 : cur === 2 ? 3 : 1;
-    Store.update(id, {
-      priority: next,
-      q: next === 1 ? 1 : next === 2 ? 2 : 4,
-    });
-    const label = next === 1 ? 'I (Pilne / Na już)' : next === 2 ? 'II (Ważne)' : 'III (Kiedyś / Link)';
-    this.showToast(`Zmieniono na Poziom ${label}`);
-  },
-
-  postponeTask(id) {
-    const t = Store.get(id);
-    if (!t) return;
-    const curDate = t.date || D.today();
-    const nextDate = D.addDays(curDate, 1);
-    Store.update(id, { date: nextDate });
-    this.showToast(`Przełożono na ${D.human(nextDate)} ➡️`);
-  },
-
-  assignTaskToDate(id, dateStr) {
-    const t = Store.get(id);
-    if (!t) return;
-    const p = this.getTaskPriority(t);
-    Store.update(id, {
-      date: dateStr,
-      inbox: false,
-      priority: p === 1 ? 1 : 2,
-      q: p === 1 ? 1 : 2,
-    });
-    this.showToast(`Zaplanowano na ${D.human(dateStr)}!`);
-  },
-
-  confirmDelete(id) {
-    const t = Store.get(id);
-    if (!t) {
-      Store.remove(id);
-      this.renderAll();
-      return;
-    }
-    const backup = { ...t };
-    const title = t.title || 'zadanie';
-    const isRoutine = !!t.recur;
-    Store.remove(id);
-    this.showToast(`Usunięto ${isRoutine ? 'rutynę' : 'zadanie'} „${title}”.`, () => {
-      Store.add(backup);
-      this.renderAll();
-    });
-    if (this.activeModal === 'routines' || this._fromRoutinesTable) {
-      this.openRoutinesModal();
-    } else {
-      this.closeModal();
-    }
-    this.renderAll();
-  },
-
-  deleteRoutine(id) {
-    const r = Store.get(id);
-    if (!r) {
-      Store.remove(id);
-      this.renderAll();
-      return;
-    }
-    const backup = { ...r };
-    const title = r.title || 'rutynę';
-    Store.remove(id);
-    this.showToast(`Usunięto rutynę „${title}”.`, () => {
-      Store.add(backup);
-      this.renderAll();
-    });
-    if (this.activeModal === 'routines' || this._fromRoutinesTable) {
-      this.openRoutinesModal();
-    } else {
-      this.closeModal();
-    }
-    this.renderAll();
-  },
-
-  /* ==========================================================================
-     MODALE
-     ========================================================================== */
-  openNewTaskModal(defaultDate = null, defaultPriority = 2, editId = null) {
-    const root = document.getElementById('modalRoot');
-    if (!root) return;
-
-    const task = editId ? Store.get(editId) : null;
-    const initialDate = task ? task.date : (defaultDate || D.today());
-    const initialPriority = task ? this.getTaskPriority(task) : defaultPriority;
-    const initialTitle = task ? task.title : '';
-    const initialNotes = task ? (task.notes || '') : '';
-
-    root.innerHTML = `
-      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
-        <div class="modal">
-          <div class="modal-header">
-            <h2>${editId ? 'Edytuj zadanie' : 'Nowe zadanie'}</h2>
-            <button class="icon-circle-btn" onclick="App.closeModal()">✕</button>
-          </div>
-
-          <form id="modalTaskForm" autocomplete="off">
-            <div class="form-group">
-              <label>Treść zadania lub link</label>
-              <input class="form-input" id="mTaskTitle" value="${esc(initialTitle)}" placeholder="np. Oddać 2 rozdział licencjatu, Zadzwonić do szpitala..." required autofocus>
-            </div>
-
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-              <div class="form-group">
-                <label>Dzień w planie</label>
-                <input type="date" class="form-input" id="mTaskDate" value="${initialDate || ''}">
-              </div>
-
-              <div class="form-group">
-                <label>Poziom / Ranga</label>
-                <select class="form-select" id="mTaskPriority">
-                  <option value="1" ${initialPriority === 1 ? 'selected' : ''}>🎯 Poziom I · Głaz Dnia</option>
-                  <option value="2" ${initialPriority === 2 ? 'selected' : ''}>📋 Poziom II · Bieżączka</option>
-                  <option value="3" ${initialPriority === 3 ? 'selected' : ''}>⚪ Poziom III · Kiedyś / Link</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Notatki / Wytyczne (opcjonalnie)</label>
-              <textarea class="form-textarea" id="mTaskNotes" placeholder="Dodatkowe informacje, wytyczne, linki...">${esc(initialNotes)}</textarea>
-            </div>
-
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
-              ${editId ? `<button type="button" class="btn-col-finish" style="color:var(--crimson);" onclick="App.confirmDelete('${editId}'); App.closeModal();">Usuń zadanie</button>` : '<div></div>'}
-              <div style="display:flex; gap:8px;">
-                <button type="button" class="header-action-btn" onclick="App.closeModal()">Anuluj</button>
-                <button type="submit" class="header-action-btn btn-primary">${editId ? 'Zapisz zmiany' : 'Dodaj zadanie'}</button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-    `;
-
-    const mDateInput = document.getElementById('mTaskDate');
-    if (mDateInput) {
-      mDateInput.addEventListener('click', () => {
-        try {
-          if (typeof mDateInput.showPicker === 'function') mDateInput.showPicker();
-        } catch (e) {}
-      });
-    }
-
-    document.getElementById('modalTaskForm').addEventListener('submit', e => {
-      e.preventDefault();
-      const title = document.getElementById('mTaskTitle').value.trim();
-      const date = document.getElementById('mTaskDate').value || D.today();
-      const priority = parseInt(document.getElementById('mTaskPriority').value, 10);
-      const notes = document.getElementById('mTaskNotes').value.trim();
-
-      if (editId) {
-        Store.update(editId, { title, date, priority, notes, inbox: false, q: priority === 1 ? 1 : 2 });
-        this.showToast('Zaktualizowano zadanie.');
-      } else {
-        Store.add({ title, date, priority, notes, inbox: false, q: priority === 1 ? 1 : 2 });
-        this.showToast('Dodano zadanie.');
-      }
-      this.closeModal();
-    });
-  },
-
-  /* ==========================================================================
-     MODAL: RUTYNY & CYKLE (DYNAMICZNE TABELE DLA KAŻDEGO CYKLU)
-     ========================================================================== */
-  openRoutinesModal() {
-    this.activeModal = 'routines';
-    this._fromRoutinesTable = true;
-    const root = document.getElementById('modalRoot');
-    if (!root) return;
-
-    const allRoutines = Store.state.tasks.filter(t => t.recur);
-
-    // Dynamiczne grupowanie rutyn według ich dokładnego cyklu
-    const grouped = {};
-    allRoutines.forEach(r => {
-      const key = this.getRoutineFreqKey(r);
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(r);
-    });
-
-    const activeKeys = Object.keys(grouped);
-    activeKeys.sort((a, b) => {
-      const metaA = this.getRoutineGroupMeta(a);
-      const metaB = this.getRoutineGroupMeta(b);
-      return metaA.order - metaB.order;
-    });
-
-    root.innerHTML = `
-      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
-        <div class="modal modal-large">
-          <div class="modal-header">
-            <div>
-              <h2>🪚 Rutyny, Cykle & Ostrzenie Piły</h2>
-              <p style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
-                Cykliczne nawyki i zobowiązania. Tabele tworzą się automatycznie dla każdego zdefiniowanego cyklu (poniedziałek, czwartek, co miesiąc, co rok itd.).
-              </p>
-            </div>
-            <button class="icon-circle-btn" onclick="App.closeModal()">✕</button>
-          </div>
-
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div style="font-size:0.82rem; color:var(--text-muted);">
-              ${allRoutines.length > 0 ? `Liczba rutyn: <strong>${allRoutines.length}</strong> w <strong>${activeKeys.length}</strong> tabelach cykli` : 'Brak zdefiniowanych rutyn'}
-            </div>
-            <button class="header-action-btn btn-primary" data-act="openNewRoutineModal">+ Nowe przypomnienie cykliczne</button>
-          </div>
-
-          <!-- Dynamiczne tabele rutyn (tworzone na żądanie) -->
-          <div class="routine-groups-container">
-            ${activeKeys.length > 0 ? activeKeys.map(key => {
-              const meta = this.getRoutineGroupMeta(key);
-              const items = grouped[key];
-              return `
-                <div class="routine-group-section">
-                  <div class="routine-group-header">
-                    <div class="routine-group-title">
-                      <span>${meta.icon}</span>
-                      <span>${meta.title}</span>
-                      <span class="routine-group-count">${items.length}</span>
+        ${g.items.length ? `
+          <table class="clean-table">
+            <thead>
+              <tr>
+                <th style="width:36%;">Czynność / Nawyk</th>
+                <th style="width:18%;">Obszar</th>
+                <th style="width:18%;">Kiedy przypada</th>
+                <th style="width:22%;">Ten tydzień (Pn–Nd)</th>
+                <th style="width:6%; text-align:right;">Usuń</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${g.items.map(s => `
+                <tr>
+                  <td><strong>${esc(s.title)}</strong></td>
+                  <td>${esc(s.dim || 'Odnowa')}</td>
+                  <td><span class="saw-pill-cycle">${esc(s.cycleLabel || 'Codziennie')}</span></td>
+                  <td>
+                    <div class="week-dots">
+                      ${weekDates.map((dStr, idx) => {
+                        const done = Array.isArray(s.doneDays) && s.doneDays.includes(dStr);
+                        return `<button class="dot-btn ${done ? 'done' : ''}" onclick="App.toggleSawDay('${esc(s.id)}', '${dStr}')" title="${dStr}">${daysShort[idx]}</button>`;
+                      }).join('')}
                     </div>
-                    <button class="group-add-btn" data-act="openNewRoutineModal" data-freq="${meta.defaultFreq || key}" title="Dodaj nową rutynę do: ${meta.title}">
-                      + Dodaj do tej tabeli
-                    </button>
-                  </div>
-
-                  <div style="overflow-x:auto;">
-                    <table class="routine-table">
-                      <thead>
-                        <tr>
-                          <th style="width:34%;">Czynność / Nawyk</th>
-                          <th style="width:22%;">Termin / Częstotliwość</th>
-                          <th style="width:32%;">Notatki i wytyczne</th>
-                          <th style="width:12%; text-align:right;">Akcje</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${items.map(r => {
-                          const streak = Recur.streak(r);
-                          const isWork = this.isWorkRoutine(r);
-                          const nextDate = Recur.nextOccurrence(r, D.today());
-                          const isFuture = r.date && r.date > D.today();
-                          return `
-                            <tr class="routine-table-row" data-id="${r.id}">
-                              <td>
-                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; cursor:pointer;" data-act="editRoutine" data-id="${r.id}">
-                                  <span class="routine-row-name">${esc(r.title)}</span>
-                                  <span class="routine-zone-pill ${isWork ? 'zone-work' : 'zone-self'}">${isWork ? '📋 Bieżączka' : '🛡️ Zdrowie & Ja'}</span>
-                                  ${streak > 0 ? `<span class="routine-streak-chip" title="Seria: ${streak} dni">🔥 ${streak}</span>` : ''}
-                                </div>
-                              </td>
-                              <td style="cursor:pointer;" data-act="editRoutine" data-id="${r.id}">
-                                <span class="routine-cycle-badge">
-                                  ${Recur.fullLabel(r.recur, r.date)}
-                                </span>
-                                ${nextDate ? `
-                                  <div style="margin-top:3px; font-size:0.72rem; line-height:1.25;">
-                                    ${isFuture ? `
-                                      <span style="color:var(--accent); font-weight:600;">📅 Pierwsze: ${D.short(r.date)} (${D.human(r.date)})</span>
-                                    ` : `
-                                      <span style="color:var(--text-muted);">📅 Najbliższy termin: <strong style="color:var(--text-main);">${D.short(nextDate)}</strong> (${D.human(nextDate)})</span>
-                                    `}
-                                  </div>
-                                ` : ''}
-                              </td>
-                              <td>
-                                ${r.notes ? `
-                                  <div class="routine-table-note" data-act="editRoutine" data-id="${r.id}" title="Kliknij, aby edytować notatkę">
-                                    <span>📝</span>
-                                    <span>${linkify(r.notes)}</span>
-                                  </div>
-                                ` : `
-                                  <span class="routine-empty-note-hint" data-act="editRoutine" data-id="${r.id}">+ Dodaj notatkę...</span>
-                                `}
-                              </td>
-                              <td style="text-align:right;">
-                                <div style="display:flex; justify-content:flex-end; gap:4px;">
-                                  <button class="task-micro-btn" data-act="editRoutine" data-id="${r.id}" title="Edytuj (nazwę, cykl, notatkę)">✏️</button>
-                                  <button type="button" class="task-micro-btn btn-trash" data-act="deleteRoutine" data-id="${r.id}" title="Usuń">🗑️</button>
-                                </div>
-                              </td>
-                            </tr>
-                          `;
-                        }).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              `;
-            }).join('') : `
-              <div class="empty-routines-container">
-                <div class="empty-routines-icon">🪚</div>
-                <h3>Brak zdefiniowanych rutyn</h3>
-                <p>Nie masz jeszcze żadnych stałych nawyków ani cykli.</p>
-                <p class="empty-routines-subhint">Gdy ustalisz np. czynność co poniedziałek, utworzy się nowa tabela „W każdy poniedziałek” ze wszystkimi poniedziałkowymi czynnościami. Analogicznie dla czwartków, co miesiąc, co rok itd.</p>
-                <button class="header-action-btn btn-primary" data-act="openNewRoutineModal" style="margin-top:14px;">+ Dodaj pierwsze przypomnienie</button>
-              </div>
-            `}
-          </div>
-        </div>
+                  </td>
+                  <td style="text-align:right;">
+                    <button class="del-btn" onclick="App.deleteSaw('${esc(s.id)}')">🗑️</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : `<div style="font-size:0.8rem; color:var(--text-dim); padding:10px 0;">Brak pozycji w tej grupie.</div>`}
       </div>
-    `;
+    `).join('');
   },
 
-  getRoutineGroupMeta(key) {
-    if (key === 'daily') {
-      return { title: 'Codziennie (każdego dnia)', icon: '☀️', order: 10, defaultFreq: 'daily' };
-    }
-    if (key === 'dow_workdays') {
-      return { title: 'Dni robocze (Poniedziałek – Piątek)', icon: '💼', order: 20, defaultFreq: 'dow_workdays' };
-    }
-    if (key.startsWith('dow_')) {
-      const dow = parseInt(key.replace('dow_', ''), 10);
-      const dowEvery = [
-        'W każdy poniedziałek',
-        'W każdy wtorek',
-        'W każdą środę',
-        'W każdy czwartek',
-        'W każdy piątek',
-        'W każdą sobotę',
-        'W każdą niedzielę'
-      ];
-      return {
-        title: dowEvery[dow] || `Dzień tygodnia ${dow}`,
-        icon: dow >= 5 ? '🌴' : '📅',
-        order: 30 + dow,
-        defaultFreq: key
-      };
-    }
-    if (key === 'w2') {
-      return { title: 'Co 2 tygodnie', icon: '🔄', order: 45, defaultFreq: 'w2' };
-    }
-    if (key.startsWith('w_')) {
-      const n = parseInt(key.replace('w_', ''), 10) || 1;
-      return { title: `Co ${n} tyg.`, icon: '🔄', order: 45 + n, defaultFreq: 'daily' };
-    }
-    if (key.startsWith('m1_day_')) {
-      const day = key.replace('m1_day_', '');
-      const dayLabel = day === 'last' ? 'ostatni dzień miesiąca' : `${day}. dzień miesiąca`;
-      return {
-        title: `Co miesiąc (${dayLabel})`,
-        icon: '🗓️',
-        order: 50 + (day === 'last' ? 32 : (parseInt(day, 10) || 1)),
-        defaultFreq: key
-      };
-    }
-    if (key.startsWith('m')) {
-      const m = parseInt(key.replace('m', ''), 10) || 1;
-      let title = `Co ${m} mies.`;
-      let defaultFreq = 'm1_day_1';
-      if (m === 1) { title = 'Co miesiąc (1. dzień)'; defaultFreq = 'm1_day_1'; }
-      else if (m === 3) { title = 'Co 3 miesiące (Kwartalnie)'; defaultFreq = 'm3'; }
-      else if (m === 6) { title = 'Co pół roku'; defaultFreq = 'm6'; }
-      return {
-        title,
-        icon: m >= 3 ? '📊' : '🗓️',
-        order: 50 + m,
-        defaultFreq
-      };
-    }
-    if (key.startsWith('y')) {
-      const y = parseInt(key.replace('y', ''), 10) || 1;
-      return {
-        title: y === 1 ? 'Co rok' : `Co ${y} lata`,
-        icon: '🎯',
-        order: 80 + y,
-        defaultFreq: 'y1'
-      };
-    }
-    return {
-      title: 'Inne cykle',
-      icon: '🔁',
-      order: 99,
-      defaultFreq: 'daily'
-    };
+  toggleSawDay(id, dateStr) {
+    const s = (Store.state.saw || []).find(x => x.id === id);
+    if (!s) return;
+    if (!Array.isArray(s.doneDays)) s.doneDays = [];
+    const idx = s.doneDays.indexOf(dateStr);
+    if (idx >= 0) s.doneDays.splice(idx, 1);
+    else s.doneDays.push(dateStr);
+    Store.persist();
   },
 
-  getRoutineFreqKey(r) {
-    if (!r || !r.recur) return 'daily';
-    const rc = r.recur;
-    if (rc.unit === 'day') return 'daily';
-    if (rc.unit === 'week') {
-      if (Array.isArray(rc.dows) && rc.dows.length === 5) return 'dow_workdays';
-      if (rc.dow != null) return `dow_${rc.dow}`;
-      if ((rc.every || 1) === 1) {
-        if (r.date) return `dow_${D.dow(r.date)}`;
-        return 'dow_0';
-      }
-      if (rc.every === 2) return 'w2';
-      return `w_${rc.every}`;
-    }
-    if (rc.unit === 'month') {
-      const m = rc.every || 1;
-      const day = rc.dayOfMonth ?? rc.anchor ?? (r.date ? D.parse(r.date).getDate() : null);
-      if (m === 1 && day != null) {
-        return `m1_day_${day}`;
-      }
-      return `m${m}`;
-    }
-    if (rc.unit === 'year') {
-      const y = rc.every || 1;
-      return `y${y}`;
-    }
-    return 'daily';
-  },
-
-  /* Pomocnik podglądu harmonogramu cyklu na żywo */
-  getRoutineSchedulePreview(dateStr, freqVal) {
-    if (!dateStr) return '';
-    const d = D.parse(dateStr);
-    const dow = D.dow(dateStr);
-    const dowName = D.DOW_LONG[dow];
-    const dayNum = d.getDate();
-    const monName = D.MON_GEN[d.getMonth()];
-    const year = d.getFullYear();
-    const fullDateStr = `${dayNum} ${monName} ${year} (${dowName})`;
-
-    let summary = '';
-    let nextDates = [];
-
-    if (freqVal === 'daily') {
-      summary = 'Codziennie od tej daty';
-      nextDates = [D.addDays(dateStr, 1), D.addDays(dateStr, 2), D.addDays(dateStr, 3)];
-    } else if (freqVal === 'dow_workdays') {
-      summary = 'Dni robocze (Pon – Pt)';
-      let cur = dateStr;
-      while (nextDates.length < 3) {
-        cur = D.addDays(cur, 1);
-        const w = D.dow(cur);
-        if (w < 5) nextDates.push(cur);
-      }
-    } else if (freqVal.startsWith('dow_')) {
-      const targetDow = parseInt(freqVal.replace('dow_', ''), 10);
-      const dowEvery = ['w każdy poniedziałek', 'w każdy wtorek', 'w każdą środę', 'w każdy czwartek', 'w każdy piątek', 'w każdą sobotę', 'w każdą niedzielę'];
-      summary = `Zawsze ${dowEvery[targetDow] || 'w ten dzień'}`;
-      let cur = dateStr;
-      if (dow !== targetDow) {
-        while (D.dow(cur) !== targetDow) cur = D.addDays(cur, 1);
-      }
-      nextDates = [D.addDays(cur, 7), D.addDays(cur, 14), D.addDays(cur, 21)];
-    } else if (freqVal === 'w1') {
-      summary = `Co tydzień (w każdy ${dowName})`;
-      nextDates = [D.addDays(dateStr, 7), D.addDays(dateStr, 14), D.addDays(dateStr, 21)];
-    } else if (freqVal === 'w2') {
-      summary = 'Co 2 tygodnie';
-      nextDates = [D.addDays(dateStr, 14), D.addDays(dateStr, 28), D.addDays(dateStr, 42)];
-    } else if (freqVal === 'm1' || freqVal.startsWith('m1_day_')) {
-      let day = dayNum;
-      if (freqVal.startsWith('m1_day_')) {
-        const raw = freqVal.replace('m1_day_', '');
-        day = raw === 'last' ? 'last' : (parseInt(raw, 10) || dayNum);
-      }
-      const dayLabel = day === 'last' ? 'ostatni dzień miesiąca' : `${day}. dzień miesiąca`;
-      summary = `Co miesiąc (${dayLabel})`;
-      nextDates = [
-        D.addMonths(dateStr, 1, day),
-        D.addMonths(dateStr, 2, day),
-        D.addMonths(dateStr, 3, day)
-      ];
-    } else if (freqVal === 'm3') {
-      summary = `Co 3 miesiące (Kwartalnie · ${dayNum}. dnia miesiąca)`;
-      nextDates = [
-        D.addMonths(dateStr, 3, dayNum),
-        D.addMonths(dateStr, 6, dayNum),
-        D.addMonths(dateStr, 9, dayNum)
-      ];
-    } else if (freqVal === 'm6') {
-      summary = `Co pół roku · ${dayNum}. dnia miesiąca`;
-      nextDates = [
-        D.addMonths(dateStr, 6, dayNum),
-        D.addMonths(dateStr, 12, dayNum),
-        D.addMonths(dateStr, 18, dayNum)
-      ];
-    } else if (freqVal === 'y1') {
-      summary = `Co rok (${dayNum} ${monName})`;
-      nextDates = [
-        D.addMonths(dateStr, 12, dayNum),
-        D.addMonths(dateStr, 24, dayNum),
-        D.addMonths(dateStr, 36, dayNum)
-      ];
-    }
-
-    const formatNiceDate = s => {
-      const dt = D.parse(s);
-      return `${dt.getDate()} ${D.MON_GEN[dt.getMonth()]} ${dt.getFullYear()}`;
-    };
-
-    const nextStr = nextDates.map(formatNiceDate).join(' · ');
-
-    return `
-      <div style="display:flex; flex-direction:column; gap:4px;">
-        <div style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--text-main); font-size:0.82rem;">
-          <span>🎯 Pierwsze przypomnienie:</span>
-          <span style="color:var(--accent); font-weight:700;">${fullDateStr}</span>
-        </div>
-        <div style="font-size:0.77rem; color:var(--text-muted); line-height:1.4;">
-          <span>🔄 Cykl: <strong>${summary}</strong>.</span><br>
-          <span>Kolejne powtórzenia: <strong style="color:var(--text-main);">${nextStr}</strong></span>
-        </div>
-      </div>
-    `;
-  },
-
-  /* Formularz nowej / edytowanej rutyny */
-  openRoutineModal({ editId = null, defaultFreq = null, defaultDate = null } = {}) {
-    this.activeModal = 'routine_form';
+  openAddSawModal() {
     const root = document.getElementById('modalRoot');
     if (!root) return;
-
-    const routine = editId ? Store.get(editId) : null;
-    const initialTitle = routine ? routine.title : '';
-    const initialNotes = routine ? (routine.notes || '') : '';
-    const initialDate = routine ? (routine.date || D.today()) : (defaultDate || D.today());
-    let selectedFreq = routine ? this.getRoutineFreqKey(routine) : (defaultFreq || 'm3');
-    if (selectedFreq.startsWith('m1_day_') && !['m1_day_1', 'm1_day_10', 'm1_day_15', 'm1_day_20', 'm1_day_25', 'm1_day_last'].includes(selectedFreq)) {
-      selectedFreq = 'm1';
-    }
-
-    const isWork = routine ? this.isWorkRoutine(routine) : false;
-    const selectedZone = routine && routine.zone ? routine.zone : (isWork ? 'standard' : 'selfcare');
-
-    const opt = (val, label) => `<option value="${val}" ${selectedFreq === val ? 'selected' : ''}>${label}</option>`;
-
     root.innerHTML = `
-      <div class="modal-backdrop" onclick="if(event.target===this) App.closeRoutineFormModal()">
-        <div class="modal">
+      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
+        <div class="modal" style="max-width:480px;">
           <div class="modal-header">
-            <div>
-              <h2>${editId ? '✏️ Edytuj rutynę / cykl' : '✨ Nowa rutyna / cykl'}</h2>
-              <p style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
-                ${editId ? 'Zmień datę pierwszego przypomnienia, częstotliwość, notatki lub strefę.' : 'Zdefiniuj zadanie, wybierz w kalendarzu datę pierwszego przypomnienia i cykl powtarzania.'}
-              </p>
-            </div>
-            <button class="icon-circle-btn" onclick="App.closeRoutineFormModal()">✕</button>
+            <h3>🪚 Dodaj do Ostrzenia Piły</h3>
+            <button class="btn" onclick="App.closeModal()">✕</button>
           </div>
-
-          <form id="routineModalForm" autocomplete="off">
-            <div class="form-group">
-              <label>Treść zadania / nawyku lub link</label>
-              <input class="form-input" id="rFormTitle" value="${esc(initialTitle)}" placeholder="np. Przegląd klimatyzacji, KSeF i podatki, Zmierzyć ciśnienie..." required autofocus>
-            </div>
-
-            <div class="modal-grid-2">
-              <div class="form-group">
-                <label for="rFormDate">Dzień w planie / Data pierwszego przypomnienia</label>
-                <input type="date" class="form-input" id="rFormDate" value="${initialDate || ''}" required>
-              </div>
-
-              <div class="form-group">
-                <label for="rFormFreq">Częstotliwość powtarzania</label>
-                <select class="form-select" id="rFormFreq">
-                  <optgroup label="Cykliczne (Kwartalnie / Pół roku / Co rok)">
-                    ${opt('m3', 'Co 3 miesiące (Kwartalnie) ★')}
-                    ${opt('m6', 'Co pół roku')}
-                    ${opt('y1', 'Co rok')}
-                  </optgroup>
-                  <optgroup label="Co miesiąc">
-                    ${opt('m1', '🗓️ Co miesiąc (w ten sam dzień z kalendarza)')}
-                    ${opt('m1_day_1', '🗓️ 1. dzień każdego miesiąca (Nowy miesiąc)')}
-                    ${opt('m1_day_10', '🗓️ 10. dzień każdego miesiąca (np. ZUS)')}
-                    ${opt('m1_day_15', '🗓️ 15. dzień każdego miesiąca (np. PIT)')}
-                    ${opt('m1_day_20', '🗓️ 20. dzień każdego miesiąca')}
-                    ${opt('m1_day_25', '🗓️ 25. dzień każdego miesiąca (np. VAT / KSeF)')}
-                    ${opt('m1_day_last', '🗓️ Ostatni dzień każdego miesiąca')}
-                  </optgroup>
-                  <optgroup label="Codziennie & Tygodniowe">
-                    ${opt('daily', 'Codziennie (każdego dnia)')}
-                    ${opt('dow_workdays', 'Dni robocze (Pon – Pt)')}
-                    ${opt('w1', 'Co tydzień (w ten sam dzień tygodnia)')}
-                    ${opt('w2', 'Co 2 tygodnie')}
-                    ${opt('dow_0', 'Zawsze w Poniedziałki')}
-                    ${opt('dow_1', 'Zawsze we Wtorki')}
-                    ${opt('dow_2', 'Zawsze w Środy')}
-                    ${opt('dow_3', 'Zawsze w Czwartki')}
-                    ${opt('dow_4', 'Zawsze w Piątki')}
-                    ${opt('dow_5', 'Zawsze w Soboty')}
-                    ${opt('dow_6', 'Zawsze w Niedziele')}
-                  </optgroup>
-                </select>
-              </div>
-            </div>
-
-            <!-- Podgląd harmonogramu na żywo -->
-            <div id="rFormSchedulePreview" class="routine-preview-card"></div>
-
-            <div class="form-group">
-              <label>Gdzie ma się wyświetlać w planie dnia?</label>
-              <select class="form-select" id="rFormZone">
-                <option value="standard" ${selectedZone === 'standard' ? 'selected' : ''}>📋 Bieżączka (Sprawy cykliczne — faktury, KSeF, podatki, praca, dom)</option>
-                <option value="selfcare" ${selectedZone === 'selfcare' ? 'selected' : ''}>🛡️ Zdrowie & Ja (Na samej górze dnia — medytacja, Biblia, zdrowie, rozwój)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Notatki / Wytyczne (opcjonalnie)</label>
-              <textarea class="form-textarea" id="rFormNotes" placeholder="np. Poniżej 20 nie przyjeżdżać, powyżej kontrola; rano na czczo; kontakt do serwisu...">${esc(initialNotes)}</textarea>
-            </div>
-
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
-              ${editId ? `
-                <button type="button" class="btn-col-finish" style="color:var(--crimson); border-color:var(--crimson-border); padding:6px 12px; height:auto; width:auto;" onclick="App.deleteRoutine('${editId}')">
-                  Usuń tę rutynę
-                </button>
-              ` : '<div></div>'}
-
-              <div style="display:flex; gap:8px;">
-                <button type="button" class="header-action-btn" onclick="App.closeRoutineFormModal()">Anuluj</button>
-                <button type="submit" class="header-action-btn btn-primary">${editId ? 'Zapisz zmiany' : 'Dodaj rutynę'}</button>
-              </div>
-            </div>
+          <form onsubmit="event.preventDefault(); App.saveNewSaw(this);" style="display:flex; flex-direction:column; gap:12px;">
+            <input type="text" name="title" class="input-clean" placeholder="Nazwa czynności (np. Przegląd faktur, Trening siłowy)..." required autofocus>
+            <select name="dim" class="input-clean">
+              <option value="Ciało & Zdrowie">🫀 Ciało & Zdrowie</option>
+              <option value="Umysł & Rozwój">🧠 Umysł & Rozwój</option>
+              <option value="Relacje & Bliscy">🤝 Relacje & Bliscy</option>
+              <option value="Praca & Finanse">💼 Praca & Finanse</option>
+            </select>
+            <select name="cyclePreset" class="input-clean">
+              <option value="daily">☀️ Codziennie (każdego dnia)</option>
+              <option value="weekly_0">📅 Co tydzień — w każdy Poniedziałek</option>
+              <option value="weekly_1">📅 Co tydzień — w każdy Wtorek</option>
+              <option value="weekly_2">📅 Co tydzień — w każdą Środę</option>
+              <option value="weekly_3">📅 Co tydzień — w każdy Czwartek</option>
+              <option value="weekly_4">📅 Co tydzień — w każdy Piątek</option>
+              <option value="weekly_5">📅 Co tydzień — w każdą Sobotę</option>
+              <option value="weekly_6">📅 Co tydzień — w każdą Niedzielę</option>
+              <option value="monthly">🗓️ Co miesiąc</option>
+            </select>
+            <button type="submit" class="btn btn-primary" style="justify-content:center; padding:10px;">Zapisz w Ostrzeniu Piły</button>
           </form>
         </div>
       </div>
     `;
+  },
 
-    const dateInput = document.getElementById('rFormDate');
-    const freqSelect = document.getElementById('rFormFreq');
-    const previewContainer = document.getElementById('rFormSchedulePreview');
+  saveNewSaw(form) {
+    const title = (form.title.value || '').trim();
+    if (!title) return;
+    const preset = form.cyclePreset.value;
+    let freqType = 'daily';
+    let dow = null;
+    let cycleLabel = 'Codziennie';
+    const dowLabels = ['W każdy poniedziałek', 'W każdy wtorek', 'W każdą środę', 'W każdy czwartek', 'W każdy piątek', 'W każdą sobotę', 'W każdą niedzielę'];
 
-    if (dateInput) {
-      dateInput.addEventListener('click', () => {
-        try {
-          if (typeof dateInput.showPicker === 'function') dateInput.showPicker();
-        } catch (e) {}
-      });
+    if (preset.startsWith('weekly_')) {
+      freqType = 'weekly';
+      dow = parseInt(preset.split('_')[1], 10);
+      cycleLabel = dowLabels[dow];
+    } else if (preset === 'monthly') {
+      freqType = 'monthly';
+      cycleLabel = 'Co miesiąc';
     }
 
-    const updatePreview = () => {
-      const dVal = (dateInput && dateInput.value) ? dateInput.value : D.today();
-      const fVal = freqSelect ? freqSelect.value : 'm3';
-      if (previewContainer) {
-        previewContainer.innerHTML = this.getRoutineSchedulePreview(dVal, fVal);
-      }
-    };
-
-    if (dateInput) {
-      dateInput.addEventListener('input', updatePreview);
-      dateInput.addEventListener('change', updatePreview);
-    }
-
-    if (freqSelect) {
-      freqSelect.addEventListener('change', () => {
-        const fVal = freqSelect.value;
-        if (fVal.startsWith('m1_day_')) {
-          const raw = fVal.replace('m1_day_', '');
-          const curDate = D.parse(dateInput.value || D.today());
-          const y = curDate.getFullYear();
-          const m = curDate.getMonth();
-          const targetDay = raw === 'last' ? new Date(y, m + 1, 0).getDate() : parseInt(raw, 10);
-          dateInput.value = `${y}-${D.pad(m + 1)}-${D.pad(targetDay)}`;
-        } else if (fVal.startsWith('dow_')) {
-          const targetDow = parseInt(fVal.replace('dow_', ''), 10);
-          let cur = dateInput.value || D.today();
-          if (D.dow(cur) !== targetDow) {
-            while (D.dow(cur) !== targetDow) cur = D.addDays(cur, 1);
-            dateInput.value = cur;
-          }
-        }
-        updatePreview();
-      });
-    }
-
-    updatePreview();
-
-    document.getElementById('routineModalForm').addEventListener('submit', e => {
-      e.preventDefault();
-      const title = document.getElementById('rFormTitle').value.trim();
-      const zone = document.getElementById('rFormZone').value;
-      const rType = document.getElementById('rFormFreq').value;
-      const dateVal = document.getElementById('rFormDate').value;
-      const notes = document.getElementById('rFormNotes').value.trim();
-
-      const date = dateVal || D.today();
-      const parsedDate = D.parse(date);
-      const chosenDayOfMonth = parsedDate.getDate();
-      const chosenDow = D.dow(date);
-
-      let recur = null;
-
-      if (rType === 'daily') {
-        recur = { unit: 'day', every: 1 };
-      } else if (rType === 'dow_workdays') {
-        recur = { unit: 'week', every: 1, dows: [0, 1, 2, 3, 4] };
-      } else if (rType === 'w1') {
-        recur = { unit: 'week', every: 1, dow: chosenDow };
-      } else if (rType === 'w2') {
-        recur = { unit: 'week', every: 2, dow: chosenDow };
-      } else if (rType.startsWith('dow_')) {
-        const dow = parseInt(rType.replace('dow_', ''), 10);
-        recur = { unit: 'week', every: 1, dow: dow };
-      } else if (rType === 'm1') {
-        recur = { unit: 'month', every: 1, dayOfMonth: chosenDayOfMonth, anchor: chosenDayOfMonth };
-      } else if (rType === 'm1_day_last') {
-        recur = { unit: 'month', every: 1, dayOfMonth: 'last', anchor: 'last' };
-      } else if (rType.startsWith('m1_day_')) {
-        const raw = rType.replace('m1_day_', '');
-        const dNum = parseInt(raw, 10) || chosenDayOfMonth;
-        recur = { unit: 'month', every: 1, dayOfMonth: dNum, anchor: dNum };
-      } else if (rType === 'm3') {
-        recur = { unit: 'month', every: 3, dayOfMonth: chosenDayOfMonth, anchor: chosenDayOfMonth };
-      } else if (rType === 'm6') {
-        recur = { unit: 'month', every: 6, dayOfMonth: chosenDayOfMonth, anchor: chosenDayOfMonth };
-      } else if (rType === 'y1') {
-        recur = { unit: 'year', every: 1, dayOfMonth: chosenDayOfMonth, anchor: chosenDayOfMonth };
-      }
-
-      if (editId) {
-        Store.update(editId, { title, notes, recur, date, zone, roleId: zone === 'selfcare' ? 'r_saw' : 'r_firm' });
-        this.showToast(`Zaktualizowano rutynę „${title}”!`);
-      } else {
-        Store.add({ title, notes, roleId: zone === 'selfcare' ? 'r_saw' : 'r_firm', date, recur, priority: 2, q: 2, zone, history: [] });
-        this.showToast(`Dodano rutynę „${title}”!`);
-      }
-
-      if (this._fromRoutinesTable) {
-        this.openRoutinesModal();
-      } else {
-        this.closeModal();
-      }
-      this.renderAll();
+    Store.state.saw.push({
+      id: 'saw_' + uid(),
+      title,
+      dim: form.dim.value,
+      freqType,
+      dow,
+      cycleLabel,
+      doneDays: [],
+      createdAt: Date.now()
     });
+    Store.persist();
+    this.closeModal();
   },
 
-  closeRoutineFormModal() {
-    if (this._fromRoutinesTable) {
-      this.openRoutinesModal();
-    } else {
-      this.closeModal();
-    }
+  deleteSaw(id) {
+    Store.state.saw = (Store.state.saw || []).filter(s => s.id !== id);
+    Store.persist();
   },
 
-  /* Ustawienia i backup */
-  openSettings() {
-    this.activeModal = 'settings';
-    this.updateMobileBottomNav();
-    const root = document.getElementById('modalRoot');
-    if (!root) return;
+  /* ---- ZAKŁADKA 4: CELE (TYGODNIOWE / MIESIĘCZNE / KWARTALNE / ROCZNE) ---- */
+  renderGoals() {
+    const container = document.getElementById('goalsTableContainer');
+    if (!container) return;
+    const y = Store.state.year;
+    const gYear = Store.state.goals?.[y] || {};
 
-    root.innerHTML = `
-      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
-        <div class="modal">
-          <div class="modal-header">
-            <h2>Ustawienia i Baza Danych</h2>
-            <button class="icon-circle-btn" onclick="App.closeModal()">✕</button>
-          </div>
-
-          <div style="display:flex; flex-direction:column; gap:16px;">
-            <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md);">
-              <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:4px;">Motyw interfejsu</h3>
-              <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">Wybierz preferowany wygląd aplikacji:</p>
-              <div style="display:flex; gap:8px;">
-                <button class="header-action-btn ${this.theme === 'light' ? 'btn-primary' : ''}" onclick="App.setTheme('light'); App.openSettings();">☀️ Jasny</button>
-                <button class="header-action-btn ${this.theme === 'dark' ? 'btn-primary' : ''}" onclick="App.setTheme('dark'); App.openSettings();">🌙 Ciemny</button>
-              </div>
-            </div>
-
-            <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md);">
-              <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:4px;">Automatyczne przenoszenie zaległych zadań</h3>
-              <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">
-                Niewykonane zadania (Bieżączka i Głaz) z przeszłych dni oraz po odklikaniu dnia automatycznie przechodzą na kolejny dzień. Rutyny i Zdrowie & Ja pozostają w swoich dniach.
-              </p>
-              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem; font-weight:600;">
-                <input type="checkbox" id="settingAutoRollover" ${Store.state.autoRollover !== false ? 'checked' : ''} onchange="Store.set('autoRollover', this.checked); App.showToast('Zaktualizowano ustawienie.');">
-                Włącz automatyczne przenoszenie zadań na kolejny dzień
-              </label>
-            </div>
-
-            <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md);">
-              <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:4px;">☁️ Synchronizacja w chmurze (Firebase)</h3>
-              <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">
-                ${((window.Sync && window.Sync.user) || (typeof Sync !== 'undefined' && Sync.user)) ? `Zalogowano jako: <strong>${(window.Sync?.user || Sync?.user).displayName || (window.Sync?.user || Sync?.user).email}</strong>. Każda zmiana zapisuje się automatycznie w ułamku sekundy.` : 'Zaloguj się, aby mieć te same zadania na komputerze i w telefonie w czasie rzeczywistym.'}
-              </p>
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                <span style="font-size:0.82rem; font-weight:600; color:var(--emerald);">🟢 Synchronizacja automatyczna aktywna</span>
-                ${((window.Sync && window.Sync.user) || (typeof Sync !== 'undefined' && Sync.user)) ? `
-                  <button class="header-action-btn" style="color:var(--crimson);" onclick="Sync.logout(); App.openSettings();">Wyloguj</button>
-                ` : `
-                  <button class="header-action-btn btn-primary" onclick="Sync.openAuthModal()">☁️ Zaloguj / Połącz z chmurą</button>
-                `}
-              </div>
-            </div>
-
-            <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md);">
-              <h3 style="font-size:0.92rem; font-weight:700; margin-bottom:4px;">Kopia zapasowa (JSON)</h3>
-              <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">Pobierz kopię danych na komputer lub wgraj z pliku (po wgraniu automatycznie synchronizuje się z chmurą):</p>
-              <div style="display:flex; gap:8px;">
-                <button class="header-action-btn" onclick="App.downloadBackup()">💾 Pobierz kopię</button>
-                <button class="header-action-btn" onclick="document.getElementById('importFile').click()">📂 Wgraj plik</button>
-                <input type="file" id="importFile" accept=".json" style="display:none" onchange="App.handleFileImport(this)">
-              </div>
-            </div>
-
-            <div style="padding:14px; border:1px solid rgba(239,68,68,0.25); background:var(--crimson-light); border-radius:var(--radius-md);">
-              <h3 style="font-size:0.92rem; font-weight:700; color:var(--crimson); margin-bottom:4px;">Reset bazy danych</h3>
-              <p style="font-size:0.8rem; color:var(--text-main); margin-bottom:8px;">Przywraca startowe zadania i nawyki.</p>
-              <button class="header-action-btn" style="background:var(--crimson); color:#ffffff; border:none;" onclick="if(confirm('Przywrócić dane początkowe?')){ Store.reset(); App.closeModal(); App.showToast('Zresetowano.'); }">Zresetuj dane</button>
-            </div>
-
-            <div style="text-align:center; font-size:0.75rem; color:var(--text-muted); padding-top:6px;">
-              Plan Tygodnia v10.5 · Kalendarz wyboru daty aktywny
-            </div>
-          </div>
-        </div>
-      </div>
+    container.innerHTML = `
+      <table class="clean-table">
+        <thead>
+          <tr>
+            <th style="width:18%;">Rola (Noga Stołu)</th>
+            <th>Cel Tygodniowy</th>
+            <th>Cel Miesięczny</th>
+            <th>Cel Kwartalny</th>
+            <th>Cel Roczny (${y})</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${Store.state.roles.map(r => {
+            const g = gYear[r.id] || { weekly: '', monthly: '', quarterly: '', yearly: '' };
+            return `
+              <tr>
+                <td><strong>${r.emoji} ${esc(r.name)}</strong></td>
+                <td><input class="input-clean" value="${esc(g.weekly || '')}" placeholder="Cel na ten tydzień..." onchange="App.saveGoal('${esc(r.id)}','weekly',this.value)"></td>
+                <td><input class="input-clean" value="${esc(g.monthly || '')}" placeholder="Cel na ten miesiąc..." onchange="App.saveGoal('${esc(r.id)}','monthly',this.value)"></td>
+                <td><input class="input-clean" value="${esc(g.quarterly || '')}" placeholder="Cel na ten kwartał..." onchange="App.saveGoal('${esc(r.id)}','quarterly',this.value)"></td>
+                <td><input class="input-clean" value="${esc(g.yearly || '')}" placeholder="Cel na rok ${y}..." onchange="App.saveGoal('${esc(r.id)}','yearly',this.value)"></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
     `;
   },
 
-  downloadBackup() {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(Store.exportJSON());
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `plan_tygodnia_backup_${D.today()}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    this.showToast('Pobrano kopię zapasową.');
+  saveGoal(roleId, horizon, val) {
+    const y = Store.state.year;
+    if (!Store.state.goals[y]) Store.state.goals[y] = {};
+    if (!Store.state.goals[y][roleId]) Store.state.goals[y][roleId] = {};
+    Store.state.goals[y][roleId][horizon] = (val || '').trim();
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps[`goal:${y}:${roleId}:${horizon}`] = Date.now();
+    Store.persist();
   },
 
-  handleFileImport(input) {
-    const file = input.files && input.files[0];
+  /* ---- ZAKŁADKA 5: MYŚLI, CYTATY & AFIRMACJE ---- */
+  renderMind() {
+    const affEl = document.getElementById('affList');
+    const quoteEl = document.getElementById('quoteList');
+    if (!affEl || !quoteEl) return;
+
+    const affs = Store.state.affirmations || [];
+    affEl.innerHTML = affs.length ? affs.map(a => {
+      const txt = typeof a === 'object' ? a.text : a;
+      const id = typeof a === 'object' ? a.id : txt;
+      return `
+        <div class="task-row" style="background:var(--emerald-light);">
+          <span>✨ ${esc(txt)}</span>
+          <button class="del-btn" onclick="App.deleteAffirmation('${esc(id)}')">✕</button>
+        </div>
+      `;
+    }).join('') : `<div style="font-size:0.8rem; color:var(--text-dim);">Brak wpisanych afirmacji.</div>`;
+
+    const quotes = Store.state.quotes || [];
+    quoteEl.innerHTML = quotes.length ? quotes.map(q => {
+      const txt = typeof q === 'object' ? q.text : q;
+      const id = typeof q === 'object' ? q.id : txt;
+      return `
+        <div class="task-row">
+          <span>💭 ${esc(txt)}</span>
+          <button class="del-btn" onclick="App.deleteQuote('${esc(id)}')">✕</button>
+        </div>
+      `;
+    }).join('') : `<div style="font-size:0.8rem; color:var(--text-dim);">Brak wpisanych cytatów i myśli.</div>`;
+  },
+
+  addAffirmation() {
+    const inp = document.getElementById('affInput');
+    const text = (inp?.value || '').trim();
+    if (!text) return;
+    Store.state.affirmations.unshift({ id: 'aff_' + uid(), text, createdAt: Date.now() });
+    inp.value = '';
+    Store.persist();
+  },
+
+  deleteAffirmation(id) {
+    Store.state.affirmations = (Store.state.affirmations || []).filter(a => (a.id || a) !== id);
+    Store.persist();
+  },
+
+  addQuote() {
+    const inp = document.getElementById('quoteInput');
+    const text = (inp?.value || '').trim();
+    if (!text) return;
+    Store.state.quotes.unshift({ id: 'q_' + uid(), text, createdAt: Date.now() });
+    inp.value = '';
+    Store.persist();
+  },
+
+  deleteQuote(id) {
+    Store.state.quotes = (Store.state.quotes || []).filter(q => (q.id || q) !== id);
+    Store.persist();
+  },
+
+  /* ---- ZAKŁADKA 6: ARCHIWUM WYKONANYCH ZADAŃ ---- */
+  renderArchive() {
+    const container = document.getElementById('archiveTableContainer');
+    if (!container) return;
+    const y = Store.state.year;
+    const list = (Store.state.archive || []).filter(a => (a.year || y) === y);
+
+    container.innerHTML = list.length ? `
+      <table class="clean-table">
+        <thead>
+          <tr>
+            <th>Data wykonania (odkliknięcia)</th>
+            <th>Zadanie</th>
+            <th>Rola</th>
+            <th>Ćwiartka</th>
+            <th style="text-align:right;">Akcja</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(a => {
+            const r = Store.state.roles.find(x => x.id === a.roleId);
+            return `
+              <tr>
+                <td style="color:var(--emerald); font-weight:700;">✓ ${esc(a.doneAt)}</td>
+                <td>${esc(a.title)}</td>
+                <td>${r ? r.emoji + ' ' + esc(r.name) : '—'}</td>
+                <td><span class="q-tag q${a.q || 2}">Q${a.q || 2}</span></td>
+                <td style="text-align:right;">
+                  <button class="btn" style="padding:2px 8px; font-size:0.72rem;" onclick="App.restoreArchived('${esc(a.id)}')">↩ Przywróć</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    ` : `<p style="color:var(--text-dim); padding:16px 0;">Brak wykonanych zadań w roku ${y}.</p>`;
+  },
+
+  restoreArchived(id) {
+    const idx = (Store.state.archive || []).findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const [item] = Store.state.archive.splice(idx, 1);
+    Store.state.tasks.push({
+      id: 't_' + uid(),
+      title: item.title,
+      roleId: item.roleId || Store.state.roles[0].id,
+      q: item.q || 2,
+      year: Store.state.year,
+      createdAt: Date.now()
+    });
+    Store.persist();
+  },
+
+  /* ---- SZUFLADA BOCZNA „NA PÓŹNIEJ” ---- */
+  toggleLater() {
+    const dr = document.getElementById('laterDrawer');
+    if (dr) dr.classList.toggle('open');
+  },
+
+  renderLater() {
+    const countEl = document.getElementById('laterCount');
+    const listEl = document.getElementById('laterList');
+    const list = Store.state.later || [];
+    if (countEl) countEl.textContent = list.length;
+    if (!listEl) return;
+
+    listEl.innerHTML = list.length ? list.map(l => `
+      <div class="task-row" style="flex-direction:column; align-items:stretch; gap:6px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong>💡 ${esc(l.title)}</strong>
+          <button class="del-btn" onclick="App.removeLater('${esc(l.id)}')">✕</button>
+        </div>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          ${Store.state.roles.map(r => `
+            <button class="btn" style="font-size:0.7rem; padding:2px 6px;" onclick="App.moveLaterToRole('${esc(l.id)}','${esc(r.id)}')">→ ${r.emoji} ${esc(r.name)}</button>
+          `).join('')}
+        </div>
+      </div>
+    `).join('') : `<div style="font-size:0.8rem; color:var(--text-dim); text-align:center; padding:20px 0;">Brak odłożonych pomysłów.</div>`;
+  },
+
+  addLater() {
+    const inp = document.getElementById('laterInput');
+    const title = (inp?.value || '').trim();
+    if (!title) return;
+    Store.state.later.unshift({ id: 'lat_' + uid(), title, createdAt: Date.now() });
+    inp.value = '';
+    Store.persist();
+  },
+
+  moveLaterToRole(laterId, roleId) {
+    const idx = (Store.state.later || []).findIndex(x => x.id === laterId);
+    if (idx < 0) return;
+    const [item] = Store.state.later.splice(idx, 1);
+    Store.state.tasks.push({
+      id: 't_' + uid(),
+      title: item.title,
+      roleId,
+      q: 2,
+      year: Store.state.year,
+      createdAt: Date.now()
+    });
+    Store.persist();
+  },
+
+  removeLater(id) {
+    Store.state.later = (Store.state.later || []).filter(x => x.id !== id);
+    Store.persist();
+  },
+
+  /* ---- ZAPIS I ODCZYT PEŁNEGO PLIKU JSON ---- */
+  exportJSON() {
+    const blob = new Blob([Store.exportJSON()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `PlanTygodnia_${this.today()}.json`;
+    a.click();
+  },
+
+  importJSON(e) {
+    const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = ev => {
       try {
-        const obj = JSON.parse(e.target.result);
+        const obj = JSON.parse(ev.target.result);
         Store.importJSON(obj);
-        this.closeModal();
-        this.showToast('Dane zaimportowane pomyślnie!');
+        this.showToast('Pomyślnie wczytano plik JSON i zsynchronizowano z Firebase!');
       } catch (err) {
-        alert('Błąd odczytu pliku: ' + err.message);
+        alert('Błąd pliku JSON: ' + err.message);
       }
     };
     reader.readAsText(file);
   },
 
-  closeModal() {
-    this.activeModal = null;
-    this._fromRoutinesTable = false;
-    const root = document.getElementById('modalRoot');
-    if (root) root.innerHTML = '';
-    this.updateMobileBottomNav();
-    this.renderAll();
-  },
-
-  showToast(msg, undoFn = null) {
+  showToast(msg) {
     const root = document.getElementById('toastRoot');
     if (!root) return;
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    const textSpan = document.createElement('span');
-    textSpan.textContent = msg;
-    toast.appendChild(textSpan);
-
-    if (typeof undoFn === 'function') {
-      const undoBtn = document.createElement('button');
-      undoBtn.className = 'toast-undo-btn';
-      undoBtn.textContent = 'Cofnij';
-      undoBtn.onclick = (e) => {
-        e.stopPropagation();
-        undoFn();
-        toast.remove();
-      };
-      toast.appendChild(undoBtn);
-    }
-
-    root.appendChild(toast);
-    const duration = undoFn ? 3500 : 2200;
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(10px)';
-      toast.style.transition = 'all 0.2s ease';
-      setTimeout(() => toast.remove(), 200);
-    }, duration);
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    root.appendChild(el);
+    setTimeout(() => el.remove(), 3200);
   },
+
+  renderAll() {
+    const y = Store.state.year || new Date().getFullYear();
+    const yrSel = document.getElementById('yearSelect');
+    if (yrSel && Number(yrSel.value) !== y) yrSel.value = y;
+    document.querySelectorAll('.yearLabel').forEach(el => { el.textContent = y; });
+
+    this.renderWelcome();
+    this.renderPlan();
+    this.renderCalendar();
+    this.renderMatrix();
+    this.renderSaw();
+    this.renderGoals();
+    this.renderMind();
+    this.renderArchive();
+    this.renderLater();
+  }
 };
 
 window.App = App;

@@ -57,10 +57,6 @@ const Sync = {
         }
       });
 
-      // Jeśli sesja była aktywna (PWA / powrót na telefonie), synchronizuj natychmiast
-      if (localStorage.getItem('kompas_auth_active') === '1') {
-        this.listenToUserDoc();
-      }
       this.startRetryLoop();
     } catch (err) {
       console.error('Błąd inicjalizacji Firebase Sync:', err);
