@@ -5,7 +5,7 @@
  * Obsługuje komputer i telefon bez przeładowywania strony.
  */
 const Sync = {
-  PRIMARY_DOC_ID: 'Ff2wqrcam5gr4ov0rx3miNRA8ue2',
+  PRIMARY_DOC_ID: 'plan_v2_main',
   auth: null,
   db: null,
   user: null,

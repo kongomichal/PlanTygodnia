@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Plan Tygodnia</title>
-  <meta name="description" content="Spokojny planer tygodnia, ról, celów, Matrycy Eisenhowera i Ostrzenia Piły.">
+  <meta name="description" content="Spokojna, minimalistyczna rozkładówka tygodniowa, nawyków i priorytetów.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Plan Tygodnia">
@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#f4f6fb" id="metaThemeColor">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-  <link rel="icon" type="image/svg+xml" href="icon.svg?v=12.0">
+  <link rel="icon" type="image/svg+xml" href="icon.svg?v=12.1">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -22,11 +22,11 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="css/style.css?v=12.0">
+  <link rel="stylesheet" href="css/style.css?v=12.1">
 
   <script>
     (function() {
-      const APP_VERSION = '12.0';
+      const APP_VERSION = '12.1';
       try {
         const url = new URL(window.location.href);
         if (url.searchParams.get('v') !== APP_VERSION) {
@@ -195,11 +195,11 @@
   <div id="screenAuth">
     <div class="auth-portal-card">
       <div class="auth-portal-brand">
-        <img src="icon.svg?v=12.0" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
+        <img src="icon.svg?v=12.1" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
         <h1 class="auth-portal-title">Plan Tygodnia</h1>
       </div>
       <p class="auth-portal-subtitle">
-        Zaloguj się, aby zsynchronizować swoje prywatne zadania, cele i Ostrzenie Piły z chmurą Google Firebase.
+        Zaloguj się, aby zsynchronizować swoje zadania z chmurą Google Firebase.
       </p>
 
       <div id="authErrorBox" class="auth-error-box" style="display:none;"></div>
@@ -227,15 +227,15 @@
 
       <div class="auth-portal-footer">
         <span>🔒</span>
-        <span>Prywatne dane chronione w Google Firebase</span>
+        <span>Bezpieczna synchronizacja Google Firebase</span>
       </div>
     </div>
   </div>
 
-  <!-- 2. GŁÓWNA APLIKACJA (PO ZALOGOWANIU) -->
+  <!-- 2. GŁÓWNA APLIKACJA (1:1 JAK W DEMO) -->
   <div id="screenApp" class="app-layout">
 
-    <!-- EKRAN POWITALNY: 7 NAWYKÓW STEPHENA COVEYA & MOJE ZASADY -->
+    <!-- EKRAN POWITALNY: 7 NAWYKÓW & MOJE ZASADY -->
     <div id="welcomeOverlay" class="welcome-overlay">
       <div class="welcome-card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -252,27 +252,23 @@
           <div id="welcomeAffirmation" style="font-weight:700; font-size:0.92rem; margin-top:2px;"></div>
         </div>
 
-        <!-- 7 Nawyków Stephena Coveya -->
+        <!-- 7 Nawyków Coveya -->
         <div class="habits-simple-grid">
-          <div class="habit-simple-item"><strong>1. Bądź proaktywny</strong><br><span style="color:var(--text-muted);">Skupiam się wyłącznie na tym, na co mam wpływ.</span></div>
+          <div class="habit-simple-item"><strong>1. Bądź proaktywny</strong><br><span style="color:var(--text-muted);">Skupiam się na tym, na co mam wpływ.</span></div>
           <div class="habit-simple-item"><strong>2. Zaczynaj z wizją końca</strong><br><span style="color:var(--text-muted);">Działam w zgodzie z moimi Rolami i Celami.</span></div>
-          <div class="habit-simple-item"><strong>3. Rób najpierw to, co najważniejsze</strong><br><span style="color:var(--text-muted);">Najpierw sprawy Ważne (Ćwiartka II), potem reszta.</span></div>
+          <div class="habit-simple-item"><strong>3. Rób najpierw to, co najważniejsze</strong><br><span style="color:var(--text-muted);">Najpierw Głazy (Ćwiartka II), potem reszta.</span></div>
           <div class="habit-simple-item"><strong>4. Myśl Wygrana-Wygrana</strong><br><span style="color:var(--text-muted);">Szukam rozwiązań korzystnych dla obu stron.</span></div>
           <div class="habit-simple-item"><strong>5. Najpierw zrozum, potem bądź zrozumiany</strong><br><span style="color:var(--text-muted);">Uważnie słucham zanim odpowiem.</span></div>
-          <div class="habit-simple-item"><strong>6. Synergia</strong><br><span style="color:var(--text-muted);">Twórcza współpraca daje lepsze efekty.</span></div>
+          <div class="habit-simple-item"><strong>6. Synergia</strong><br><span style="color:var(--text-muted);">Współpraca daje więcej niż działanie samemu.</span></div>
           <div class="habit-simple-item" style="grid-column:1 / -1; border-left-color:var(--emerald);">
-            <strong>7. Ostrzenie Piły (Codzienna Odnowa)</strong> — Dbam o Ciało (spacer, ruch), Umysł (dziennik, rozwój), Ducha i Relacje.
+            <strong>7. Ostrzenie Piły (Odnowa)</strong> — Codziennie dbam o Ciało (spacer, ruch), Umysł (dziennik, nauka), Ducha i Relacje.
           </div>
         </div>
 
-        <!-- Moje osobiste zasady (zapisywane w Firebase) -->
+        <!-- Moje zasady -->
         <div style="background:var(--surface-alt); padding:14px 16px; border-radius:var(--radius-md); border:1px solid var(--border);">
-          <div style="font-size:0.8rem; font-weight:800; margin-bottom:6px;">📜 Moje osobiste zasady:</div>
-          <ul id="welcomeRulesList" style="padding-left:6px; font-size:0.83rem; display:flex; flex-direction:column; gap:4px;"></ul>
-          <form onsubmit="event.preventDefault(); App.addRule(this);" style="display:flex; gap:6px; margin-top:10px;">
-            <input type="text" name="ruleText" class="input-clean" placeholder="+ Dopisz własną zasadę (zapisze się w Firebase)...">
-            <button type="submit" class="btn btn-primary">Dodaj</button>
-          </form>
+          <div style="font-size:0.78rem; font-weight:800; margin-bottom:6px;">📜 Moje osobiste zasady:</div>
+          <ul id="welcomeRulesList" style="padding-left:18px; font-size:0.83rem; display:flex; flex-direction:column; gap:4px;"></ul>
         </div>
 
         <div style="display:flex; justify-content:flex-end;">
@@ -283,18 +279,15 @@
       </div>
     </div>
 
-    <!-- NAGŁÓWEK GŁÓWNY -->
+    <!-- GŁÓWNY PASEK NAWIGACYJNY -->
     <header class="app-header">
       <div class="header-left">
-        <div class="app-brand">
-          <img src="icon.svg?v=12.0" class="app-logo-svg" alt="Plan Tygodnia">
-          <span>Plan Tygodnia</span>
-        </div>
-        <select class="year-select" id="yearSelect" onchange="App.setYear(this.value)" title="Podział na lata">
+        <div id="appIconSlot" onclick="App.cycleIcon()" title="Kliknij, aby przełączyć wariant nowej ikony"></div>
+        <span class="brand-name">Plan Tygodnia</span>
+        <select class="year-select" id="yearSelect" onchange="App.setYear(Number(this.value))">
           <option value="2025">2025</option>
           <option value="2026" selected>2026</option>
           <option value="2027">2027</option>
-          <option value="2028">2028</option>
         </select>
       </div>
 
@@ -310,41 +303,24 @@
       <div class="header-right">
         <button class="btn" onclick="App.openWelcome()" title="Pokaż 7 Nawyków i Moje Zasady">📜 Zasady</button>
         <button class="btn btn-later" onclick="App.toggleLater()">📥 Na później (<span id="laterCount">0</span>)</button>
-        <button class="btn" onclick="App.exportJSON()" title="Pobierz pełny zapis do pliku JSON">💾 JSON</button>
-        <button class="icon-circle-btn" id="btnThemeToggle" onclick="App.toggleTheme()" title="Przełącz motyw">🌙</button>
+        <button class="btn" onclick="App.exportJSON()" title="Zapisz wszystko do pliku JSON">💾 JSON</button>
+        <button class="btn" onclick="App.toggleTheme()" id="btnThemeToggle">🌙</button>
       </div>
     </header>
 
-    <!-- GŁÓWNA PRZESTRZEŃ ROBOCZA -->
-    <main class="main-container">
+    <!-- GŁÓWNA ZAWARTOŚĆ (IDENTYCZNIE JAK W DEMO) -->
+    <main class="container">
 
-      <!-- ==================== ZAKŁADKA 1: PLAN TYGODNIA ==================== -->
+      <!-- ==================== ZAKŁADKA 1: PLAN TYGODNIA (ROLE + KALENDARZ) ==================== -->
       <section id="view_plan" class="tab-section">
 
-        <!-- Pasek celów tygodniowych na górze -->
-        <div class="goals-strip">
-          <div class="goals-strip-list" id="goalsStripItems"></div>
+        <!-- Kompaktowe przypomnienie celów na ten tydzień -->
+        <div class="goals-summary-strip">
+          <div class="goals-strip-items" id="goalsStripItems"></div>
           <button class="btn" onclick="App.switchTab('goals')">Edytuj cele →</button>
         </div>
 
-        <!-- Ostrzenie Piły na głównym ekranie: Codzienne + Cotygodniowe -->
-        <div class="saw-today-panel">
-          <div>
-            <div class="saw-subbox-title">
-              <span>☀️ Codzienne Ostrzenie Piły (na dziś)</span>
-            </div>
-            <div class="saw-pills-wrap" id="sawDailyOnPlan"></div>
-          </div>
-          <div>
-            <div class="saw-subbox-title">
-              <span>📅 Cotygodniowe i cykliczne w tym tygodniu</span>
-              <button class="btn" style="padding:2px 8px; font-size:0.72rem;" onclick="App.switchTab('saw')">Zarządzaj →</button>
-            </div>
-            <div class="saw-pills-wrap" id="sawWeeklyOnPlan"></div>
-          </div>
-        </div>
-
-        <!-- 4 Karty Ról (Stół z 4 Nogami) -->
+        <!-- 4 Role życiowe (4 estetyczne rubryczki obok siebie) -->
         <div class="roles-grid" id="rolesGrid"></div>
 
         <!-- Pełnowymiarowy Kalendarz Miesięczny na dole -->
@@ -352,7 +328,7 @@
           <div class="section-head">
             <div>
               <h2>📅 Kalendarz przypomnień</h2>
-              <span style="font-size:0.78rem; color:var(--text-muted);">Kliknij w dowolny dzień, aby wpisać lub zobaczyć przypomnienie</span>
+              <span style="font-size:0.78rem; color:var(--text-muted);">Kliknij w dowolny dzień, aby wpisać przypomnienie</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <button class="btn" onclick="App.changeMonth(-1)">◀</button>
@@ -368,43 +344,45 @@
 
       </section>
 
-      <!-- ==================== ZAKŁADKA 2: MATRYCA EISENHOWERA ==================== -->
+      <!-- ==================== ZAKŁADKA 2: MATRYCA EISENHOWERA (OSOBNA ZAKŁADKA) ==================== -->
       <section id="view_matrix" class="tab-section" style="display:none;">
-        <div style="margin-bottom:16px;">
-          <h2 style="font-size:1.2rem; font-weight:800;">🧭 Matryca Eisenhowera</h2>
-          <p style="font-size:0.82rem; color:var(--text-muted);">Wszystkie Twoje zadania z bieżącego tygodnia podzielone na 4 ćwiartki priorytetów</p>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div>
+            <h2 style="font-size:1.2rem; font-weight:800;">🧭 Matryca Eisenhowera</h2>
+            <p style="font-size:0.82rem; color:var(--text-muted);">Wszystkie Twoje zadania z tego tygodnia podzielone na 4 ćwiartki priorytetów</p>
+          </div>
         </div>
         <div class="matrix-2x2" id="matrixGrid"></div>
       </section>
 
-      <!-- ==================== ZAKŁADKA 3: OSTRZENIE PIŁY ==================== -->
+      <!-- ==================== ZAKŁADKA 3: OSTRZENIE PIŁY (ZAMIAST RUTYN) ==================== -->
       <section id="view_saw" class="tab-section" style="display:none;">
         <div class="section-box">
           <div class="section-head">
             <div>
               <h2>🪚 Ostrzenie Piły (Dawne Rutyny)</h2>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Codzienne nawyki (Spacer, Dziennik) oraz zadania cotygodniowe i comiesięczne</p>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Codzienna odnowa (w tym przywrócone: Wyjście na spacer i Pisanie dziennika) oraz zadania cykliczne</p>
             </div>
-            <button class="btn btn-primary" onclick="App.openAddSawModal()">+ Dodaj do Ostrzenia Piły</button>
+            <button class="btn btn-primary" onclick="App.addSawPrompt()">+ Dodaj nawyk / cykl</button>
           </div>
           <div id="sawContainer"></div>
         </div>
       </section>
 
-      <!-- ==================== ZAKŁADKA 4: CELE ==================== -->
+      <!-- ==================== ZAKŁADKA 4: CELE (TYGODNIOWE / MIESIĘCZNE / KWARTALNE / ROCZNE) ==================== -->
       <section id="view_goals" class="tab-section" style="display:none;">
         <div class="section-box">
           <div class="section-head">
             <div>
               <h2>🎯 Cele dla moich Ról (4 Nogi Stołu) — Rok <span class="yearLabel">2026</span></h2>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Cele tygodniowe automatycznie wyświetlają się nad Twoim planem tygodnia</p>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Wpisz cele, o których chcesz pamiętać planując każdy tydzień</p>
             </div>
           </div>
           <div id="goalsTableContainer" style="overflow-x:auto;"></div>
         </div>
       </section>
 
-      <!-- ==================== ZAKŁADKA 5: MYŚLI & AFIRMACJE ==================== -->
+      <!-- ==================== ZAKŁADKA 5: MYŚLI, CYTATY & AFIRMACJE ==================== -->
       <section id="view_mind" class="tab-section" style="display:none;">
         <div class="matrix-2x2">
           <div class="section-box">
@@ -439,13 +417,10 @@
               <h2>🗄️ Archiwum Wykonanych Zadań — Rok <span class="yearLabel">2026</span></h2>
               <p style="font-size:0.8rem; color:var(--text-muted);">Data wykonania to dokładny moment odkliknięcia zadania</p>
             </div>
-            <div style="display:flex; gap:8px;">
-              <button class="btn" onclick="App.exportJSON()">💾 Zapisz plik JSON</button>
-              <label class="btn" style="cursor:pointer;">
-                📂 Wczytaj plik JSON
-                <input type="file" accept=".json" style="display:none;" onchange="App.importJSON(event)">
-              </label>
-            </div>
+            <label class="btn" style="cursor:pointer;">
+              📂 Wczytaj plik JSON
+              <input type="file" accept=".json" style="display:none;" onchange="App.importJSON(event)">
+            </label>
           </div>
           <div id="archiveTableContainer"></div>
         </div>
@@ -471,22 +446,20 @@
 
   </div>
 
-  <!-- Modale i powiadomienia -->
   <div id="modalRoot"></div>
-  <div class="toast-root" id="toastRoot"></div>
 
   <!-- Firebase SDK (v10 compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=12.0"></script>
+  <script src="js/firebase-config.js?v=12.1"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=12.0"></script>
-  <script src="js/seed.js?v=12.0"></script>
-  <script src="js/sync.js?v=12.0"></script>
-  <script src="js/store.js?v=12.0"></script>
-  <script src="js/app.js?v=12.0"></script>
+  <script src="js/utils.js?v=12.1"></script>
+  <script src="js/seed.js?v=12.1"></script>
+  <script src="js/sync.js?v=12.1"></script>
+  <script src="js/store.js?v=12.1"></script>
+  <script src="js/app.js?v=12.1"></script>
 
   <script>
     window.handleAuthAction = async function(type) {
