@@ -1,0 +1,2764 @@
+<!DOCTYPE html>
+<html lang="pl" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kompas Życia & Plan Tygodnia – DEMO Nowej Koncepcji</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Nowa dynamiczna ikona SVG -->
+  <link id="dynamicFavicon" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%234f46e5'/%3E%3Cstop offset='100%25' stop-color='%23059669'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Ccircle cx='32' cy='32' r='20' fill='none' stroke='%23fff' stroke-width='2.5' opacity='0.9'/%3E%3Cline x1='32' y1='12' x2='32' y2='52' stroke='%23fff' stroke-width='2' opacity='0.5'/%3E%3Cline x1='12' y1='32' x2='52' y2='32' stroke='%23fff' stroke-width='2' opacity='0.5'/%3E%3Cpolygon points='32,16 37,32 32,29 27,32' fill='%23fbbf24'/%3E%3Cpolygon points='32,48 37,32 32,35 27,32' fill='%23ffffff' opacity='0.85'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --surface-alt: #f8fafc;
+      --surface-hover: #eef2f6;
+      --border: #e2e8f0;
+      --border-subtle: #edf2f7;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+
+      --accent: #4f46e5;
+      --accent-hover: #4338ca;
+      --accent-light: #eef2ff;
+
+      --emerald: #059669;
+      --emerald-light: #ecfdf5;
+      --emerald-border: #a7f3d0;
+
+      --crimson: #dc2626;
+      --crimson-light: #fef2f2;
+      --crimson-border: #fecaca;
+
+      --amber: #d97706;
+      --amber-light: #fffbeb;
+      --amber-border: #fde68a;
+
+      --blue: #2563eb;
+      --blue-light: #eff6ff;
+      --blue-border: #bfdbfe;
+
+      --purple: #7c3aed;
+      --purple-light: #f5f3ff;
+      --purple-border: #ddd6fe;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 22px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.07);
+      --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.12);
+      --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg: #090d16;
+      --surface: #111827;
+      --surface-alt: #1a2234;
+      --surface-hover: #243049;
+      --border: #1f293d;
+      --border-subtle: #172030;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --accent-light: rgba(99, 102, 241, 0.15);
+
+      --emerald: #10b981;
+      --emerald-light: rgba(16, 185, 129, 0.12);
+      --emerald-border: rgba(16, 185, 129, 0.3);
+
+      --crimson: #f87171;
+      --crimson-light: rgba(239, 68, 68, 0.12);
+      --crimson-border: rgba(239, 68, 68, 0.3);
+
+      --amber: #fbbf24;
+      --amber-light: rgba(245, 158, 11, 0.12);
+      --amber-border: rgba(245, 158, 11, 0.3);
+
+      --blue: #60a5fa;
+      --blue-light: rgba(59, 130, 246, 0.12);
+      --blue-border: rgba(59, 130, 246, 0.3);
+
+      --purple: #a78bfa;
+      --purple-light: rgba(124, 58, 237, 0.14);
+      --purple-border: rgba(124, 58, 237, 0.3);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+
+    /* BANER DEMO */
+    .demo-banner {
+      background: linear-gradient(90deg, #312e81, #4f46e5, #059669);
+      color: #fff;
+      padding: 8px 18px;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .demo-banner-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .demo-pill-btn {
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.35);
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: 0.15s;
+    }
+    .demo-pill-btn:hover { background: rgba(255,255,255,0.3); }
+    .demo-pill-btn.highlight { background: #fbbf24; color: #0f172a; border-color: #fbbf24; }
+
+    /* EKRAN POWITALNY: 7 NAWYKÓW COVEYA & MOJE ZASADY */
+    .covey-gate-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(9, 13, 22, 0.82);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .covey-gate-Overlay-hidden { display: none !important; }
+    .covey-modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      max-width: 1120px;
+      width: 100%;
+      max-height: 92vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+      padding: 28px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+    .covey-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    .covey-header h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .covey-header p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .covey-daily-quote-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .daily-focus-box {
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+    }
+    .daily-focus-box.affirmation {
+      background: var(--emerald-light);
+      border-color: var(--emerald-border);
+    }
+    .daily-focus-box.quote {
+      background: var(--accent-light);
+      border-color: var(--blue-border);
+    }
+    .daily-focus-label {
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+      opacity: 0.8;
+    }
+    .daily-focus-text {
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+    .covey-grid-layout {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 20px;
+    }
+    .habits-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .habit-card {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 11px 14px;
+      border-left: 4px solid var(--accent);
+    }
+    .habit-card.h-saw {
+      grid-column: 1 / -1;
+      border-left-color: var(--emerald);
+      background: var(--emerald-light);
+    }
+    .habit-num {
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+    .habit-card.h-saw .habit-num { color: var(--emerald); }
+    .habit-title {
+      font-size: 0.92rem;
+      font-weight: 800;
+      margin: 2px 0;
+    }
+    .habit-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+    .my-rules-box {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .my-rules-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      list-style: none;
+    }
+    .my-rule-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.83rem;
+      font-weight: 600;
+    }
+    .covey-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .btn-enter-app {
+      background: linear-gradient(135deg, var(--accent), var(--emerald));
+      color: #fff;
+      border: none;
+      padding: 12px 28px;
+      border-radius: var(--radius-md);
+      font-size: 0.95rem;
+      font-weight: 800;
+      box-shadow: var(--shadow-md);
+      transition: transform 0.15s;
+    }
+    .btn-enter-app:hover { transform: translateY(-1px); }
+
+    /* GŁÓWNY NAGŁÓWEK APLIKACJI */
+    .top-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .app-logo-svg {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      flex-shrink: 0;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+    }
+    .brand-title {
+      font-weight: 800;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+    .brand-sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* SELEKTOR ROKU */
+    .year-selector {
+      display: inline-flex;
+      align-items: center;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .year-btn {
+      border: none;
+      background: transparent;
+      padding: 4px 11px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .year-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* ZAKŁADKI GŁÓWNE */
+    .main-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .nav-tab {
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      color: var(--text-muted);
+      padding: 7px 13px;
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: 0.15s;
+    }
+    .nav-tab:hover {
+      background: var(--surface-hover);
+      color: var(--text-main);
+    }
+    .nav-tab.active {
+      background: var(--accent-light);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .badge-count {
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: var(--border);
+      color: var(--text-main);
+    }
+    .nav-tab.active .badge-count {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .action-btn:hover { background: var(--surface-hover); }
+    .action-btn.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .action-btn.emerald {
+      background: var(--emerald);
+      color: #fff;
+      border-color: var(--emerald);
+    }
+    .action-btn.later-btn {
+      background: var(--amber-light);
+      border-color: var(--amber-border);
+      color: var(--amber);
+    }
+
+    /* GŁÓWNY KONTENER TREŚCI */
+    .workspace {
+      max-width: 1640px;
+      margin: 0 auto;
+      padding: 16px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* PASEK CELÓW NAD PLANEM TYGODNIA (ZAWSZE WIDOCZNY HORYZONT) */
+    .goals-ribbon {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--accent);
+      border-radius: var(--radius-lg);
+      padding: 14px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .goals-ribbon-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .goals-ribbon-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 0.92rem;
+    }
+    .horizon-pills {
+      display: inline-flex;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 2px;
+      gap: 2px;
+    }
+    .horizon-pill {
+      border: none;
+      background: transparent;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .horizon-pill.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .goals-cards-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .goal-mini-card {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .goal-mini-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+    .goal-mini-input {
+      width: 100%;
+      border: 1px solid transparent;
+      background: var(--surface);
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      resize: none;
+    }
+    .goal-mini-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* PASEK DZISIEJSZEGO OSTRZENIA PIŁY (SZYBKI DOSTĘP) */
+    .today-saw-bar {
+      background: var(--emerald-light);
+      border: 1px solid var(--emerald-border);
+      border-radius: var(--radius-lg);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .today-saw-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: var(--emerald);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .today-saw-pills {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+    .saw-quick-pill {
+      background: var(--surface);
+      border: 1px solid var(--emerald-border);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .saw-quick-pill:hover { transform: translateY(-1px); }
+    .saw-quick-pill.done {
+      background: var(--emerald);
+      color: #fff;
+      border-color: var(--emerald);
+      text-decoration: line-through;
+      opacity: 0.85;
+    }
+
+    /* UKŁAD DWUKOLUMNOWY: LEWO = ROLE, PRAWO = MATRYCA EISENOWERA */
+    .main-split-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .panel-head h2 {
+      font-size: 1rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-sub {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+
+    /* LEWA STRONA: LISTA RÓL / 4 NÓG STOŁU */
+    .roles-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .role-box {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface-alt);
+      overflow: hidden;
+    }
+    .role-box-header {
+      padding: 10px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .role-box-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 0.88rem;
+    }
+    .role-pillar-tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .role-tasks-list {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .role-add-form {
+      display: flex;
+      gap: 6px;
+      padding: 8px 12px 10px;
+      border-top: 1px dashed var(--border);
+      background: var(--surface);
+      flex-wrap: wrap;
+    }
+    .role-add-input {
+      flex: 1;
+      min-width: 150px;
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.8rem;
+    }
+    .role-add-select {
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    /* KARTA ZADANIA */
+    .task-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      transition: 0.15s;
+    }
+    .task-item:hover {
+      border-color: var(--accent);
+      box-shadow: var(--shadow-sm);
+    }
+    .task-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+    .task-check {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      border: 2px solid var(--accent);
+      background: transparent;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      cursor: pointer;
+      font-size: 0.7rem;
+    }
+    .task-check:hover { background: var(--accent-light); }
+    .task-title-text {
+      font-size: 0.82rem;
+      font-weight: 600;
+      word-break: break-word;
+    }
+    .task-meta-pills {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .q-badge {
+      font-size: 0.67rem;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .q-badge.q1 { background: var(--crimson-light); color: var(--crimson); border: 1px solid var(--crimson-border); }
+    .q-badge.q2 { background: var(--emerald-light); color: var(--emerald); border: 1px solid var(--emerald-border); }
+    .q-badge.q3 { background: var(--amber-light); color: var(--amber); border: 1px solid var(--amber-border); }
+    .q-badge.q4 { background: var(--surface-alt); color: var(--text-muted); border: 1px solid var(--border); }
+
+    .role-badge-mini {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+    }
+    .date-badge-mini {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      padding: 1px 5px;
+      background: var(--surface-alt);
+      border-radius: 4px;
+    }
+    .micro-del-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      padding: 2px 4px;
+    }
+    .micro-del-btn:hover { color: var(--crimson); }
+
+    /* PRAWA STRONA: MATRYCA EISENHOWERA (2x2) */
+    .eisenhower-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .quadrant-box {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 250px;
+    }
+    .quadrant-box.q1-box {
+      background: linear-gradient(180deg, var(--crimson-light) 0%, var(--surface) 65px);
+      border-top: 3px solid var(--crimson);
+    }
+    .quadrant-box.q2-box {
+      background: linear-gradient(180deg, var(--emerald-light) 0%, var(--surface) 65px);
+      border: 2px solid var(--emerald);
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.12);
+    }
+    .quadrant-box.q3-box {
+      background: linear-gradient(180deg, var(--amber-light) 0%, var(--surface) 65px);
+      border-top: 3px solid var(--amber);
+    }
+    .quadrant-box.q4-box {
+      background: var(--surface-alt);
+      border-top: 3px solid var(--text-dim);
+    }
+    .quadrant-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .quadrant-title {
+      font-size: 0.86rem;
+      font-weight: 800;
+    }
+    .quadrant-sub {
+      font-size: 0.71rem;
+      color: var(--text-muted);
+    }
+    .quadrant-tasks {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+    }
+
+    /* PEŁNOWYMIAROWY KALENDARZ NA DOLE */
+    .calendar-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .calendar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .cal-month-nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .cal-month-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      min-width: 180px;
+      text-align: center;
+    }
+    .cal-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .cal-days-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+    .cal-day-cell {
+      min-height: 112px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .cal-day-cell:hover {
+      border-color: var(--accent);
+      background: var(--surface);
+    }
+    .cal-day-cell.is-other-month {
+      opacity: 0.38;
+    }
+    .cal-day-cell.is-today {
+      border: 2px solid var(--accent);
+      background: var(--accent-light);
+    }
+    .cal-day-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+    .cal-add-mini {
+      opacity: 0;
+      font-size: 0.72rem;
+      color: var(--accent);
+      font-weight: 800;
+    }
+    .cal-day-cell:hover .cal-add-mini { opacity: 1; }
+    .cal-events-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .cal-event-chip {
+      font-size: 0.69rem;
+      font-weight: 600;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--surface);
+      border-left: 3px solid var(--accent);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cal-event-chip.is-reminder {
+      border-left-color: var(--purple);
+      background: var(--purple-light);
+    }
+
+    /* SZUFLADA BOCZNA: „NA PÓŹNIEJ” (DO PRZEPROCESOWANIA) */
+    .later-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 400px;
+      max-width: 92vw;
+      height: 100vh;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      box-shadow: var(--shadow-lg);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.22s ease;
+    }
+    .later-drawer.open { transform: translateX(0); }
+    .later-drawer-head {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--amber-light);
+    }
+    .later-drawer-body {
+      padding: 14px 16px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .later-item-card {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .later-process-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    /* ZAKŁADKA: OSTRZENIE PIŁY (DAWNE RUTYNY) */
+    .saw-dimensions-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .saw-dim-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      border-top: 3px solid var(--emerald);
+    }
+    .saw-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .saw-table th, .saw-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    .saw-table th {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: var(--surface-alt);
+    }
+    .week-dots-row {
+      display: inline-flex;
+      gap: 4px;
+    }
+    .day-dot-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      font-size: 0.68rem;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .day-dot-btn.done {
+      background: var(--emerald);
+      color: #fff;
+      border-color: var(--emerald);
+    }
+
+    /* ZBIÓR MYŚLI, CYTATY & AFIRMACJE */
+    .mind-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .quote-card {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+    }
+    .affirmation-card {
+      background: var(--emerald-light);
+      border: 1px solid var(--emerald-border);
+      border-left: 4px solid var(--emerald);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1100px) {
+      .main-split-grid, .covey-grid-layout, .mind-grid {
+        grid-template-columns: 1fr;
+      }
+      .goals-cards-row, .saw-dimensions-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 680px) {
+      .eisenhower-grid, .goals-cards-row, .saw-dimensions-grid, .covey-daily-quote-bar, .habits-list {
+        grid-template-columns: 1fr;
+      }
+      .cal-day-cell { min-height: 78px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- BANER INFORMACYJNY TRYBU DEMO -->
+  <div class="demo-banner">
+    <div>
+      🧪 <strong>TRYB DEMO (Nowa Architektura Aplikacji)</strong> — Twój główny kod i baza nie zostały nadpisane. Testuj swobodnie wszystkie nowe moduły!
+    </div>
+    <div class="demo-banner-actions">
+      <button class="demo-pill-btn highlight" onclick="DemoApp.restoreSpacerAndJournalToMainApp()">
+        🔄 Przywróć „Wyjście na spacer” i „Pisanie dziennika” również w obecnej bazie głównej
+      </button>
+      <button class="demo-pill-btn" onclick="DemoApp.openIconPickerModal()">
+        🎨 Zmień ikonkę aplikacji (3 propozycje)
+      </button>
+      <a href="index.html" class="demo-pill-btn">← Wróć do obecnej wersji</a>
+    </div>
+  </div>
+
+  <!-- 1. EKRAN STARTOWY: 7 NAWYKÓW STEPHENA COVEYA & MOJE ZASADY (CODZIENNY KOMPAS) -->
+  <div id="coveyGateOverlay" class="covey-gate-overlay">
+    <div class="covey-modal">
+      <div class="covey-header">
+        <div>
+          <h1>🧭 Moje Zasady & 7 Nawyków Skutecznego Działania</h1>
+          <p>Zatrzymaj się na chwilę zanim przejdziesz do zadań. Przeczytaj na spokojnie swoje zasady, ukierunkuj umysł i zacznij dzień z wizją końca.</p>
+        </div>
+        <button class="action-btn" onclick="DemoApp.closeCoveyGate()">Przejdź do planu ✕</button>
+      </div>
+
+      <!-- Afirmacja Dnia + Cytat Dnia na wejściu -->
+      <div class="covey-daily-quote-bar">
+        <div class="daily-focus-box affirmation">
+          <div class="daily-focus-label">✨ Afirmacja przewodnia na dziś</div>
+          <div class="daily-focus-text" id="gateAffirmationText"></div>
+        </div>
+        <div class="daily-focus-box quote">
+          <div class="daily-focus-label">💭 Myśl / Cytat dnia</div>
+          <div class="daily-focus-text" id="gateQuoteText"></div>
+        </div>
+      </div>
+
+      <div class="covey-grid-layout">
+        <!-- Lewa kolumna: 7 Nawyków Stephena Coveya -->
+        <div>
+          <h3 style="font-size:0.9rem; font-weight:800; margin-bottom:10px; color:var(--accent);">
+            📚 7 Nawyków Skutecznego Działania (Stephen R. Covey)
+          </h3>
+          <div class="habits-list">
+            <div class="habit-card">
+              <div class="habit-num">Nawyk 1 · Zwycięstwo Prywatne</div>
+              <div class="habit-title">Bądź proaktywny</div>
+              <div class="habit-desc">Jestem odpowiedzialny za swoje życie. Skupiam się wyłącznie na kręgu wpływu, a nie na rzeczach poza moją kontrolą.</div>
+            </div>
+            <div class="habit-card">
+              <div class="habit-num">Nawyk 2 · Zwycięstwo Prywatne</div>
+              <div class="habit-title">Zaczynaj z wizją końca</div>
+              <div class="habit-desc">Każde działanie tworzę najpierw w umyśle. Planuję tydzień w oparciu o moje Role i długofalowe Cele życiowe.</div>
+            </div>
+            <div class="habit-card">
+              <div class="habit-num">Nawyk 3 · Zwycięstwo Prywatne</div>
+              <div class="habit-title">Rób najpierw to, co najważniejsze</div>
+              <div class="habit-desc">Priorytet ma Ćwiartka II (Ważne, niepilne). Nie pozwalam, by cudze pilne sprawy wyparły moje Głazy.</div>
+            </div>
+            <div class="habit-card">
+              <div class="habit-num">Nawyk 4 · Zwycięstwo Publiczne</div>
+              <div class="habit-title">Myśl w kategoriach Wygrana-Wygrana</div>
+              <div class="habit-desc">Szukam rozwiązań korzystnych dla obu stron. Buduję relacje oparte na wzajemnym szacunku i obfitości.</div>
+            </div>
+            <div class="habit-card">
+              <div class="habit-num">Nawyk 5 · Zwycięstwo Publiczne</div>
+              <div class="habit-title">Najpierw zrozum, potem bądź zrozumiany</div>
+              <div class="habit-desc">Słucham empatycznie zanim odpowiem. Rozumiem perspektywę rozmówcy zanim przedstawię własną.</div>
+            </div>
+            <div class="habit-card">
+              <div class="habit-num">Nawyk 6 · Zwycięstwo Publiczne</div>
+              <div class="habit-title">Synergia</div>
+              <div class="habit-desc">Całość jest większa niż suma części. Twórcza współpraca daje lepsze rezultaty niż działanie w pojedynkę.</div>
+            </div>
+            <div class="habit-card h-saw">
+              <div class="habit-num">Nawyk 7 · Codzienna Odnowa (Fundament pozostałych 6 nawyków)</div>
+              <div class="habit-title">🪚 Ostrzenie Piły (Ciało · Umysł · Duch · Relacje)</div>
+              <div class="habit-desc">Codziennie dbam o regenerację i rozwój moich 4 wymiarów: ruch i spacer, pisanie dziennika, czytanie, spokój ducha i bliskie relacje.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prawa kolumna: Moje Osobiste Zasady -->
+        <div class="my-rules-box">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="font-size:0.9rem; font-weight:800;">📜 Moje Osobiste Zasady (Konstytucja)</h3>
+            <span style="font-size:0.72rem; color:var(--text-muted);">Czytaj codziennie rano</span>
+          </div>
+          <ul class="my-rules-list" id="myPersonalRulesList"></ul>
+          <form onsubmit="event.preventDefault(); DemoApp.addPersonalRule();" style="display:flex; gap:6px; margin-top:auto;">
+            <input type="text" id="newRuleInput" class="role-add-input" placeholder="+ Dopisz własną zasadę życiową...">
+            <button type="submit" class="action-btn primary">Dodaj</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="covey-footer">
+        <label style="display:flex; align-items:center; gap:8px; font-size:0.8rem; color:var(--text-muted); cursor:pointer;">
+          <input type="checkbox" id="chkAlwaysShowGate" checked onchange="DemoApp.toggleAlwaysShowGate(this.checked)">
+          Pokazuj ten ekran zawsze po uruchomieniu aplikacji jako pierwszy widok
+        </label>
+        <button class="btn-enter-app" onclick="DemoApp.closeCoveyGate()">
+          ✓ Przeczytałem ze spokojem — Przejdź do planowania tygodnia →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAGŁÓWEK GŁÓWNY APLIKACJI -->
+  <header class="top-header">
+    <div class="brand-wrap">
+      <div id="headerIconPreview" title="Kliknij, aby zmienić ikonkę aplikacji" onclick="DemoApp.openIconPickerModal()"></div>
+      <div>
+        <div class="brand-title">Kompas & Plan Tygodnia</div>
+        <div class="brand-sub">System Ról · Matryca Eisenhowera · Ostrzenie Piły</div>
+      </div>
+      <!-- Podział na lata -->
+      <div class="year-selector" id="yearSelectorBar" title="Podział aplikacji na lata"></div>
+    </div>
+
+    <!-- Nawigacja między modułami -->
+    <nav class="main-tabs">
+      <button class="nav-tab active" data-tab="board" onclick="DemoApp.switchTab('board')">
+        🎯 Plan Tygodnia & Matryca
+      </button>
+      <button class="nav-tab" data-tab="saw" onclick="DemoApp.switchTab('saw')">
+        🪚 Ostrzenie Piły <span class="badge-count" id="sawCountBadge">0</span>
+      </button>
+      <button class="nav-tab" data-tab="goals" onclick="DemoApp.switchTab('goals')">
+        🏆 Cele & Stół (4 Nogi)
+      </button>
+      <button class="nav-tab" data-tab="mind" onclick="DemoApp.switchTab('mind')">
+        🧠 Myśli, Cytaty & Afirmacje
+      </button>
+      <button class="nav-tab" data-tab="archive" onclick="DemoApp.switchTab('archive')">
+        🗄️ Archiwum Wykonanych <span class="badge-count" id="archiveCountBadge">0</span>
+      </button>
+      <button class="nav-tab" onclick="DemoApp.openCoveyGate()">
+        📜 7 Nawyków / Moje Zasady
+      </button>
+    </nav>
+
+    <!-- Akcje po prawej stronie: Na później + JSON + Motyw -->
+    <div class="header-actions">
+      <button class="action-btn later-btn" onclick="DemoApp.toggleLaterDrawer()">
+        📥 Na później <span class="badge-count" id="laterCountBadge">0</span>
+      </button>
+      <button class="action-btn emerald" onclick="DemoApp.exportFullJSON()" title="Pobierz pełny plik JSON (zadania, cele, archiwum, ostrzenie piły, myśli)">
+        💾 Zapisz JSON
+      </button>
+      <label class="action-btn" style="cursor:pointer;" title="Wczytaj dane z pliku JSON">
+        📂 Wczytaj JSON
+        <input type="file" accept=".json" style="display:none;" onchange="DemoApp.importFullJSON(event)">
+      </label>
+      <button class="action-btn" onclick="DemoApp.toggleTheme()" id="themeBtn" title="Przełącz motyw">🌙</button>
+    </div>
+  </header>
+
+  <!-- GŁÓWNA PRZESTRZEŃ ROBOCZA -->
+  <main class="workspace">
+
+    <!-- ==================== WIDOK 1: PLAN TYGODNIA (ROLE + MATRYCA + KALENDARZ) ==================== -->
+    <section id="tab_board" class="tab-view">
+
+      <!-- WIDOCZNY PASEK CELÓW NAD PLANEM TYGODNIA -->
+      <div class="goals-ribbon" style="margin-bottom:16px;">
+        <div class="goals-ribbon-top">
+          <div class="goals-ribbon-title">
+            <span>🎯 Twoje Cele dla Ról (<span id="ribbonYearLabel">2026</span>) — Pamiętaj o nich planując tydzień!</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="font-size:0.75rem; color:var(--text-muted); font-weight:700;">Horyzont celów:</span>
+            <div class="horizon-pills" id="horizonSelector">
+              <button class="horizon-pill active" data-h="weekly" onclick="DemoApp.setGoalHorizon('weekly')">Tygodniowe</button>
+              <button class="horizon-pill" data-h="monthly" onclick="DemoApp.setGoalHorizon('monthly')">Miesięczne</button>
+              <button class="horizon-pill" data-h="quarterly" onclick="DemoApp.setGoalHorizon('quarterly')">Kwartalne</button>
+              <button class="horizon-pill" data-h="yearly" onclick="DemoApp.setGoalHorizon('yearly')">Roczne</button>
+            </div>
+            <button class="action-btn" onclick="DemoApp.switchTab('goals')">Pełna tabela celów →</button>
+          </div>
+        </div>
+        <div class="goals-cards-row" id="ribbonGoalsRow"></div>
+      </div>
+
+      <!-- PASEK DZISIEJSZEGO OSTRZENIA PIŁY (CODZIENNE NAWYKI Z PRZYWRÓCONYM SPACEREM I DZIENNIKIEM) -->
+      <div class="today-saw-bar" style="margin-bottom:18px;">
+        <div class="today-saw-title">
+          <span>🪚 Dzisiejsze Ostrzenie Piły:</span>
+        </div>
+        <div class="today-saw-pills" id="todaySawQuickList"></div>
+        <button class="action-btn" onclick="DemoApp.switchTab('saw')">Zarządzaj Ostrzeniem Piły →</button>
+      </div>
+
+      <!-- GŁÓWNY PODZIAŁ: LEWA = LISTA RÓL, PRAWA = MATRYCA EISENHOWERA -->
+      <div class="main-split-grid">
+
+        <!-- LEWA STRONA: LISTA MOICH RÓL (ZADANIA NA BIEŻĄCY TYDZIEŃ) -->
+        <div class="panel-card">
+          <div class="panel-head">
+            <div>
+              <h2>🎭 Moje Role & Filary (Plan bieżącego tygodnia)</h2>
+              <div class="panel-sub">Wpisuj rzeczy do zrobienia w tym tygodniu dla każdej roli — automatycznie trafiają też do Matrycy po prawej</div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <select id="roleConceptSelect" class="role-add-select" onchange="DemoApp.setRoleConcept(this.value)" title="Przetestuj koncepcję Ról vs Stołu z 4 nogami">
+                <option value="hybrid">Koncepcja: 4 Nogi Stołu + Role (Zalecana)</option>
+                <option value="legs">Koncepcja: Stół z 4 Nogami (4 Filary)</option>
+                <option value="roles">Koncepcja: Klasyczne Role życiowe</option>
+              </select>
+              <button class="action-btn" onclick="DemoApp.addNewRolePrompt()">+ Rola</button>
+            </div>
+          </div>
+
+          <div class="roles-stack" id="rolesListContainer"></div>
+        </div>
+
+        <!-- PRAWA STRONA: MATRYCA EISENHOWERA (4 ĆWIARTKI) -->
+        <div class="panel-card">
+          <div class="panel-head">
+            <div>
+              <h2>🧭 Matryca Eisenhowera (4 Ćwiartki Priorytetów)</h2>
+              <div class="panel-sub">Kliknij odznakę Q1–Q4 przy zadaniu, aby przenieść je między ćwiartkami. Odkliknięcie zapisuje datę w Archiwum.</div>
+            </div>
+            <span class="q-badge q2" style="font-size:0.74rem; padding:4px 10px;">💎 Skup 70% energii na Ćwiartce II</span>
+          </div>
+
+          <div class="eisenhower-grid" id="eisenhowerContainer"></div>
+        </div>
+
+      </div>
+
+      <!-- NA DOLE: PEŁNOWYMIAROWY KALENDARZ MIESIĘCZNY -->
+      <div class="calendar-section" style="margin-top:18px;">
+        <div class="calendar-header">
+          <div>
+            <h2 style="font-size:1.05rem; font-weight:800;">📅 Pełnowymiarowy Kalendarz Przypomnień i Zadań</h2>
+            <p style="font-size:0.78rem; color:var(--text-muted);">Kliknij w dowolny dzień kalendarza, aby wpisać przypomnienie lub zaplanować zadanie na konkretną datę.</p>
+          </div>
+          <div class="cal-month-nav">
+            <button class="action-btn" onclick="DemoApp.changeCalendarMonth(-1)">◀ Poprzedni</button>
+            <div class="cal-month-title" id="calendarMonthLabel">Listopad 2026</div>
+            <button class="action-btn" onclick="DemoApp.changeCalendarMonth(1)">Następny ▶</button>
+            <button class="action-btn primary" onclick="DemoApp.openCalendarDayModal(DemoApp.todayStr())">+ Dodaj przypomnienie</button>
+          </div>
+        </div>
+
+        <div class="cal-weekdays">
+          <div>Poniedziałek</div><div>Wtorek</div><div>Środa</div><div>Czwartek</div><div>Piątek</div><div>Sobota</div><div>Niedziela</div>
+        </div>
+        <div class="cal-days-grid" id="calendarGrid"></div>
+      </div>
+
+    </section>
+
+    <!-- ==================== WIDOK 2: OSTRZENIE PIŁY (DAWNE RUTYNY) ==================== -->
+    <section id="tab_saw" class="tab-view" style="display:none;">
+      <div class="panel-card">
+        <div class="panel-head">
+          <div>
+            <h2>🪚 Ostrzenie Piły — Odnowa w 4 Wymiarach & Cykliczne Zobowiązania</h2>
+            <div class="panel-sub">
+              Zamiast dawnych „Rutyn”: systematyczna odnowa Fizyczna, Umysłowa, Duchowa i Relacyjna oraz stałe rytuały tygodniowe/miesięczne.
+              <strong>Przywrócono: „Wyjście na spacer” oraz „Pisanie dziennika”!</strong>
+            </div>
+          </div>
+          <button class="action-btn primary" onclick="DemoApp.openAddSawModal()">+ Dodaj do Ostrzenia Piły</button>
+        </div>
+
+        <!-- 4 Wymiary Ostrzenia Piły wg Coveya -->
+        <div class="saw-dimensions-grid" id="sawDimensionsSummary"></div>
+
+        <!-- Tabele cykli Ostrzenia Piły (jak w ulubionym układzie tabel + tracker tygodnia) -->
+        <div id="sawTablesContainer" style="display:flex; flex-direction:column; gap:18px;"></div>
+      </div>
+    </section>
+
+    <!-- ==================== WIDOK 3: CELE (TYGODNIOWE / MIESIĘCZNE / KWARTALNE / ROCZNE) ==================== -->
+    <section id="tab_goals" class="tab-view" style="display:none;">
+      <div class="panel-card">
+        <div class="panel-head">
+          <div>
+            <h2>🏆 Architektura Celów & Koncepcja „Stołu z 4 Nogami” (Rok <span class="dynYearText">2026</span>)</h2>
+            <div class="panel-sub">
+              Stół stoi stabilnie tylko na 4 równych nogach: <strong>1. Ciało & Zdrowie</strong>, <strong>2. Umysł & Rozwój</strong>, <strong>3. Relacje & Bliscy</strong>, <strong>4. Praca & Finanse</strong>.
+              Poniżej możesz rozpisać cele Roczne, Kwartalne, Miesięczne i Tygodniowe dla każdej Roli.
+            </div>
+          </div>
+        </div>
+        <div id="fullGoalsMatrixContainer" style="overflow-x:auto;"></div>
+      </div>
+    </section>
+
+    <!-- ==================== WIDOK 4: ZBIÓR MYŚLI, CYTATY & AFIRMACJE ==================== -->
+    <section id="tab_mind" class="tab-view" style="display:none;">
+      <div class="mind-grid">
+        <!-- AFIRMACJE -->
+        <div class="panel-card">
+          <div class="panel-head">
+            <div>
+              <h2>✨ Moje Afirmacje (Skoncentrowane w jednym miejscu)</h2>
+              <div class="panel-sub">Buduj tożsamość i pewność siebie. Wybrana afirmacja wyświetla się na ekranie powitalnym.</div>
+            </div>
+          </div>
+          <form onsubmit="event.preventDefault(); DemoApp.addAffirmation();" style="display:flex; gap:8px;">
+            <input type="text" id="newAffirmationInput" class="role-add-input" placeholder="+ Wpisz nową afirmację (np. Wchodzę wszędzie z pełnym spokojem i pewnością siebie)...">
+            <button type="submit" class="action-btn emerald">Dodaj afirmację</button>
+          </form>
+          <div id="affirmationsList" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+
+        <!-- ZBIÓR MYŚLI I CYTATY -->
+        <div class="panel-card">
+          <div class="panel-head">
+            <div>
+              <h2>💭 Zbiór Myśli, Cytaty & Refleksje</h2>
+              <div class="panel-sub">Jedna centralna baza złotych myśli, cytatów z książek i wniosków życiowych (zamiast rozsianych notatników).</div>
+            </div>
+          </div>
+          <form onsubmit="event.preventDefault(); DemoApp.addQuote();" style="display:flex; gap:8px; flex-wrap:wrap;">
+            <input type="text" id="newQuoteText" class="role-add-input" style="flex:2;" placeholder="+ Wpisz cytat lub ważną myśl...">
+            <input type="text" id="newQuoteAuthor" class="role-add-input" style="flex:1; min-width:120px;" placeholder="Autor / Źródło (opcjonalnie)">
+            <button type="submit" class="action-btn primary">Zapisz myśl</button>
+          </form>
+          <div id="quotesList" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== WIDOK 5: ARCHIWUM WYKONANYCH ZADAŃ (Z DATAMI I PODZIAŁEM NA LATA) ==================== -->
+    <section id="tab_archive" class="tab-view" style="display:none;">
+      <div class="panel-card">
+        <div class="panel-head">
+          <div>
+            <h2>🗄️ Archiwum Wykonanych Zadań — Rok <span class="dynYearText">2026</span></h2>
+            <div class="panel-sub">Każde odklikane zadanie trafia tutaj z dokładną datą i godziną odkliknięcia (wykonania).</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select id="archiveRoleFilter" class="role-add-select" onchange="DemoApp.renderArchive()">
+              <option value="all">Wszystkie role</option>
+            </select>
+            <select id="archiveQuadFilter" class="role-add-select" onchange="DemoApp.renderArchive()">
+              <option value="all">Wszystkie ćwiartki</option>
+              <option value="1">Ćwiartka I (Pilne i Ważne)</option>
+              <option value="2">Ćwiartka II (Ważne, niepilne)</option>
+              <option value="3">Ćwiartka III (Pilne, nieważne)</option>
+              <option value="4">Ćwiartka IV (Niepilne, nieważne)</option>
+            </select>
+          </div>
+        </div>
+        <div id="archiveContainer"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOCZNA ZAKŁADKA „NA PÓŹNIEJ” (POMYSŁY DO PRZEPROCESOWANIA) -->
+  <aside id="laterDrawer" class="later-drawer">
+    <div class="later-drawer-head">
+      <div>
+        <h3 style="font-size:0.95rem; font-weight:800;">📥 Zakładka „Na później”</h3>
+        <div style="font-size:0.74rem; color:var(--text-muted);">Zrzut pomysłów i spraw do przeprocesowania na spokojnie</div>
+      </div>
+      <button class="action-btn" onclick="DemoApp.toggleLaterDrawer()">✕</button>
+    </div>
+    <div style="padding:12px 16px; border-bottom:1px solid var(--border); background:var(--surface);">
+      <form onsubmit="event.preventDefault(); DemoApp.addLaterItem();" style="display:flex; gap:6px;">
+        <input type="text" id="laterInput" class="role-add-input" placeholder="+ Wpisz pomysł na później (Enter)...">
+        <button type="submit" class="action-btn primary">Dodaj</button>
+      </form>
+    </div>
+    <div class="later-drawer-body" id="laterListContainer"></div>
+  </aside>
+
+  <!-- MODAL UNIWERSALNY -->
+  <div id="demoModalRoot"></div>
+
+  <script>
+    'use strict';
+
+    const ICONS_SVG = {
+      compass: `<svg class="app-logo-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="ig1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4f46e5"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#ig1)"/><circle cx="32" cy="32" r="20" fill="none" stroke="#fff" stroke-width="2.5" opacity="0.9"/><line x1="32" y1="12" x2="32" y2="52" stroke="#fff" stroke-width="1.8" opacity="0.45"/><line x1="12" y1="32" x2="52" y2="32" stroke="#fff" stroke-width="1.8" opacity="0.45"/><polygon points="32,15 37,32 32,29 27,32" fill="#fbbf24"/><polygon points="32,49 37,32 32,35 27,32" fill="#ffffff" opacity="0.85"/></svg>`,
+      matrix: `<svg class="app-logo-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#0f172a"/><rect x="10" y="10" width="20" height="20" rx="5" fill="#ef4444"/><rect x="34" y="10" width="20" height="20" rx="5" fill="#10b981" stroke="#fbbf24" stroke-width="2.5"/><rect x="10" y="34" width="20" height="20" rx="5" fill="#f59e0b"/><rect x="34" y="34" width="20" height="20" rx="5" fill="#475569"/></svg>`,
+      table4: `<svg class="app-logo-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="ig3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#059669"/><stop offset="100%" stop-color="#2563eb"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#ig3)"/><rect x="10" y="16" width="44" height="8" rx="4" fill="#fbbf24"/><rect x="14" y="26" width="6" height="24" rx="3" fill="#fff"/><rect x="24" y="26" width="6" height="24" rx="3" fill="#fff"/><rect x="34" y="26" width="6" height="24" rx="3" fill="#fff"/><rect x="44" y="26" width="6" height="24" rx="3" fill="#fff"/></svg>`
+    };
+
+    const DemoApp = {
+      STORAGE_KEY: 'kompas_demo_v2_state',
+      activeTab: 'board',
+      goalHorizon: 'weekly',
+      calYear: new Date().getFullYear(),
+      calMonth: new Date().getMonth(),
+      state: null,
+
+      todayStr() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      },
+
+      nowDateTimeStr() {
+        const d = new Date();
+        return `${this.todayStr()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      },
+
+      init() {
+        const raw = localStorage.getItem(this.STORAGE_KEY);
+        if (raw) {
+          try { this.state = JSON.parse(raw); } catch (e) {}
+        }
+        if (!this.state) {
+          this.state = this.buildInitialDemoState();
+          this.save();
+        }
+        this.applyTheme();
+        this.renderIcon();
+        this.renderCoveyGate();
+        this.renderAll();
+      },
+
+      buildInitialDemoState() {
+        const today = this.todayStr();
+        const year = new Date().getFullYear();
+
+        // Sprawdzamy, czy w głównej aplikacji (kompas.v1) są już jakieś zadania, by pokazać je również w demo
+        let importedTasks = [];
+        let importedArchive = [];
+        try {
+          const oldRaw = localStorage.getItem('kompas.v1');
+          if (oldRaw) {
+            const oldState = JSON.parse(oldRaw);
+            if (Array.isArray(oldState.tasks)) {
+              oldState.tasks.filter(t => !t.recur && !t.done && !t.inbox).slice(0, 12).forEach(t => {
+                importedTasks.push({
+                  id: 'imp_' + t.id,
+                  title: t.title,
+                  roleId: t.roleId || 'r_work',
+                  quadrant: t.priority === 1 ? 1 : 2,
+                  date: t.date || today,
+                  year: t.date ? parseInt(t.date.slice(0, 4), 10) : year,
+                  createdAt: t.createdAt || Date.now()
+                });
+              });
+              oldState.tasks.filter(t => !t.recur && t.done).slice(0, 15).forEach(t => {
+                const doneDate = t.doneAt || t.date || today;
+                importedArchive.push({
+                  id: 'arch_' + t.id,
+                  title: t.title,
+                  roleId: t.roleId || 'r_work',
+                  quadrant: t.priority === 1 ? 1 : 2,
+                  completedAt: doneDate + ' 18:00',
+                  completedDate: doneDate,
+                  year: parseInt(doneDate.slice(0, 4), 10) || year
+                });
+              });
+            }
+          }
+        } catch (e) {}
+
+        return {
+          meta: {
+            version: '2.0-DEMO',
+            selectedYear: year,
+            roleConcept: 'hybrid',
+            selectedIcon: 'compass',
+            theme: 'light',
+            alwaysShowCoveyGate: true
+          },
+          personalRules: [
+            'Najpierw robię Głaz dnia (Ćwiartka II), zanim otworzę wiadomości i bieżączkę.',
+            'Codziennie dbam o 4 nogi mojego stołu: Ciało (spacer/ruch), Umysł (dziennik/nauka), Relacje i Pracę.',
+            'Mówię to, co myślę spokojnie i pewnie — wchodzę w każde miejsce z wyprostowaną postawą.',
+            'Planuję tydzień z wizją moich celów rocznych i kwartalnych.'
+          ],
+          roles: [
+            { id: 'r_body', emoji: '🫀', name: 'Zdrowie & Ciało', pillar: 'Noga 1: Ciało', color: '#10b981', desc: 'Energia fizyczna, sport, spacer, regeneracja' },
+            { id: 'r_mind', emoji: '🧠', name: 'Rozwój, Studia & Umysł', pillar: 'Noga 2: Umysł & Duch', color: '#7c3aed', desc: 'WSB, projekty, nauka, dziennik, czytanie' },
+            { id: 'r_rel', emoji: '🤝', name: 'Relacje & Bliscy', pillar: 'Noga 3: Relacje', color: '#f59e0b', desc: 'Rodzina, partnerka, przyjaciele' },
+            { id: 'r_work', emoji: '💼', name: 'Praca, Firma & Finanse', pillar: 'Noga 4: Finanse & Misja', color: '#2563eb', desc: 'Projekty zawodowe, faktury, rozwój biznesu' }
+          ],
+          goals: {
+            [year]: {
+              r_body: {
+                weekly: 'Codzienny spacer min. 30 min + zadbanie o głęboki sen',
+                monthly: '25 dni aktywnego ruchu i zero odpuszczonych spacerów',
+                quarterly: 'Zbudować żelazną kondycję i stały rytm poranny',
+                yearly: 'Pełna witalność, świetna sylwetka i wysoka energia każdego dnia'
+              },
+              r_mind: {
+                weekly: 'Codzienne pisanie dziennika + domknięcie projektów WSB',
+                monthly: 'Przeczytać 1 wartościową książkę i prowadzić dziennik bez przerw',
+                quarterly: 'Zaliczyć semestr na WSB bez zaległości + praca nad pewnością siebie',
+                yearly: 'Silny charakter, dyscyplina wewnętrzna i ukończony kolejny etap studiów'
+              },
+              r_rel: {
+                weekly: 'Wartościowy czas z bliskimi bez telefonu',
+                monthly: 'Wspólne wyjście / inicjatywa dla rodziny i przyjaciół',
+                quarterly: 'Pogłębienie najważniejszych relacji w oparciu o Wygrana-Wygrana',
+                yearly: 'Głębokie, wspierające relacje rodzinne i towarzyskie'
+              },
+              r_work: {
+                weekly: 'Domknąć najważniejsze faktury, KSeF i kluczowy projekt tygodnia',
+                monthly: 'Uporządkować finanse, dofinansowania i ofertę stron dla firm',
+                quarterly: 'Zwiększyć przychody i zautomatyzować powtarzalne procesy w firmie',
+                yearly: 'Stabilny wzrost finansowy i przewidywalny system pracy'
+              }
+            }
+          },
+          tasks: importedTasks.length ? importedTasks : [
+            { id: 't1', title: 'Dokończyć kluczowy projekt z przedmiotu na WSB', roleId: 'r_mind', quadrant: 2, date: today, year: year },
+            { id: 't2', title: 'Przeanalizować ofertę stron internetowych dla biznesów budowlanych', roleId: 'r_work', quadrant: 2, date: today, year: year },
+            { id: 't3', title: 'Opłacić bieżące faktury i sprawdzić dokumenty', roleId: 'r_work', quadrant: 1, date: today, year: year },
+            { id: 't4', title: 'Zaplanować wspólne popołudnie z bliskimi', roleId: 'r_rel', quadrant: 2, date: today, year: year },
+            { id: 't5', title: 'Porządek na pulpicie i w skrzynce mailowej', roleId: 'r_work', quadrant: 3, date: today, year: year }
+          ],
+          laterQueue: [
+            { id: 'lat1', title: 'Zainteresować się dofinansowaniami i dotacjami rozwojowymi', createdAt: today },
+            { id: 'lat2', title: 'Sprawdzić program wymiany punktów Atlas', createdAt: today },
+            { id: 'lat3', title: 'Pomysł na automatyzację raportów miesięcznych', createdAt: today }
+          ],
+          calendarReminders: [
+            { id: 'cal1', date: today, title: 'Przegląd tygodniowy celów i ról', type: 'reminder' }
+          ],
+          sharpenTheSaw: [
+            {
+              id: 'saw_walk',
+              title: '🚶‍♂️ Wyjście na spacer (przewietrzenie głowy i ruch)',
+              dimension: 'body',
+              cycle: 'daily',
+              cycleLabel: 'Codziennie',
+              notes: 'Minimum 20–30 minut spokojnego marszu bez telefonu w ręku.',
+              history: [today],
+              streak: 1
+            },
+            {
+              id: 'saw_journal',
+              title: '📓 Pisanie dziennika (wieczorna / poranna refleksja)',
+              dimension: 'mind',
+              cycle: 'daily',
+              cycleLabel: 'Codziennie',
+              notes: 'Zapisanie wniosków z dnia, wdzięczności i pracy nad pewnością siebie.',
+              history: [today],
+              streak: 1
+            },
+            {
+              id: 'saw_plan',
+              title: '🧭 Tygodniowy przegląd Ról i Cele (Nawyk 2 & 3)',
+              dimension: 'spirit',
+              cycle: 'weekly_0',
+              cycleLabel: 'W każdy poniedziałek',
+              notes: 'Przejrzenie 4 nóg stołu i wyznaczenie Głazów w Ćwiartce II.',
+              history: [],
+              streak: 0
+            },
+            {
+              id: 'saw_ksef',
+              title: '📊 Przegląd finansów, faktur i KSeF',
+              dimension: 'relations',
+              cycle: 'monthly_10',
+              cycleLabel: 'Co miesiąc (10. dzień)',
+              notes: 'Sprawdzenie rozliczeń i porządek w dokumentach.',
+              history: [],
+              streak: 0
+            }
+          ],
+          affirmations: [
+            { id: 'af1', text: 'Jestem proaktywny — każdego dnia wybieram spokój, pewność siebie i działanie w Ćwiartce II.', pinned: true },
+            { id: 'af2', text: 'Wchodząc do każdego miejsca czuję się swobodnie, mówię otwarcie co myślę i szanuję swój czas.', pinned: false },
+            { id: 'af3', text: 'Moje 4 nogi stołu (Ciało, Umysł, Relacje, Praca) są w równowadze i dają mi siłę.', pinned: false }
+          ],
+          quotes: [
+            { id: 'q1', text: 'Najważniejsze jest to, aby najważniejsze rzeczy pozostały najważniejsze.', author: 'Stephen R. Covey' },
+            { id: 'q2', text: 'Nie jestem produktem moich okoliczności. Jestem produktem moich decyzji.', author: 'Stephen R. Covey' },
+            { id: 'q3', text: 'Dyscyplina to pamiętanie o tym, czego naprawdę chcesz, zamiast ulegania temu, na co masz ochotę w danej chwili.', author: 'Zbiór własny' }
+          ],
+          completedArchive: importedArchive.length ? importedArchive : [
+            { id: 'ar1', title: 'Uporządkowanie struktury planu tygodniowego', roleId: 'r_mind', quadrant: 2, completedAt: `${today} 09:30`, completedDate: today, year: year }
+          ]
+        };
+      },
+
+      save() {
+        try {
+          localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.state));
+        } catch (e) { console.warn(e); }
+      },
+
+      /* ---- EKRAN POWITALNY COVEYA ---- */
+      renderCoveyGate() {
+        const pinnedAff = this.state.affirmations.find(a => a.pinned) || this.state.affirmations[0];
+        const firstQuote = this.state.quotes[0];
+        document.getElementById('gateAffirmationText').textContent = pinnedAff ? `„${pinnedAff.text}”` : 'Dodaj swoją pierwszą afirmację w zakładce Umysł.';
+        document.getElementById('gateQuoteText').textContent = firstQuote ? `„${firstQuote.text}” — ${firstQuote.author || ''}` : '';
+
+        const rulesList = document.getElementById('myPersonalRulesList');
+        rulesList.innerHTML = this.state.personalRules.map((rule, idx) => `
+          <li class="my-rule-item">
+            <span>${idx + 1}. ${this.esc(rule)}</span>
+            <button class="micro-del-btn" onclick="DemoApp.removePersonalRule(${idx})" title="Usuń zasadę">✕</button>
+          </li>
+        `).join('');
+
+        const chk = document.getElementById('chkAlwaysShowGate');
+        if (chk) chk.checked = !!this.state.meta.alwaysShowCoveyGate;
+      },
+
+      openCoveyGate() {
+        this.renderCoveyGate();
+        document.getElementById('coveyGateOverlay').classList.remove('covey-gate-Overlay-hidden');
+      },
+
+      closeCoveyGate() {
+        document.getElementById('coveyGateOverlay').classList.add('covey-gate-Overlay-hidden');
+      },
+
+      addPersonalRule() {
+        const inp = document.getElementById('newRuleInput');
+        const val = (inp.value || '').trim();
+        if (!val) return;
+        this.state.personalRules.push(val);
+        inp.value = '';
+        this.save();
+        this.renderCoveyGate();
+      },
+
+      removePersonalRule(idx) {
+        this.state.personalRules.splice(idx, 1);
+        this.save();
+        this.renderCoveyGate();
+      },
+
+      toggleAlwaysShowGate(val) {
+        this.state.meta.alwaysShowCoveyGate = val;
+        this.save();
+      },
+
+      /* ---- NAWIGACJA I LATA ---- */
+      switchTab(tab) {
+        this.activeTab = tab;
+        document.querySelectorAll('.nav-tab[data-tab]').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.tab === tab);
+        });
+        document.querySelectorAll('.tab-view').forEach(sec => {
+          sec.style.display = (sec.id === 'tab_' + tab) ? 'block' : 'none';
+        });
+        this.renderAll();
+      },
+
+      setYear(yr) {
+        this.state.meta.selectedYear = yr;
+        this.calYear = yr;
+        if (!this.state.goals[yr]) {
+          this.state.goals[yr] = {};
+          this.state.roles.forEach(r => {
+            this.state.goals[yr][r.id] = { weekly: '', monthly: '', quarterly: '', yearly: '' };
+          });
+        }
+        this.save();
+        this.renderAll();
+      },
+
+      renderYearSelector() {
+        const curYear = this.state.meta.selectedYear;
+        const years = [curYear - 1, curYear, curYear + 1];
+        const bar = document.getElementById('yearSelectorBar');
+        bar.innerHTML = years.map(y => `
+          <button class="year-btn ${y === curYear ? 'active' : ''}" onclick="DemoApp.setYear(${y})">Rok ${y}</button>
+        `).join('');
+        document.getElementById('ribbonYearLabel').textContent = curYear;
+        document.querySelectorAll('.dynYearText').forEach(el => { el.textContent = curYear; });
+      },
+
+      /* ---- PASEK CELÓW NAD PLANEM TYGODNIA ---- */
+      setGoalHorizon(h) {
+        this.goalHorizon = h;
+        document.querySelectorAll('#horizonSelector .horizon-pill').forEach(b => {
+          b.classList.toggle('active', b.dataset.h === h);
+        });
+        this.renderGoalsRibbon();
+      },
+
+      renderGoalsRibbon() {
+        const yr = this.state.meta.selectedYear;
+        if (!this.state.goals[yr]) this.state.goals[yr] = {};
+        const labels = {
+          weekly: 'Cel na ten tydzień',
+          monthly: 'Cel na ten miesiąc',
+          quarterly: 'Cel kwartalny',
+          yearly: `Cel roczny (${yr})`
+        };
+        const row = document.getElementById('ribbonGoalsRow');
+        row.innerHTML = this.state.roles.map(r => {
+          const gObj = this.state.goals[yr][r.id] || { weekly: '', monthly: '', quarterly: '', yearly: '' };
+          const val = gObj[this.goalHorizon] || '';
+          return `
+            <div class="goal-mini-card" style="border-top: 3px solid ${r.color};">
+              <div class="goal-mini-head">
+                <span>${r.emoji} ${this.esc(r.name)}</span>
+                <span style="font-size:0.68rem; color:var(--text-muted);">${labels[this.goalHorizon]}</span>
+              </div>
+              <textarea rows="2" class="goal-mini-input"
+                placeholder="Wpisz ${labels[this.goalHorizon].toLowerCase()} dla tej roli..."
+                onchange="DemoApp.updateGoal('${r.id}', '${this.goalHorizon}', this.value)">${this.esc(val)}</textarea>
+            </div>
+          `;
+        }).join('');
+      },
+
+      updateGoal(roleId, horizon, value) {
+        const yr = this.state.meta.selectedYear;
+        if (!this.state.goals[yr]) this.state.goals[yr] = {};
+        if (!this.state.goals[yr][roleId]) this.state.goals[yr][roleId] = { weekly: '', monthly: '', quarterly: '', yearly: '' };
+        this.state.goals[yr][roleId][horizon] = value.trim();
+        this.save();
+        this.renderFullGoalsMatrix();
+      },
+
+      /* ---- DZISIEJSZE OSTRZENIE PIŁY (SZYBKI PASEK) ---- */
+      renderTodaySawBar() {
+        const today = this.todayStr();
+        const list = document.getElementById('todaySawQuickList');
+        const items = this.state.sharpenTheSaw;
+        document.getElementById('sawCountBadge').textContent = items.length;
+
+        list.innerHTML = items.map(item => {
+          const isDone = (item.history || []).includes(today);
+          return `
+            <div class="saw-quick-pill ${isDone ? 'done' : ''}" onclick="DemoApp.toggleSawToday('${item.id}')" title="${this.esc(item.notes || '')}">
+              <span>${isDone ? '✓' : '○'}</span>
+              <span>${this.esc(item.title)}</span>
+              <span style="font-size:0.7rem; opacity:0.8;">🔥${item.streak || 0}</span>
+            </div>
+          `;
+        }).join('');
+      },
+
+      toggleSawToday(id) {
+        const today = this.todayStr();
+        const item = this.state.sharpenTheSaw.find(x => x.id === id);
+        if (!item) return;
+        if (!Array.isArray(item.history)) item.history = [];
+        const idx = item.history.indexOf(today);
+        if (idx >= 0) {
+          item.history.splice(idx, 1);
+          item.streak = Math.max(0, (item.streak || 1) - 1);
+        } else {
+          item.history.push(today);
+          item.streak = (item.streak || 0) + 1;
+        }
+        this.save();
+        this.renderAll();
+      },
+
+      /* ---- LEWA STRONA: LISTA RÓL I ZADANIA TYGODNIA ---- */
+      setRoleConcept(concept) {
+        this.state.meta.roleConcept = concept;
+        this.save();
+        this.renderRolesAndMatrix();
+      },
+
+      renderRolesAndMatrix() {
+        const yr = this.state.meta.selectedYear;
+        const activeTasks = this.state.tasks.filter(t => (t.year || yr) === yr);
+        const concept = this.state.meta.roleConcept || 'hybrid';
+        const sel = document.getElementById('roleConceptSelect');
+        if (sel) sel.value = concept;
+
+        // Render lewej kolumny (Role)
+        const rolesContainer = document.getElementById('rolesListContainer');
+        rolesContainer.innerHTML = this.state.roles.map(r => {
+          const rTasks = activeTasks.filter(t => t.roleId === r.id);
+          const weekGoal = this.state.goals[yr]?.[r.id]?.weekly || '';
+          const titleDisplay = concept === 'legs' ? `${r.emoji} ${r.pillar} (${r.name})`
+            : concept === 'roles' ? `${r.emoji} Rola: ${r.name}`
+            : `${r.emoji} ${r.name}`;
+
+          return `
+            <div class="role-box" style="border-left: 4px solid ${r.color};">
+              <div class="role-box-header">
+                <div>
+                  <div class="role-box-title">
+                    <span>${this.esc(titleDisplay)}</span>
+                    ${concept === 'hybrid' ? `<span class="role-pillar-tag">${this.esc(r.pillar)}</span>` : ''}
+                  </div>
+                  ${weekGoal ? `<div style="font-size:0.74rem; color:var(--emerald); font-weight:700; margin-top:2px;">🎯 Cel tyg.: ${this.esc(weekGoal)}</div>` : ''}
+                </div>
+                <span class="badge-count">${rTasks.length} zadań</span>
+              </div>
+
+              <div class="role-tasks-list">
+                ${rTasks.length > 0 ? rTasks.map(t => this.renderTaskRow(t, false)).join('') : `
+                  <div style="font-size:0.76rem; color:var(--text-dim); padding:4px 2px;">Brak zadań na ten tydzień w tej roli.</div>
+                `}
+              </div>
+
+              <form class="role-add-form" onsubmit="event.preventDefault(); DemoApp.addTaskFromRole('${r.id}', this);">
+                <input type="text" name="title" class="role-add-input" placeholder="+ Wpisz zadanie dla roli „${this.esc(r.name)}”..." required>
+                <select name="quadrant" class="role-add-select" title="Wybierz ćwiartkę Matrycy Eisenhowera">
+                  <option value="2">💎 Q2 (Ważne, niepilne)</option>
+                  <option value="1">🔥 Q1 (Pilne i Ważne)</option>
+                  <option value="3">⚡ Q3 (Pilne, nieważne)</option>
+                  <option value="4">🗑️ Q4 (Niepilne, nieważne)</option>
+                </select>
+                <input type="date" name="date" class="role-add-select" value="${this.todayStr()}">
+                <button type="submit" class="action-btn primary">+</button>
+              </form>
+            </div>
+          `;
+        }).join('');
+
+        // Render prawej kolumny (Matryca Eisenhowera 4 ćwiartki)
+        const quads = [
+          { q: 1, cls: 'q1-box', badge: 'q1', title: '🔥 Ćwiartka I: Pilne i Ważne', sub: 'Zrób natychmiast · Kryzysy, palące problemy, projekty z terminem' },
+          { q: 2, cls: 'q2-box', badge: 'q2', title: '💎 Ćwiartka II: Niepilne, ale Ważne', sub: 'SERCE SKUTECZNOŚCI · Planowanie, rozwój, relacje, ważne cele' },
+          { q: 3, cls: 'q3-box', badge: 'q3', title: '⚡ Ćwiartka III: Pilne, ale Nieważne', sub: 'Zminimalizuj / Zdeleguj · Przerwania, drobna bieżączka' },
+          { q: 4, cls: 'q4-box', badge: 'q4', title: '🗑️ Ćwiartka IV: Niepilne i Nieważne', sub: 'Eliminuj · Rozpraszacze, pożeracze czasu' }
+        ];
+
+        const matrixEl = document.getElementById('eisenhowerContainer');
+        matrixEl.innerHTML = quads.map(qm => {
+          const qTasks = activeTasks.filter(t => Number(t.quadrant) === qm.q);
+          return `
+            <div class="quadrant-box ${qm.cls}">
+              <div class="quadrant-head">
+                <div>
+                  <div class="quadrant-title">${qm.title}</div>
+                  <div class="quadrant-sub">${qm.sub}</div>
+                </div>
+                <span class="q-badge ${qm.badge}">${qTasks.length}</span>
+              </div>
+              <div class="quadrant-tasks">
+                ${qTasks.length > 0 ? qTasks.map(t => this.renderTaskRow(t, true)).join('') : `
+                  <div style="font-size:0.75rem; color:var(--text-dim); margin:auto 0; text-align:center; padding:16px 0;">Pusto w tej ćwiartce</div>
+                `}
+              </div>
+              <form onsubmit="event.preventDefault(); DemoApp.addTaskFromQuadrant(${qm.q}, this);" style="display:flex; gap:5px; margin-top:auto; padding-top:8px; border-top:1px dashed var(--border);">
+                <input type="text" name="title" class="role-add-input" placeholder="+ Dodaj do Q${qm.q}..." required>
+                <select name="roleId" class="role-add-select" style="max-width:115px;">
+                  ${this.state.roles.map(r => `<option value="${r.id}">${r.emoji} ${this.esc(r.name)}</option>`).join('')}
+                </select>
+                <button type="submit" class="action-btn">+</button>
+              </form>
+            </div>
+          `;
+        }).join('');
+      },
+
+      renderTaskRow(t, showRoleBadge) {
+        const r = this.state.roles.find(x => x.id === t.roleId) || this.state.roles[0];
+        return `
+          <div class="task-item">
+            <div class="task-left">
+              <button class="task-check" onclick="DemoApp.completeTask('${t.id}')" title="Odkliknij jako wykonane (zapisze się w Archiwum z dzisiejszą datą)">✓</button>
+              <span class="task-title-text">${this.esc(t.title)}</span>
+            </div>
+            <div class="task-meta-pills">
+              ${showRoleBadge && r ? `<span class="role-badge-mini">${r.emoji} ${this.esc(r.name)}</span>` : ''}
+              <span class="q-badge q${t.quadrant}" onclick="DemoApp.cycleTaskQuadrant('${t.id}')" title="Kliknij, aby zmienić ćwiartkę (Q1 → Q2 → Q3 → Q4)">Q${t.quadrant}</span>
+              ${t.date ? `<span class="date-badge-mini">📅 ${t.date.slice(5)}</span>` : ''}
+              <button class="micro-del-btn" onclick="DemoApp.deleteTask('${t.id}')" title="Usuń zadanie">🗑️</button>
+            </div>
+          </div>
+        `;
+      },
+
+      addTaskFromRole(roleId, form) {
+        const title = form.title.value.trim();
+        if (!title) return;
+        const quadrant = parseInt(form.quadrant.value, 10) || 2;
+        const date = form.date.value || this.todayStr();
+        this.state.tasks.unshift({
+          id: 't_' + Date.now(),
+          title,
+          roleId,
+          quadrant,
+          date,
+          year: this.state.meta.selectedYear,
+          createdAt: Date.now()
+        });
+        form.title.value = '';
+        this.save();
+        this.renderAll();
+      },
+
+      addTaskFromQuadrant(quadrant, form) {
+        const title = form.title.value.trim();
+        if (!title) return;
+        const roleId = form.roleId.value || this.state.roles[0].id;
+        this.state.tasks.unshift({
+          id: 't_' + Date.now(),
+          title,
+          roleId,
+          quadrant,
+          date: this.todayStr(),
+          year: this.state.meta.selectedYear,
+          createdAt: Date.now()
+        });
+        form.title.value = '';
+        this.save();
+        this.renderAll();
+      },
+
+      cycleTaskQuadrant(id) {
+        const t = this.state.tasks.find(x => x.id === id);
+        if (!t) return;
+        t.quadrant = (t.quadrant % 4) + 1;
+        this.save();
+        this.renderAll();
+      },
+
+      completeTask(id) {
+        const idx = this.state.tasks.findIndex(x => x.id === id);
+        if (idx < 0) return;
+        const [task] = this.state.tasks.splice(idx, 1);
+        const nowStr = this.nowDateTimeStr();
+        const today = this.todayStr();
+        this.state.completedArchive.unshift({
+          id: 'arch_' + task.id + '_' + Date.now(),
+          title: task.title,
+          roleId: task.roleId,
+          quadrant: task.quadrant,
+          scheduledDate: task.date,
+          completedAt: nowStr,
+          completedDate: today,
+          year: parseInt(today.slice(0, 4), 10)
+        });
+        this.save();
+        this.renderAll();
+      },
+
+      deleteTask(id) {
+        this.state.tasks = this.state.tasks.filter(x => x.id !== id);
+        this.save();
+        this.renderAll();
+      },
+
+      addNewRolePrompt() {
+        const name = (prompt('Podaj nazwę nowej Roli życiowej:') || '').trim();
+        if (!name) return;
+        const emoji = (prompt('Podaj emotkę dla tej roli (np. 🚀, 🎨, 🎸):', '🚀') || '🎯').trim();
+        const pillar = (prompt('Do której Nogi Stołu należy ta rola?', 'Noga 2: Umysł & Rozwój') || 'Filar własny').trim();
+        const id = 'r_' + Date.now();
+        this.state.roles.push({ id, emoji, name, pillar, color: '#6366f1', desc: '' });
+        this.save();
+        this.renderAll();
+      },
+
+      /* ---- PEŁNOWYMIAROWY KALENDARZ NA DOLE ---- */
+      changeCalendarMonth(delta) {
+        this.calMonth += delta;
+        if (this.calMonth < 0) { this.calMonth = 11; this.calYear--; }
+        if (this.calMonth > 11) { this.calMonth = 0; this.calYear++; }
+        this.renderCalendar();
+      },
+
+      renderCalendar() {
+        const monthsPl = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+        document.getElementById('calendarMonthLabel').textContent = `${monthsPl[this.calMonth]} ${this.calYear}`;
+
+        const firstDay = new Date(this.calYear, this.calMonth, 1);
+        const startOffset = (firstDay.getDay() + 6) % 7; // Poniedziałek = 0
+        const daysInMonth = new Date(this.calYear, this.calMonth + 1, 0).getDate();
+        const today = this.todayStr();
+
+        const cells = [];
+        const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+        for (let i = 0; i < totalCells; i++) {
+          const d = new Date(this.calYear, this.calMonth, 1 - startOffset + i);
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const isCurrentMonth = d.getMonth() === this.calMonth;
+          const isToday = dateStr === today;
+
+          const dayTasks = this.state.tasks.filter(t => t.date === dateStr);
+          const dayReminders = (this.state.calendarReminders || []).filter(r => r.date === dateStr);
+
+          cells.push(`
+            <div class="cal-day-cell ${isCurrentMonth ? '' : 'is-other-month'} ${isToday ? 'is-today' : ''}"
+                 onclick="DemoApp.openCalendarDayModal('${dateStr}')">
+              <div class="cal-day-top">
+                <span>${d.getDate()}</span>
+                <span class="cal-add-mini">+ Dodaj</span>
+              </div>
+              <div class="cal-events-list">
+                ${dayReminders.map(rem => `
+                  <div class="cal-event-chip is-reminder" title="Przypomnienie: ${this.esc(rem.title)}">🔔 ${this.esc(rem.title)}</div>
+                `).join('')}
+                ${dayTasks.map(tk => `
+                  <div class="cal-event-chip" title="Zadanie (Q${tk.quadrant}): ${this.esc(tk.title)}">• ${this.esc(tk.title)}</div>
+                `).join('')}
+              </div>
+            </div>
+          `);
+        }
+
+        document.getElementById('calendarGrid').innerHTML = cells.join('');
+      },
+
+      openCalendarDayModal(dateStr) {
+        const dayTasks = this.state.tasks.filter(t => t.date === dateStr);
+        const dayReminders = (this.state.calendarReminders || []).filter(r => r.date === dateStr);
+        const root = document.getElementById('demoModalRoot');
+        root.innerHTML = `
+          <div class="covey-gate-overlay" onclick="if(event.target===this) DemoApp.closeModal()">
+            <div class="covey-modal" style="max-width:560px;">
+              <div class="covey-header">
+                <div>
+                  <h2 style="font-size:1.15rem; font-weight:800;">📅 Dzień w kalendarzu: ${dateStr}</h2>
+                  <p>Dodaj przypomnienie do kalendarza lub zadanie przypisane do tego dnia.</p>
+                </div>
+                <button class="action-btn" onclick="DemoApp.closeModal()">✕</button>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <h4 style="font-size:0.82rem; color:var(--text-muted);">Wpisane na ten dzień:</h4>
+                ${dayReminders.length === 0 && dayTasks.length === 0 ? `<div style="font-size:0.82rem; color:var(--text-dim);">Brak wpisów na ten dzień.</div>` : ''}
+                ${dayReminders.map(r => `
+                  <div class="task-item">
+                    <span>🔔 <strong>Przypomnienie:</strong> ${this.esc(r.title)}</span>
+                    <button class="micro-del-btn" onclick="DemoApp.deleteCalendarReminder('${r.id}', '${dateStr}')">🗑️</button>
+                  </div>
+                `).join('')}
+                ${dayTasks.map(t => `
+                  <div class="task-item">
+                    <span>🎯 <strong>Zadanie (Q${t.quadrant}):</strong> ${this.esc(t.title)}</span>
+                    <button class="micro-del-btn" onclick="DemoApp.deleteTask('${t.id}'); DemoApp.openCalendarDayModal('${dateStr}');">🗑️</button>
+                  </div>
+                `).join('')}
+              </div>
+
+              <form onsubmit="event.preventDefault(); DemoApp.saveCalendarEntry('${dateStr}', this);" style="display:flex; flex-direction:column; gap:10px; padding-top:12px; border-top:1px solid var(--border);">
+                <input type="text" name="title" class="role-add-input" placeholder="Treść przypomnienia lub zadania..." required autofocus>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <select name="entryType" class="role-add-select" style="flex:1;">
+                    <option value="reminder">🔔 Przypomnienie kalendarzowe</option>
+                    <option value="task">🎯 Zadanie (Rola + Matryca Eisenhowera)</option>
+                  </select>
+                  <select name="roleId" class="role-add-select" style="flex:1;">
+                    ${this.state.roles.map(r => `<option value="${r.id}">${r.emoji} ${this.esc(r.name)}</option>`).join('')}
+                  </select>
+                  <select name="quadrant" class="role-add-select">
+                    <option value="2">Q2 (Ważne)</option>
+                    <option value="1">Q1 (Pilne)</option>
+                    <option value="3">Q3</option>
+                    <option value="4">Q4</option>
+                  </select>
+                </div>
+                <button type="submit" class="action-btn primary" style="justify-content:center; padding:10px;">Zapisz w kalendarzu (${dateStr})</button>
+              </form>
+            </div>
+          </div>
+        `;
+      },
+
+      saveCalendarEntry(dateStr, form) {
+        const title = form.title.value.trim();
+        if (!title) return;
+        if (form.entryType.value === 'reminder') {
+          this.state.calendarReminders.push({
+            id: 'rem_' + Date.now(),
+            date: dateStr,
+            title
+          });
+        } else {
+          this.state.tasks.unshift({
+            id: 't_' + Date.now(),
+            title,
+            roleId: form.roleId.value,
+            quadrant: parseInt(form.quadrant.value, 10) || 2,
+            date: dateStr,
+            year: parseInt(dateStr.slice(0, 4), 10) || this.state.meta.selectedYear,
+            createdAt: Date.now()
+          });
+        }
+        this.save();
+        this.renderAll();
+        this.openCalendarDayModal(dateStr);
+      },
+
+      deleteCalendarReminder(id, dateStr) {
+        this.state.calendarReminders = this.state.calendarReminders.filter(r => r.id !== id);
+        this.save();
+        this.renderAll();
+        this.openCalendarDayModal(dateStr);
+      },
+
+      closeModal() {
+        document.getElementById('demoModalRoot').innerHTML = '';
+      },
+
+      /* ---- ZAKŁADKA BOCZNA „NA PÓŹNIEJ” ---- */
+      toggleLaterDrawer() {
+        document.getElementById('laterDrawer').classList.toggle('open');
+      },
+
+      renderLaterQueue() {
+        const list = this.state.laterQueue || [];
+        document.getElementById('laterCountBadge').textContent = list.length;
+        const container = document.getElementById('laterListContainer');
+        if (list.length === 0) {
+          container.innerHTML = `<div style="font-size:0.82rem; color:var(--text-dim); text-align:center; padding:30px 10px;">Brak odłożonych pomysłów. Wpisz powyżej wszystko, co przychodzi Ci do głowy, aby przeprocesować to później.</div>`;
+          return;
+        }
+        container.innerHTML = list.map(item => `
+          <div class="later-item-card">
+            <div style="display:flex; justify-content:space-between; gap:8px;">
+              <strong style="font-size:0.85rem;">💡 ${this.esc(item.title)}</strong>
+              <button class="micro-del-btn" onclick="DemoApp.deleteLaterItem('${item.id}')">🗑️</button>
+            </div>
+            <div class="later-process-bar">
+              <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">Przeprocesuj do Roli:</span>
+              <select id="procRole_${item.id}" class="role-add-select" style="font-size:0.72rem; padding:3px 6px;">
+                ${this.state.roles.map(r => `<option value="${r.id}">${r.emoji} ${this.esc(r.name)}</option>`).join('')}
+              </select>
+              <button class="q-badge q2" onclick="DemoApp.processLaterToTask('${item.id}', 2)">→ Q2</button>
+              <button class="q-badge q1" onclick="DemoApp.processLaterToTask('${item.id}', 1)">→ Q1</button>
+              <button class="q-badge q3" onclick="DemoApp.processLaterToTask('${item.id}', 3)">→ Q3</button>
+            </div>
+          </div>
+        `).join('');
+      },
+
+      addLaterItem() {
+        const inp = document.getElementById('laterInput');
+        const title = (inp.value || '').trim();
+        if (!title) return;
+        this.state.laterQueue.unshift({ id: 'lat_' + Date.now(), title, createdAt: this.todayStr() });
+        inp.value = '';
+        this.save();
+        this.renderLaterQueue();
+      },
+
+      processLaterToTask(id, quadrant) {
+        const idx = this.state.laterQueue.findIndex(x => x.id === id);
+        if (idx < 0) return;
+        const roleSelect = document.getElementById('procRole_' + id);
+        const roleId = roleSelect ? roleSelect.value : this.state.roles[0].id;
+        const [item] = this.state.laterQueue.splice(idx, 1);
+        this.state.tasks.unshift({
+          id: 't_' + Date.now(),
+          title: item.title,
+          roleId,
+          quadrant,
+          date: this.todayStr(),
+          year: this.state.meta.selectedYear,
+          createdAt: Date.now()
+        });
+        this.save();
+        this.renderAll();
+      },
+
+      deleteLaterItem(id) {
+        this.state.laterQueue = this.state.laterQueue.filter(x => x.id !== id);
+        this.save();
+        this.renderLaterQueue();
+      },
+
+      /* ---- ZAKŁADKA: OSTRZENIE PIŁY (DAWNE RUTYNY) ---- */
+      renderSawTab() {
+        const dims = [
+          { key: 'body', icon: '🫀', title: 'Wymiar Fizyczny (Ciało)', desc: 'Spacer, trening, sen, odżywianie i regeneracja organizmu.' },
+          { key: 'mind', icon: '🧠', title: 'Wymiar Umysłowy (Umysł)', desc: 'Pisanie dziennika, czytanie, nauka, planowanie i studia.' },
+          { key: 'spirit', icon: '🔥', title: 'Wymiar Duchowy (Charakter)', desc: 'Wartości, medytacja, afirmacje, spokój wewnętrzny.' },
+          { key: 'relations', icon: '🤝', title: 'Relacje & System Operacyjny', desc: 'Bliscy, cykliczne przeglądy finansów, KSeF i porządek.' }
+        ];
+
+        const dimSummary = document.getElementById('sawDimensionsSummary');
+        dimSummary.innerHTML = dims.map(d => {
+          const count = this.state.sharpenTheSaw.filter(s => s.dimension === d.key).length;
+          return `
+            <div class="saw-dim-card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <strong style="font-size:0.86rem;">${d.icon} ${d.title}</strong>
+                <span class="badge-count">${count}</span>
+              </div>
+              <p style="font-size:0.75rem; color:var(--text-muted);">${d.desc}</p>
+            </div>
+          `;
+        }).join('');
+
+        // Grupowanie po cyklach (jak w dotychczasowych tabelach cykli!)
+        const groups = {};
+        this.state.sharpenTheSaw.forEach(item => {
+          const g = item.cycleLabel || 'Codziennie';
+          if (!groups[g]) groups[g] = [];
+          groups[g].push(item);
+        });
+
+        const weekDays = this.getCurrentWeekDates();
+        const dowShort = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb', 'Nd'];
+
+        const container = document.getElementById('sawTablesContainer');
+        container.innerHTML = Object.keys(groups).map(cycleName => {
+          const items = groups[cycleName];
+          return `
+            <div style="border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden;">
+              <div style="padding:10px 14px; background:var(--surface-alt); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                <strong style="font-size:0.88rem;">🔄 Cykl: ${this.esc(cycleName)} (${items.length})</strong>
+              </div>
+              <table class="saw-table">
+                <thead>
+                  <tr>
+                    <th style="width:32%;">Nawyk / Ostrzenie Piły</th>
+                    <th style="width:16%;">Wymiar</th>
+                    <th style="width:26%;">Wykonanie w tym tygodniu (Pn–Nd)</th>
+                    <th style="width:20%;">Notatki / Zasada</th>
+                    <th style="width:6%; text-align:right;">Akcja</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${items.map(it => {
+                    const dimMeta = dims.find(d => d.key === it.dimension) || dims[0];
+                    return `
+                      <tr>
+                        <td>
+                          <strong>${this.esc(it.title)}</strong>
+                          <span style="margin-left:6px; font-size:0.74rem; color:#ea580c; font-weight:800;">🔥 ${it.streak || 0}</span>
+                        </td>
+                        <td><span class="role-pillar-tag">${dimMeta.icon} ${dimMeta.title.split(' ')[1]}</span></td>
+                        <td>
+                          <div class="week-dots-row">
+                            ${weekDays.map((dStr, i) => {
+                              const done = (it.history || []).includes(dStr);
+                              return `<button class="day-dot-btn ${done ? 'done' : ''}" onclick="DemoApp.toggleSawOnDate('${it.id}', '${dStr}')" title="${dStr}">${dowShort[i]}</button>`;
+                            }).join('')}
+                          </div>
+                        </td>
+                        <td style="font-size:0.76rem; color:var(--text-muted);">${this.esc(it.notes || '—')}</td>
+                        <td style="text-align:right;">
+                          <button class="micro-del-btn" onclick="DemoApp.deleteSawItem('${it.id}')">🗑️</button>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }).join('');
+      },
+
+      getCurrentWeekDates() {
+        const now = new Date();
+        const day = (now.getDay() + 6) % 7;
+        const mon = new Date(now);
+        mon.setDate(now.getDate() - day);
+        return [0,1,2,3,4,5,6].map(offset => {
+          const d = new Date(mon);
+          d.setDate(mon.getDate() + offset);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        });
+      },
+
+      toggleSawOnDate(id, dateStr) {
+        const item = this.state.sharpenTheSaw.find(x => x.id === id);
+        if (!item) return;
+        if (!Array.isArray(item.history)) item.history = [];
+        const i = item.history.indexOf(dateStr);
+        if (i >= 0) item.history.splice(i, 1);
+        else item.history.push(dateStr);
+        item.streak = item.history.length;
+        this.save();
+        this.renderAll();
+      },
+
+      openAddSawModal() {
+        const root = document.getElementById('demoModalRoot');
+        root.innerHTML = `
+          <div class="covey-gate-overlay" onclick="if(event.target===this) DemoApp.closeModal()">
+            <div class="covey-modal" style="max-width:520px;">
+              <div class="covey-header">
+                <h2>🪚 Dodaj pozycję do Ostrzenia Piły</h2>
+                <button class="action-btn" onclick="DemoApp.closeModal()">✕</button>
+              </div>
+              <form onsubmit="event.preventDefault(); DemoApp.saveNewSawItem(this);" style="display:flex; flex-direction:column; gap:12px;">
+                <input type="text" name="title" class="role-add-input" placeholder="Nazwa nawyku / czynności (np. Czytanie 20 stron)..." required autofocus>
+                <select name="dimension" class="role-add-select">
+                  <option value="body">🫀 Wymiar Fizyczny (Ciało & Zdrowie)</option>
+                  <option value="mind">🧠 Wymiar Umysłowy (Umysł & Rozwój)</option>
+                  <option value="spirit">🔥 Wymiar Duchowy (Charakter & Wartości)</option>
+                  <option value="relations">🤝 Relacje & System Operacyjny</option>
+                </select>
+                <select name="cycleLabel" class="role-add-select">
+                  <option value="Codziennie">Codziennie (każdego dnia)</option>
+                  <option value="Dni robocze (Pon–Pt)">Dni robocze (Pon–Pt)</option>
+                  <option value="W każdy poniedziałek">W każdy poniedziałek</option>
+                  <option value="W każdy piątek">W każdy piątek</option>
+                  <option value="W każdą niedzielę">W każdą niedzielę</option>
+                  <option value="Co miesiąc">Co miesiąc</option>
+                  <option value="Co kwartał">Co kwartał</option>
+                  <option value="Co rok">Co rok</option>
+                </select>
+                <input type="text" name="notes" class="role-add-input" placeholder="Notatka / wskazówka wykonania (opcjonalnie)">
+                <button type="submit" class="action-btn emerald" style="justify-content:center; padding:10px;">Dodaj do Ostrzenia Piły</button>
+              </form>
+            </div>
+          </div>
+        `;
+      },
+
+      saveNewSawItem(form) {
+        this.state.sharpenTheSaw.push({
+          id: 'saw_' + Date.now(),
+          title: form.title.value.trim(),
+          dimension: form.dimension.value,
+          cycleLabel: form.cycleLabel.value,
+          notes: form.notes.value.trim(),
+          history: [],
+          streak: 0
+        });
+        this.save();
+        this.closeModal();
+        this.renderAll();
+      },
+
+      deleteSawItem(id) {
+        this.state.sharpenTheSaw = this.state.sharpenTheSaw.filter(x => x.id !== id);
+        this.save();
+        this.renderAll();
+      },
+
+      /* ---- PEŁNA MACIERZ CELÓW (ZAKŁADKA CELE) ---- */
+      renderFullGoalsMatrix() {
+        const yr = this.state.meta.selectedYear;
+        if (!this.state.goals[yr]) this.state.goals[yr] = {};
+        const el = document.getElementById('fullGoalsMatrixContainer');
+        el.innerHTML = `
+          <table class="saw-table">
+            <thead>
+              <tr>
+                <th style="width:18%;">Rola / Noga Stołu</th>
+                <th style="width:20.5%;">⚡ Cel Tygodniowy</th>
+                <th style="width:20.5%;">📅 Cel Miesięczny</th>
+                <th style="width:20.5%;">📊 Cel Kwartalny</th>
+                <th style="width:20.5%;">🏆 Cel Roczny (${yr})</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.state.roles.map(r => {
+                const g = this.state.goals[yr][r.id] || { weekly: '', monthly: '', quarterly: '', yearly: '' };
+                return `
+                  <tr>
+                    <td>
+                      <div style="font-weight:800;">${r.emoji} ${this.esc(r.name)}</div>
+                      <div style="font-size:0.72rem; color:var(--text-muted);">${this.esc(r.pillar)}</div>
+                    </td>
+                    <td><textarea rows="3" class="goal-mini-input" style="border:1px solid var(--border);" onchange="DemoApp.updateGoal('${r.id}','weekly',this.value)">${this.esc(g.weekly || '')}</textarea></td>
+                    <td><textarea rows="3" class="goal-mini-input" style="border:1px solid var(--border);" onchange="DemoApp.updateGoal('${r.id}','monthly',this.value)">${this.esc(g.monthly || '')}</textarea></td>
+                    <td><textarea rows="3" class="goal-mini-input" style="border:1px solid var(--border);" onchange="DemoApp.updateGoal('${r.id}','quarterly',this.value)">${this.esc(g.quarterly || '')}</textarea></td>
+                    <td><textarea rows="3" class="goal-mini-input" style="border:1px solid var(--border);" onchange="DemoApp.updateGoal('${r.id}','yearly',this.value)">${this.esc(g.yearly || '')}</textarea></td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        `;
+      },
+
+      /* ---- ZBIÓR MYŚLI, CYTATY & AFIRMACJE ---- */
+      renderMindTab() {
+        const affEl = document.getElementById('affirmationsList');
+        affEl.innerHTML = this.state.affirmations.map(a => `
+          <div class="affirmation-card" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <span>✨ „${this.esc(a.text)}”</span>
+            <div style="display:flex; gap:6px; flex-shrink:0;">
+              <button class="action-btn ${a.pinned ? 'emerald' : ''}" onclick="DemoApp.pinAffirmation('${a.id}')" title="Przypnij jako afirmację dnia na ekranie startowym">
+                ${a.pinned ? '📌 Przypięta' : 'Przypnij'}
+              </button>
+              <button class="micro-del-btn" onclick="DemoApp.deleteAffirmation('${a.id}')">🗑️</button>
+            </div>
+          </div>
+        `).join('');
+
+        const qEl = document.getElementById('quotesList');
+        qEl.innerHTML = this.state.quotes.map(q => `
+          <div class="quote-card" style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+            <div>
+              <div style="font-weight:700; font-size:0.88rem;">„${this.esc(q.text)}”</div>
+              ${q.author ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">— ${this.esc(q.author)}</div>` : ''}
+            </div>
+            <button class="micro-del-btn" onclick="DemoApp.deleteQuote('${q.id}')">🗑️</button>
+          </div>
+        `).join('');
+      },
+
+      addAffirmation() {
+        const inp = document.getElementById('newAffirmationInput');
+        const text = (inp.value || '').trim();
+        if (!text) return;
+        this.state.affirmations.unshift({ id: 'af_' + Date.now(), text, pinned: false });
+        inp.value = '';
+        this.save();
+        this.renderMindTab();
+        this.renderCoveyGate();
+      },
+
+      pinAffirmation(id) {
+        this.state.affirmations.forEach(a => { a.pinned = (a.id === id); });
+        this.save();
+        this.renderMindTab();
+        this.renderCoveyGate();
+      },
+
+      deleteAffirmation(id) {
+        this.state.affirmations = this.state.affirmations.filter(a => a.id !== id);
+        this.save();
+        this.renderMindTab();
+      },
+
+      addQuote() {
+        const tInp = document.getElementById('newQuoteText');
+        const aInp = document.getElementById('newQuoteAuthor');
+        const text = (tInp.value || '').trim();
+        if (!text) return;
+        this.state.quotes.unshift({ id: 'q_' + Date.now(), text, author: (aInp.value || '').trim() });
+        tInp.value = '';
+        aInp.value = '';
+        this.save();
+        this.renderMindTab();
+        this.renderCoveyGate();
+      },
+
+      deleteQuote(id) {
+        this.state.quotes = this.state.quotes.filter(q => q.id !== id);
+        this.save();
+        this.renderMindTab();
+      },
+
+      /* ---- ARCHIWUM WYKONANYCH ZADAŃ Z DATAMI ---- */
+      renderArchive() {
+        const yr = this.state.meta.selectedYear;
+        const roleFilterEl = document.getElementById('archiveRoleFilter');
+        if (roleFilterEl && roleFilterEl.options.length <= 1) {
+          this.state.roles.forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r.id;
+            opt.textContent = `${r.emoji} ${r.name}`;
+            roleFilterEl.appendChild(opt);
+          });
+        }
+        const roleFilter = roleFilterEl ? roleFilterEl.value : 'all';
+        const quadFilter = document.getElementById('archiveQuadFilter')?.value || 'all';
+
+        const allYearArchive = (this.state.completedArchive || []).filter(a => (a.year || yr) === yr);
+        document.getElementById('archiveCountBadge').textContent = allYearArchive.length;
+
+        const filtered = allYearArchive.filter(a => {
+          if (roleFilter !== 'all' && a.roleId !== roleFilter) return false;
+          if (quadFilter !== 'all' && String(a.quadrant) !== String(quadFilter)) return false;
+          return true;
+        });
+
+        const container = document.getElementById('archiveContainer');
+        if (filtered.length === 0) {
+          container.innerHTML = `<div style="padding:30px; text-align:center; color:var(--text-dim);">Brak wykonanych zadań dla wybranych filtrów w roku ${yr}.</div>`;
+          return;
+        }
+
+        container.innerHTML = `
+          <table class="saw-table">
+            <thead>
+              <tr>
+                <th>Data wykonania (odkliknięcia)</th>
+                <th>Wykonane zadanie</th>
+                <th>Rola</th>
+                <th>Ćwiartka</th>
+                <th style="text-align:right;">Akcja</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.map(a => {
+                const r = this.state.roles.find(x => x.id === a.roleId);
+                return `
+                  <tr>
+                    <td><strong style="color:var(--emerald);">✓ ${this.esc(a.completedAt || a.completedDate)}</strong></td>
+                    <td>${this.esc(a.title)}</td>
+                    <td>${r ? `${r.emoji} ${this.esc(r.name)}` : '—'}</td>
+                    <td><span class="q-badge q${a.quadrant || 2}">Q${a.quadrant || 2}</span></td>
+                    <td style="text-align:right;">
+                      <button class="action-btn" style="padding:3px 8px; font-size:0.72rem;" onclick="DemoApp.restoreFromArchive('${a.id}')">↩ Przywróć</button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        `;
+      },
+
+      restoreFromArchive(id) {
+        const idx = this.state.completedArchive.findIndex(x => x.id === id);
+        if (idx < 0) return;
+        const [item] = this.state.completedArchive.splice(idx, 1);
+        this.state.tasks.unshift({
+          id: 't_' + Date.now(),
+          title: item.title,
+          roleId: item.roleId || this.state.roles[0].id,
+          quadrant: item.quadrant || 2,
+          date: this.todayStr(),
+          year: this.state.meta.selectedYear,
+          createdAt: Date.now()
+        });
+        this.save();
+        this.renderAll();
+      },
+
+      /* ---- KOMPLETNY EKSPORT / IMPORT PLIKU JSON ---- */
+      exportFullJSON() {
+        const payload = {
+          exportDate: new Date().toISOString(),
+          app: 'Kompas & Plan Tygodnia (Pełny Zapis Systemu)',
+          ...this.state
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `PlanTygodnia_PelnyZapis_${this.todayStr()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+
+      importFullJSON(event) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const data = JSON.parse(e.target.result);
+            if (data.roles && data.tasks) {
+              this.state = data;
+              this.save();
+              this.renderAll();
+              alert('Pomyślnie wczytano kompletny plik JSON!');
+            } else {
+              alert('Nieprawidłowy format pliku JSON.');
+            }
+          } catch (err) {
+            alert('Błąd odczytu pliku JSON: ' + err.message);
+          }
+        };
+        reader.readAsText(file);
+      },
+
+      /* ---- ZMIANA IKONKI APLIKACJI (WYBÓR Z 3 WARIANTÓW) ---- */
+      renderIcon() {
+        const key = this.state.meta.selectedIcon || 'compass';
+        const el = document.getElementById('headerIconPreview');
+        if (el) el.innerHTML = ICONS_SVG[key] || ICONS_SVG.compass;
+      },
+
+      openIconPickerModal() {
+        const root = document.getElementById('demoModalRoot');
+        root.innerHTML = `
+          <div class="covey-gate-overlay" onclick="if(event.target===this) DemoApp.closeModal()">
+            <div class="covey-modal" style="max-width:580px;">
+              <div class="covey-header">
+                <h2>🎨 Wybierz nową ikonkę aplikacji</h2>
+                <button class="action-btn" onclick="DemoApp.closeModal()">✕</button>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:14px;">
+                <div class="panel-card" style="align-items:center; text-align:center; cursor:pointer;" onclick="DemoApp.selectIcon('compass')">
+                  ${ICONS_SVG.compass}
+                  <strong style="font-size:0.84rem;">1. Kompas & 4 Ćwiartki</strong>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">Indygo + Szmaragd + Złota igła</span>
+                </div>
+                <div class="panel-card" style="align-items:center; text-align:center; cursor:pointer;" onclick="DemoApp.selectIcon('matrix')">
+                  ${ICONS_SVG.matrix}
+                  <strong style="font-size:0.84rem;">2. Matryca Eisenhowera</strong>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">4 kolorowe ćwiartki z wyróżnioną Q2</span>
+                </div>
+                <div class="panel-card" style="align-items:center; text-align:center; cursor:pointer;" onclick="DemoApp.selectIcon('table4')">
+                  ${ICONS_SVG.table4}
+                  <strong style="font-size:0.84rem;">3. Stół z 4 Nogami</strong>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">Symbol równowagi 4 filarów życia</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      },
+
+      selectIcon(key) {
+        this.state.meta.selectedIcon = key;
+        this.save();
+        this.renderIcon();
+        this.closeModal();
+      },
+
+      /* ---- PRZYWRÓCENIE USUNIĘTYCH RUTYN DO OBECNEJ GŁÓWNEJ APLIKACJI ---- */
+      restoreSpacerAndJournalToMainApp() {
+        try {
+          const raw = localStorage.getItem('kompas.v1');
+          const mainState = raw ? JSON.parse(raw) : { version: 1, roles: [], tasks: [], completedDays: [], weekGoals: {} };
+          if (!Array.isArray(mainState.tasks)) mainState.tasks = [];
+
+          const today = this.todayStr();
+          const hasWalk = mainState.tasks.some(t => t.recur && /spacer/i.test(t.title));
+          const hasJournal = mainState.tasks.some(t => t.recur && /dziennik/i.test(t.title));
+
+          let added = [];
+          if (!hasWalk) {
+            mainState.tasks.unshift({
+              id: 'rec_walk_' + Date.now(),
+              title: 'Wyjście na spacer',
+              notes: 'Codzienny spacer dla zdrowia i przewietrzenia głowy',
+              checklist: [],
+              roleId: 'r_saw',
+              priority: 2,
+              q: 2,
+              date: today,
+              recur: { unit: 'day', every: 1 },
+              inbox: false,
+              done: false,
+              doneAt: null,
+              history: [],
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            });
+            added.push('Wyjście na spacer');
+          }
+          if (!hasJournal) {
+            mainState.tasks.unshift({
+              id: 'rec_journal_' + (Date.now() + 1),
+              title: 'Pisanie dziennika',
+              notes: 'Codzienna refleksja i praca nad pewnością siebie',
+              checklist: [],
+              roleId: 'r_saw',
+              priority: 2,
+              q: 2,
+              date: today,
+              recur: { unit: 'day', every: 1 },
+              inbox: false,
+              done: false,
+              doneAt: null,
+              history: [],
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            });
+            added.push('Pisanie dziennika');
+          }
+
+          mainState.updatedAt = Date.now();
+          localStorage.setItem('kompas.v1', JSON.stringify(mainState));
+
+          if (added.length > 0) {
+            alert(`✅ Dodano ponownie do głównej bazy: ${added.join(' oraz ')}!\n\nPo otwarciu głównej strony automatycznie zsynchronizują się z chmurą Firebase.`);
+          } else {
+            alert('ℹ️ Obie rutyny („Wyjście na spacer” oraz „Pisanie dziennika”) już znajdują się w Twojej bazie!');
+          }
+        } catch (e) {
+          alert('Błąd przywracania: ' + e.message);
+        }
+      },
+
+      /* ---- MOTYW JASNY / CIEMNY ---- */
+      toggleTheme() {
+        this.state.meta.theme = this.state.meta.theme === 'dark' ? 'light' : 'dark';
+        this.save();
+        this.applyTheme();
+      },
+
+      applyTheme() {
+        const th = this.state.meta.theme || 'light';
+        document.documentElement.setAttribute('data-theme', th);
+        const btn = document.getElementById('themeBtn');
+        if (btn) btn.textContent = th === 'dark' ? '☀️' : '🌙';
+      },
+
+      esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      },
+
+      renderAll() {
+        this.renderYearSelector();
+        this.renderGoalsRibbon();
+        this.renderTodaySawBar();
+        this.renderRolesAndMatrix();
+        this.renderCalendar();
+        this.renderLaterQueue();
+        this.renderSawTab();
+        this.renderFullGoalsMatrix();
+        this.renderMindTab();
+        this.renderArchive();
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => DemoApp.init());
+  </script>
+</body>
+</html>
