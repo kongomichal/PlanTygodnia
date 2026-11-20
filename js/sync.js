@@ -14,9 +14,17 @@ const Sync = {
   initialSyncComplete: false,
   lastSyncedAt: null,
   saveTimer: null,
+  _initialized: false,
+  lastCloudData: null,
   status: 'idle', // 'idle' | 'saving' | 'synced' | 'error' | 'syncing'
 
   init() {
+    if (this._initialized) {
+      this.updateHeaderUI();
+      return;
+    }
+    this._initialized = true;
+
     if (!window.FIREBASE_CONFIG || !window.firebase) {
       console.warn('Brak konfiguracji Firebase lub biblioteki Firebase SDK.');
       this.initialSyncComplete = true;
@@ -30,11 +38,6 @@ const Sync = {
       }
       this.auth = firebase.auth();
       this.db = firebase.firestore();
-
-      // Włącz lokalną pamięć podręczną Firestore między kartami (jeśli dostępna)
-      try {
-        this.db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
-      } catch (e) {}
 
       // Obsługa powrotu z logowania przez przekierowanie (dla urządzeń mobilnych)
       this.auth.getRedirectResult().then(result => {
@@ -262,7 +265,9 @@ const Sync = {
     const store = (typeof Store !== 'undefined' ? Store : window.Store);
     if (!store || !store.state || !cloudData) return;
 
-    // Jeśli trwa aktywna transakcja zapisu z tego urządzenia, nie przerywaj jej pośrednim snapshotem
+    this.lastCloudData = JSON.parse(JSON.stringify(cloudData));
+
+    // Jeśli trwa aktywny zapis z tego urządzenia, nie przerywaj go pośrednim snapshotem
     if (this.pushing && !isInitialOrPull) return;
 
     const local = store.state;
@@ -317,7 +322,7 @@ const Sync = {
     this.setStatus('idle');
   },
 
-  /* ---- Zapis do chmury: atomowa transakcja odczyt → scalenie → zapis (nic nie jest nadpisywane) ---- */
+  /* ---- Zapis do chmury: błyskawiczne scalenie + bezpośredni zapis docRef.set (bez blokujących transakcji IndexedDB) ---- */
   dirty: false,
   pushing: false,
   pushAgain: false,
@@ -336,65 +341,57 @@ const Sync = {
     const txGen = store.editGeneration;
 
     const docRef = this.db.collection('users').doc(this.PRIMARY_DOC_ID);
-    let mergedResult = null;
-    this.db.runTransaction(async tx => {
-      const snap = await tx.get(docRef);
-      const remote = snap.exists ? snap.data() : null;
-      const local = JSON.parse(JSON.stringify(store.state));
-      let merged;
-      if (remote && Array.isArray(remote.tasks)) {
-        if (local._isSeedOnly && !remote._isSeedOnly) {
-          merged = store.normalizeState(JSON.parse(JSON.stringify(remote)));
-        } else {
-          merged = store.merge(local, remote);
-        }
+    const local = JSON.parse(JSON.stringify(store.state));
+    let merged;
+    if (this.lastCloudData && Array.isArray(this.lastCloudData.tasks)) {
+      if (local._isSeedOnly && !this.lastCloudData._isSeedOnly) {
+        merged = store.normalizeState(JSON.parse(JSON.stringify(this.lastCloudData)));
       } else {
-        merged = local;
+        merged = store.merge(local, this.lastCloudData);
       }
-      delete merged._isSeedOnly;
-      tx.set(docRef, JSON.parse(JSON.stringify(merged)));
-      mergedResult = merged;
-    }).then(() => {
+    } else {
+      merged = local;
+    }
+    delete merged._isSeedOnly;
+    const payload = JSON.parse(JSON.stringify(merged));
+
+    // Zabezpieczenie czasowe (timeout 6s), aby przycisk zapisu nigdy nie zawiesił się na "Zapisuję..."
+    let finished = false;
+    const safetyTimer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      this.pushing = false;
+      this.setStatus('error');
+    }, 6000);
+
+    docRef.set(payload).then(() => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(safetyTimer);
       this.pushing = false;
       this.initialSyncComplete = true;
+      this.lastCloudData = JSON.parse(JSON.stringify(payload));
 
       if (store.editGeneration === txGen && !this.pushAgain) {
-        // Żadna nowa zmiana nie zaszła w trakcie transakcji — wszystko bezpiecznie zapisane!
         store.markUnsynced(false);
         this.dirty = false;
-        if (mergedResult) {
-          const changed = store.sig(mergedResult) !== store.sig(store.state);
-          if (changed) {
-            this.isRemoteChange = true;
-            store.state = mergedResult;
-            store.rebaseline();
-            store.persist(true, false, false);
-            this.isRemoteChange = false;
-            if (window.App && typeof window.App.renderAll === 'function') window.App.renderAll();
-          }
-        }
         this.setStatus('synced');
       } else {
-        // W trakcie zapisu użytkownik kliknął/wpisał kolejną rzecz — scal i od razu wyślij nową wersję!
-        if (mergedResult) {
-          this.isRemoteChange = true;
-          store.state = store.merge(store.state, mergedResult);
-          store.rebaseline();
-          store.persist(false, false, false);
-          this.isRemoteChange = false;
-        }
         this.pushAgain = false;
         this.pushToCloud();
       }
     }).catch(err => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(safetyTimer);
       this.pushing = false;
       this.pushAgain = false;
       console.error('Błąd zapisu do Firestore:', err);
-      this.setStatus('error'); // dirty oraz kompas_unsynced_v1 pozostają true -> automatyczna ponowna próba
+      this.setStatus('error');
     });
   },
 
-  /** Ponawia wysyłkę po powrocie sieci / do aplikacji, a także zabezpiecza przed zamknięciem karty w trakcie zapisu. */
+  /** Ponawia wysyłkę po powrocie sieci / do aplikacji. */
   startRetryLoop() {
     if (this._retryStarted) return;
     this._retryStarted = true;
@@ -439,19 +436,6 @@ const Sync = {
       const s = store();
       if (this.user && s && s.hasUnsyncedChanges() && !this.pushing) {
         this.pushToCloud();
-      }
-    });
-
-    window.addEventListener('beforeunload', e => {
-      if (window.App && typeof window.App.flushPendingGoalSave === 'function') {
-        window.App.flushPendingGoalSave();
-      }
-      const s = store();
-      if (this.pushing || (this.user && s && s.hasUnsyncedChanges())) {
-        if (!this.pushing) this.pushToCloud();
-        e.preventDefault();
-        e.returnValue = 'Trwa zapisywanie zmian w chmurze...';
-        return e.returnValue;
       }
     });
 
