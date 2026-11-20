@@ -706,7 +706,9 @@ const App = {
     this.renderAll();
   },
 
-  /* ---- ZAKŁADKA 4: CELE (TYGODNIOWE & KWARTALNE - SMART) ---- */
+  /* ---- ZAKŁADKA 4: CELE (TYGODNIOWE & KWARTALNE - SMART + ARCHIWUM CELÓW) ---- */
+  _renderedGoalsYear: null,
+
   renderGoals(forceRebuild = false) {
     const y = Store.state.year;
     const curQ = Math.floor(new Date().getMonth() / 3) + 1;
@@ -714,10 +716,21 @@ const App = {
     const el = document.getElementById('goalsTableContainer');
     if (!el) return;
 
-    // Jeśli użytkownik właśnie edytuje lub zaznacza tekst w którymś okienku celów — nie niszcz DOM!
-    if (!forceRebuild && el.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') {
+    const existingTable = document.getElementById('goalsInputsTable');
+    if (!forceRebuild && existingTable && this._renderedGoalsYear === y) {
+      // Tabela już istnieje w DOM — aktualizujemy tylko wartości nieaktywnych pól bez przebudowywania HTML!
+      existingTable.querySelectorAll('input[data-goal-role]').forEach(inp => {
+        if (inp === document.activeElement) return;
+        const rId = inp.getAttribute('data-goal-role');
+        const h = inp.getAttribute('data-goal-horizon');
+        const val = gYear[rId]?.[h] || '';
+        if (inp.value !== val) inp.value = val;
+      });
+      this.renderGoalsArchive();
       return;
     }
+
+    this._renderedGoalsYear = y;
 
     const smartPlaceholders = {
       r1: {
@@ -739,7 +752,7 @@ const App = {
     };
 
     el.innerHTML = `
-      <table class="clean-table">
+      <table class="clean-table" id="goalsInputsTable">
         <thead>
           <tr>
             <th style="width:18%;">Rola (Noga Stołu)</th>
@@ -755,10 +768,16 @@ const App = {
               <tr>
                 <td><strong>${r.emoji} ${this.esc(r.name)}</strong></td>
                 <td>
-                  <input type="text" class="input-clean goal-edit-input" value="${this.esc(g.weekly || '')}" placeholder="${this.esc(ph.weekly)}" oninput="App.saveGoal('${r.id}','weekly',this.value)">
+                  <div style="display:flex; gap:6px; align-items:center;">
+                    <input type="text" class="input-clean goal-edit-input" data-goal-role="${r.id}" data-goal-horizon="weekly" value="${this.esc(g.weekly || '')}" placeholder="${this.esc(ph.weekly)}" oninput="App.saveGoal('${r.id}','weekly',this.value)">
+                    <button type="button" class="btn" style="padding:6px 10px; font-size:0.74rem; color:var(--emerald); border-color:var(--emerald-border); background:var(--emerald-light); flex-shrink:0;" onclick="App.archiveGoal('${r.id}','weekly')" title="Oznacz cel tygodniowy jako zrealizowany i przenieś do Archiwum Celów">✓ Zrobione</button>
+                  </div>
                 </td>
                 <td>
-                  <input type="text" class="input-clean goal-edit-input" value="${this.esc(g.quarterly || '')}" placeholder="${this.esc(ph.quarterly)}" oninput="App.saveGoal('${r.id}','quarterly',this.value)">
+                  <div style="display:flex; gap:6px; align-items:center;">
+                    <input type="text" class="input-clean goal-edit-input" data-goal-role="${r.id}" data-goal-horizon="quarterly" value="${this.esc(g.quarterly || '')}" placeholder="${this.esc(ph.quarterly)}" oninput="App.saveGoal('${r.id}','quarterly',this.value)">
+                    <button type="button" class="btn" style="padding:6px 10px; font-size:0.74rem; color:var(--emerald); border-color:var(--emerald-border); background:var(--emerald-light); flex-shrink:0;" onclick="App.archiveGoal('${r.id}','quarterly')" title="Oznacz cel kwartalny jako zrealizowany i przenieś do Archiwum Celów">✓ Zrobione</button>
+                  </div>
                 </td>
               </tr>
             `;
@@ -766,6 +785,8 @@ const App = {
         </tbody>
       </table>
     `;
+
+    this.renderGoalsArchive();
   },
 
   _goalSaveTimer: null,
@@ -773,16 +794,142 @@ const App = {
     const y = Store.state.year;
     if (!Store.state.goals[y]) Store.state.goals[y] = {};
     if (!Store.state.goals[y][roleId]) Store.state.goals[y][roleId] = {};
-    Store.state.goals[y][roleId][horizon] = val.trim();
+    Store.state.goals[y][roleId][horizon] = val;
     if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
     Store.state.fieldStamps[`goal:${y}:${roleId}:${horizon}`] = Date.now();
 
-    // Odśwież od razu kafelki na ekranie Planu Tygodnia, ale NIE przebudowuj tabeli celów (żeby nie gubić kursora i zaznaczenia!)
     this.renderPlan();
     clearTimeout(this._goalSaveTimer);
     this._goalSaveTimer = setTimeout(() => {
       Store.persist(false, true);
-    }, 350);
+    }, 400);
+  },
+
+  archiveGoal(roleId, horizon) {
+    const y = Store.state.year;
+    const curQ = Math.floor(new Date().getMonth() / 3) + 1;
+    const text = (Store.state.goals?.[y]?.[roleId]?.[horizon] || '').trim();
+    if (!text) {
+      alert('To pole celu jest puste — wpisz najpierw cel, aby móc go zarchiwizować.');
+      return;
+    }
+
+    if (!Array.isArray(Store.state.goalsArchive)) Store.state.goalsArchive = [];
+    const now = new Date();
+    const stamp = `${this.today()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+    Store.state.goalsArchive.unshift({
+      id: 'ga_' + Date.now(),
+      title: text,
+      roleId,
+      horizon, // 'weekly' | 'quarterly'
+      periodLabel: horizon === 'quarterly' ? `Kwartał Q${curQ} (${y})` : `Tydzień (${this.today()})`,
+      doneAt: stamp,
+      year: y,
+      createdAt: Date.now()
+    });
+
+    // Wyczyść zrealizowany cel z bieżącego pola
+    Store.state.goals[y][roleId][horizon] = '';
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps[`goal:${y}:${roleId}:${horizon}`] = Date.now();
+
+    const inp = document.querySelector(`#goalsInputsTable input[data-goal-role="${roleId}"][data-goal-horizon="${horizon}"]`);
+    if (inp) inp.value = '';
+
+    this.save();
+    this.renderPlan();
+    this.renderGoalsArchive();
+  },
+
+  renderGoalsArchive() {
+    const container = document.getElementById('goalsArchiveContainer');
+    if (!container) return;
+    const y = Store.state.year;
+
+    const filterSel = document.getElementById('goalsArchiveRoleFilter');
+    if (filterSel && filterSel.options.length <= 1) {
+      Store.state.roles.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = `${r.emoji} ${r.name}`;
+        filterSel.appendChild(opt);
+      });
+    }
+    const roleFilter = filterSel ? filterSel.value : 'all';
+
+    const allYear = (Store.state.goalsArchive || []).filter(g => (g.year || y) === y);
+    const filtered = allYear.filter(g => roleFilter === 'all' || g.roleId === roleFilter);
+
+    const weeklyDone = filtered.filter(g => g.horizon === 'weekly');
+    const quarterlyDone = filtered.filter(g => g.horizon === 'quarterly');
+
+    const renderGroupList = (items, emptyMsg) => {
+      if (!items.length) return `<div style="font-size:0.8rem; color:var(--text-dim); padding:14px 0;">${emptyMsg}</div>`;
+      return `
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${items.map(item => {
+            const role = Store.state.roles.find(r => r.id === item.roleId);
+            return `
+              <div class="task-row" style="border-left: 3px solid ${role ? role.color : 'var(--emerald)'};">
+                <div style="display:flex; flex-direction:column; gap:2px; flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    <span style="font-size:0.72rem; font-weight:800; color:var(--emerald);">✓ ${this.esc(item.doneAt)}</span>
+                    <span style="font-size:0.72rem; font-weight:700; background:var(--surface); padding:1px 7px; border-radius:999px; border:1px solid var(--border);">${role ? role.emoji + ' ' + this.esc(role.name) : ''}</span>
+                    ${item.periodLabel ? `<span style="font-size:0.7rem; color:var(--text-muted);">${this.esc(item.periodLabel)}</span>` : ''}
+                  </div>
+                  <div style="font-weight:700; font-size:0.85rem; margin-top:2px;">${this.esc(item.title)}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:4px;">
+                  <button type="button" class="btn" style="padding:3px 8px; font-size:0.72rem;" onclick="App.restoreGoalFromArchive('${item.id}')" title="Przywróć do aktywnego pola celu">↩ Przywróć</button>
+                  <button type="button" class="btn" style="padding:3px 7px; font-size:0.72rem;" onclick="App.deleteGoalFromArchive('${item.id}')" title="Usuń z archiwum">✕</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    };
+
+    container.innerHTML = `
+      <div class="matrix-2x2">
+        <div style="background:var(--surface-alt); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border);">
+            <h3 style="font-size:0.92rem; font-weight:800;">⚡ Zrealizowane Cele Tygodniowe (${weeklyDone.length})</h3>
+          </div>
+          ${renderGroupList(weeklyDone, 'Brak zarchiwizowanych celów tygodniowych.')}
+        </div>
+
+        <div style="background:var(--surface-alt); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border);">
+            <h3 style="font-size:0.92rem; font-weight:800;">📊 Zrealizowane Cele Kwartalne (${quarterlyDone.length})</h3>
+          </div>
+          ${renderGroupList(quarterlyDone, 'Brak zarchiwizowanych celów kwartalnych.')}
+        </div>
+      </div>
+    `;
+  },
+
+  restoreGoalFromArchive(id) {
+    const idx = (Store.state.goalsArchive || []).findIndex(g => g.id === id);
+    if (idx < 0) return;
+    const [item] = Store.state.goalsArchive.splice(idx, 1);
+    const y = Store.state.year;
+    if (!Store.state.goals[y]) Store.state.goals[y] = {};
+    if (!Store.state.goals[y][item.roleId]) Store.state.goals[y][item.roleId] = {};
+    Store.state.goals[y][item.roleId][item.horizon || 'weekly'] = item.title;
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps[`goal:${y}:${item.roleId}:${item.horizon || 'weekly'}`] = Date.now();
+
+    this.save();
+    this.renderGoals(true);
+    this.renderPlan();
+  },
+
+  deleteGoalFromArchive(id) {
+    Store.state.goalsArchive = (Store.state.goalsArchive || []).filter(g => g.id !== id);
+    this.save();
+    this.renderGoalsArchive();
   },
 
   /* ---- ZAKŁADKA 5: MYŚLI & AFIRMACJE ---- */

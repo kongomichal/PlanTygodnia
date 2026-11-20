@@ -184,7 +184,6 @@ const Sync = {
   applyRemote(cloudData) {
     const store = (typeof Store !== 'undefined' ? Store : window.Store);
     if (!store || !store.state) return;
-    if (!Array.isArray(cloudData.completedDays)) cloudData.completedDays = [];
 
     // Zapisz lokalne zmiany (np. nieoznaczone auto-przeniesienia) zanim scalimy
     store.stamp();

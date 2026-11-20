@@ -70,12 +70,27 @@ const Store = {
     if (!Array.isArray(s.affirmations)) s.affirmations = def.affirmations;
     if (!Array.isArray(s.quotes)) s.quotes = def.quotes;
     if (!Array.isArray(s.archive)) s.archive = [];
+    if (!Array.isArray(s.goalsArchive)) s.goalsArchive = [];
     if (!s.goals || typeof s.goals !== 'object') s.goals = def.goals;
     if (!s.goals[s.year]) s.goals[s.year] = def.goals[2026];
+
+    // Ujednolicenie kluczy celów dla każdego roku i roli (tylko weekly i quarterly)
+    Object.keys(s.goals).forEach(yr => {
+      if (!s.goals[yr] || typeof s.goals[yr] !== 'object') s.goals[yr] = {};
+      s.roles.forEach(r => {
+        const cur = s.goals[yr][r.id] || {};
+        s.goals[yr][r.id] = {
+          weekly: String(cur.weekly || ''),
+          quarterly: String(cur.quarterly || '')
+        };
+      });
+    });
+
+    delete s.completedDays;
     return s;
   },
 
-  COLLECTIONS: ['tasks', 'roles', 'later', 'reminders', 'saw', 'archive', 'affirmations', 'quotes'],
+  COLLECTIONS: ['tasks', 'roles', 'later', 'reminders', 'saw', 'archive', 'goalsArchive', 'affirmations', 'quotes'],
   baseline: {},
 
   _fp(item) {
@@ -149,41 +164,46 @@ const Store = {
   merge(a, b) {
     if (!b) return a;
     if (!a) return b;
-    this.normalizeState(a);
-    this.normalizeState(b);
+    const ca = JSON.parse(JSON.stringify(a));
+    const cb = JSON.parse(JSON.stringify(b));
+    this.normalizeState(ca);
+    this.normalizeState(cb);
 
-    const out = { ...b, ...a };
+    const out = { ...cb, ...ca };
     const limit = Date.now() - 90 * 864e5;
     const tombs = {};
-    [b.deleted, a.deleted].forEach(d => Object.keys(d || {}).forEach(k => {
+    [cb.deleted, ca.deleted].forEach(d => Object.keys(d || {}).forEach(k => {
       if (d[k] > (tombs[k] || 0)) tombs[k] = d[k];
     }));
     Object.keys(tombs).forEach(k => { if (tombs[k] < limit) delete tombs[k]; });
     out.deleted = tombs;
 
     this.COLLECTIONS.forEach(col => {
-      out[col] = this._mergeList(col, a[col], b[col], tombs);
+      out[col] = this._mergeList(col, ca[col], cb[col], tombs);
     });
 
-    const fa = a.fieldStamps || {};
-    const fb = b.fieldStamps || {};
+    const fa = ca.fieldStamps || {};
+    const fb = cb.fieldStamps || {};
     out.fieldStamps = { ...fb, ...fa };
+    Object.keys(fb).forEach(k => {
+      if ((fb[k] || 0) > (fa[k] || 0)) out.fieldStamps[k] = fb[k];
+    });
 
     out.goals = {};
-    const allYears = new Set([...Object.keys(a.goals || {}), ...Object.keys(b.goals || {})]);
+    const allYears = new Set([...Object.keys(ca.goals || {}), ...Object.keys(cb.goals || {})]);
     allYears.forEach(yr => {
       out.goals[yr] = {};
-      const ga = (a.goals && a.goals[yr]) || {};
-      const gb = (b.goals && b.goals[yr]) || {};
+      const ga = (ca.goals && ca.goals[yr]) || {};
+      const gb = (cb.goals && cb.goals[yr]) || {};
       const roleIds = new Set([...Object.keys(ga), ...Object.keys(gb)]);
       roleIds.forEach(rId => {
         out.goals[yr][rId] = {};
-        ['weekly', 'monthly', 'quarterly', 'yearly'].forEach(h => {
+        ['weekly', 'quarterly'].forEach(h => {
           const stampKey = `goal:${yr}:${rId}:${h}`;
           const ta = fa[stampKey] || 0;
           const tb = fb[stampKey] || 0;
-          const va = ga[rId]?.[h] || '';
-          const vb = gb[rId]?.[h] || '';
+          const va = ga[rId]?.[h] ?? '';
+          const vb = gb[rId]?.[h] ?? '';
           if (tb > ta) out.goals[yr][rId][h] = vb;
           else if (ta > tb) out.goals[yr][rId][h] = va;
           else out.goals[yr][rId][h] = va.length >= vb.length ? va : vb;
@@ -191,21 +211,25 @@ const Store = {
       });
     });
 
-    out.updatedAt = Math.max(a.updatedAt || 0, b.updatedAt || 0);
+    out.updatedAt = Math.max(ca.updatedAt || 0, cb.updatedAt || 0);
     return this.normalizeState(out);
   },
 
   sig(s) {
     if (!s) return '';
-    const c = { ...s };
+    const c = JSON.parse(JSON.stringify(s));
+    this.normalizeState(c);
     delete c.updatedAt;
+    delete c.createdAt;
     delete c.fieldStamps;
     delete c.deleted;
+    delete c.completedDays;
     this.COLLECTIONS.forEach(col => {
-      c[col] = [...(s[col] || [])].map(it => {
+      c[col] = [...(c[col] || [])].map(it => {
         if (!it || typeof it !== 'object') return it;
         const copy = { ...it };
         delete copy.updatedAt;
+        delete copy.createdAt;
         return copy;
       }).sort((x, y) => (String(x?.id) > String(y?.id) ? 1 : -1));
     });

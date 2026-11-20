@@ -57,6 +57,7 @@ const Seed = {
         { id: 'q2', text: 'Nie jestem produktem okoliczności, jestem produktem moich decyzji. — S. Covey' }
       ],
       archive: [],
+      goalsArchive: [],
       fieldStamps: {},
       deleted: {},
       createdAt: Date.now(),
