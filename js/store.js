@@ -39,12 +39,22 @@ const Store = {
     if (!s.deleted) s.deleted = {};
     if (!s.fieldStamps) s.fieldStamps = {};
     if (!Array.isArray(s.roles) || s.roles.length !== 4) s.roles = def.roles;
+    const todayStr = (typeof D !== 'undefined' && D.today) ? D.today() : new Date().toISOString().slice(0, 10);
     if (!Array.isArray(s.tasks)) s.tasks = [];
+    s.tasks.forEach(t => {
+      if (!t || typeof t !== 'object') return;
+      if (!t.scheduledDate) {
+        t.scheduledDate = t.fromCalendarDate || t.sawDate || t.date || (t.createdAt ? new Date(t.createdAt).toISOString().slice(0, 10) : todayStr);
+      }
+    });
     if (!Array.isArray(s.later)) s.later = [];
     if (!Array.isArray(s.reminders)) s.reminders = [];
     if (!Array.isArray(s.saw)) s.saw = def.saw;
     s.saw.forEach(item => {
       if (!item || typeof item !== 'object') return;
+      if (!item.startDate) item.startDate = todayStr;
+      if (!Array.isArray(item.spawnedDates)) item.spawnedDates = [];
+      if (!Array.isArray(item.doneDays)) item.doneDays = [];
       if (!item.roleId || !s.roles.some(r => r.id === item.roleId)) {
         const d = String(item.dim || '').toLowerCase();
         if (d.includes('umysł') || d.includes('studia') || d.includes('duch') || /dziennik|planowanie/i.test(item.title)) item.roleId = 'r2';

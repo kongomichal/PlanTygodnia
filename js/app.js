@@ -106,46 +106,47 @@ const App = {
       }).join('');
     }
 
-    // 4 estetyczne rubryczki Ról (wraz z pozycjami Ostrzenia Piły przypadającymi na dziś)
+    // 4 estetyczne rubryczki Ról (z licznikiem wykonanych zadań z Archiwum + udziałem % oraz licznikiem dni opóźnienia)
     const today = this.today();
     const tasks = Store.state.tasks.filter(t => (t.year || y) === y);
-    const dueSawToday = (Store.state.saw || []).filter(s => this.isSawDueToday(s) && !(s.doneDays || []).includes(today));
+    const allArchive = Store.state.archive || [];
+    const totalArchivedCount = allArchive.length;
 
     const gridEl = document.getElementById('rolesGrid');
     if (gridEl) {
       gridEl.innerHTML = Store.state.roles.map(r => {
         const rTasks = tasks.filter(t => t.roleId === r.id);
-        const rSaw = dueSawToday.filter(s => (s.roleId || 'r1') === r.id);
-        const totalCount = rTasks.length + rSaw.length;
+        const doneInArchive = allArchive.filter(a => a.roleId === r.id).length;
+        const pctInArchive = totalArchivedCount > 0 ? Math.round((doneInArchive / totalArchivedCount) * 100) : 0;
         const gw = gYear[r.id]?.weekly || '';
         return `
           <div class="role-card" style="border-top: 3px solid ${r.color};">
             <div class="role-card-head">
               <div class="role-card-title">${r.emoji} ${this.esc(r.name)}</div>
-              <span class="role-card-count">${totalCount}</span>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:0.73rem; font-weight:800; color:var(--emerald); background:var(--emerald-light); border:1px solid var(--emerald-border); padding:2px 8px; border-radius:999px;" title="Wykonane zadania z Archiwum dla tej kategorii: ${doneInArchive} z ${totalArchivedCount} (${pctInArchive}% wszystkich wykonanych zadań)">
+                  ✓ ${doneInArchive} (${pctInArchive}%)
+                </span>
+                <span class="role-card-count" title="Aktywne zadania do zrobienia">${rTasks.length}</span>
+              </div>
             </div>
             ${gw ? `<div class="role-goal-hint">🎯 ${this.esc(gw)}</div>` : ''}
             <div class="task-list">
-              ${rSaw.map(s => `
-                <div class="task-row" style="border-left: 3px solid var(--emerald);">
-                  <div class="task-row-left">
-                    <button class="check-circle" onclick="App.doneSawToday('${s.id}')" title="Odhacz dzisiejsze Ostrzenie Piły">✓</button>
-                    <span>${this.esc(s.title)}</span>
-                    <span style="font-size:0.66rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc(this.getSawCycleLabel(s))}</span>
+              ${rTasks.map(t => {
+                const delay = Math.max(0, D.diff(today, t.scheduledDate || today));
+                return `
+                  <div class="task-row" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
+                    <div class="task-row-left" style="flex-wrap:wrap;">
+                      <button class="check-circle" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
+                      <span>${this.esc(t.title)}</span>
+                      ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
+                      ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
+                      ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
+                    </div>
+                    <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Zmień ćwiartkę Matrycy">Q${t.q || 2}</span>
                   </div>
-                  <span class="q-tag q${s.q || 2}" onclick="App.cycleSawQ('${s.id}')" title="Zmień ćwiartkę Matrycy">Q${s.q || 2}</span>
-                </div>
-              `).join('')}
-              ${rTasks.map(t => `
-                <div class="task-row">
-                  <div class="task-row-left">
-                    <button class="check-circle" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
-                    <span>${this.esc(t.title)}</span>
-                    ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
-                  </div>
-                  <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Zmień ćwiartkę Matrycy">Q${t.q || 2}</span>
-                </div>
-              `).join('')}
+                `;
+              }).join('')}
             </div>
             <form class="quick-add-row" onsubmit="event.preventDefault(); App.addTask('${r.id}', this);">
               <input type="text" name="title" class="input-clean" placeholder="+ Dodaj zadanie..." required>
@@ -160,7 +161,17 @@ const App = {
   addTask(roleId, form) {
     const title = form.title.value.trim();
     if (!title) return;
-    Store.state.tasks.push({ id: 't_' + Date.now(), title, roleId, q: 2, year: Store.state.year, createdAt: Date.now() });
+    const today = this.today();
+    Store.state.tasks.push({
+      id: 't_' + Date.now(),
+      title,
+      roleId,
+      q: 2,
+      scheduledDate: today,
+      delayDays: 0,
+      year: Store.state.year,
+      createdAt: Date.now()
+    });
     form.title.value = '';
     this.save();
     this.renderAll();
@@ -178,17 +189,32 @@ const App = {
     const idx = Store.state.tasks.findIndex(x => x.id === id);
     if (idx < 0) return;
     const [t] = Store.state.tasks.splice(idx, 1);
+    const today = this.today();
+
     // Oznacz powiązane przypomnienie w kalendarzu jako wykonane
     const rem = (Store.state.reminders || []).find(r => r.activatedTaskId === id);
     if (rem) rem.done = true;
 
+    // Jeśli zadanie pochodziło z Ostrzenia Piły, oznacz ten dzień w doneDays
+    if (t.sawId) {
+      const sawItem = (Store.state.saw || []).find(s => s.id === t.sawId);
+      if (sawItem) {
+        if (!Array.isArray(sawItem.doneDays)) sawItem.doneDays = [];
+        const targetDay = t.sawDate || today;
+        if (!sawItem.doneDays.includes(targetDay)) sawItem.doneDays.push(targetDay);
+      }
+    }
+
+    const delay = Math.max(0, D.diff(today, t.scheduledDate || today));
     const now = new Date();
-    const stamp = `${this.today()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const stamp = `${today} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     Store.state.archive.unshift({
       id: 'ar_' + Date.now(),
       title: t.title,
       roleId: t.roleId,
       q: t.q || 2,
+      scheduledDate: t.scheduledDate || today,
+      delayDays: delay,
       doneAt: stamp,
       year: Store.state.year,
       createdAt: Date.now()
@@ -197,10 +223,12 @@ const App = {
     this.renderAll();
   },
 
-  /* ---- KALENDARZ NA DOLE (Z WYBOREM ROLI, ĆWIARTKI I AUTO-WRZUCANIEM DO ZADAŃ W TYM DNIU) ---- */
+  /* ---- KALENDARZ I OSTRZENIE PIŁY: MATERIALIZACJA ZADAŃ I LICZENIE OPÓŹNIEŃ ---- */
   processDueReminders() {
     const today = this.today();
     let changed = false;
+
+    // 1. Przypomnienia z Kalendarza (od dnia kiedy powinny być — nie znikają aż do odklikania)
     (Store.state.reminders || []).forEach(r => {
       if (!r || !r.date || r.done) return;
       if (r.date <= today && !r.activatedTaskId) {
@@ -212,7 +240,9 @@ const App = {
             title: r.title,
             roleId: r.roleId || Store.state.roles[0].id,
             q: Number(r.q) || 2,
+            scheduledDate: r.date,
             fromCalendarDate: r.date,
+            delayDays: Math.max(0, D.diff(today, r.date)),
             year: parseInt(r.date.slice(0, 4), 10) || Store.state.year,
             createdAt: Date.now()
           });
@@ -221,6 +251,61 @@ const App = {
         changed = true;
       }
     });
+
+    // 2. Zadania z Ostrzenia Piły (wskakują w zaznaczone dni tygodnia, dublują się w kolejne dni i nie znikają aż do odklikania)
+    (Store.state.saw || []).forEach(s => {
+      if (!s || typeof s !== 'object') return;
+      if (!s.startDate || s.startDate > today) s.startDate = today;
+      if (!Array.isArray(s.spawnedDates)) s.spawnedDates = [];
+      if (!Array.isArray(s.doneDays)) s.doneDays = [];
+      const act = Array.isArray(s.activeDays) ? s.activeDays : [0, 1, 2, 3, 4, 5, 6];
+
+      // Sprawdzamy każdy dzień od startDate (maks. 45 dni wstecz) aż do dzisiaj
+      const minStart = D.addDays(today, -45);
+      let cur = s.startDate < minStart ? minStart : s.startDate;
+      let guard = 0;
+      while (cur <= today && guard++ < 50) {
+        const dow = D.dow(cur);
+        if (act.includes(dow)) {
+          const taskId = `t_saw_${s.id}_${cur}`;
+          const alreadySpawned = s.spawnedDates.includes(cur);
+          const alreadyDone = s.doneDays.includes(cur);
+          const existsOnList = Store.state.tasks.some(t => t.id === taskId);
+
+          if (!alreadySpawned && !alreadyDone && !existsOnList) {
+            Store.state.tasks.push({
+              id: taskId,
+              title: s.title,
+              roleId: s.roleId || 'r1',
+              q: Number(s.q) || 2,
+              scheduledDate: cur,
+              sawId: s.id,
+              sawDate: cur,
+              delayDays: Math.max(0, D.diff(today, cur)),
+              year: parseInt(cur.slice(0, 4), 10) || Store.state.year,
+              createdAt: Date.now()
+            });
+            s.spawnedDates.push(cur);
+            changed = true;
+          } else if (!alreadySpawned && (alreadyDone || existsOnList)) {
+            s.spawnedDates.push(cur);
+            changed = true;
+          }
+        }
+        cur = D.addDays(cur, 1);
+      }
+    });
+
+    // 3. Aktualizacja pola delayDays na wszystkich aktywnych zadaniach
+    (Store.state.tasks || []).forEach(t => {
+      if (!t.scheduledDate) t.scheduledDate = t.fromCalendarDate || t.sawDate || today;
+      const d = Math.max(0, D.diff(today, t.scheduledDate));
+      if (t.delayDays !== d) {
+        t.delayDays = d;
+        changed = true;
+      }
+    });
+
     if (changed) {
       this.save();
     }
@@ -384,47 +469,35 @@ const App = {
     ];
     const today = this.today();
     const tasks = Store.state.tasks.filter(t => (t.year || Store.state.year) === Store.state.year);
-    const dueSawToday = (Store.state.saw || []).filter(s => this.isSawDueToday(s) && !(s.doneDays || []).includes(today));
 
     const gridEl = document.getElementById('matrixGrid');
     if (!gridEl) return;
     gridEl.innerHTML = meta.map(m => {
       const list = tasks.filter(t => (t.q || 2) === m.q);
-      const sawList = dueSawToday.filter(s => (s.q || 2) === m.q);
-      const totalLen = list.length + sawList.length;
       return `
         <div class="quad-card q${m.q}">
           <div>
-            <h3 style="font-size:0.95rem; font-weight:800;">${m.title} (${totalLen})</h3>
+            <h3 style="font-size:0.95rem; font-weight:800;">${m.title} (${list.length})</h3>
             <p style="font-size:0.76rem; color:var(--text-muted);">${m.sub}</p>
           </div>
           <div class="task-list" style="flex:1;">
-            ${sawList.map(s => {
-              const r = Store.state.roles.find(x => x.id === (s.roleId || 'r1'));
-              return `
-                <div class="task-row" style="border-left: 3px solid var(--emerald);">
-                  <div class="task-row-left">
-                    <button class="check-circle" onclick="App.doneSawToday('${s.id}')" title="Odhacz dzisiejsze Ostrzenie Piły">✓</button>
-                    <span>${this.esc(s.title)}</span>
-                  </div>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
-                  <span class="q-tag q${s.q || 2}" onclick="App.cycleSawQ('${s.id}')">Q${s.q || 2}</span>
-                </div>
-              `;
-            }).join('')}
             ${list.length ? list.map(t => {
               const r = Store.state.roles.find(x => x.id === t.roleId);
+              const delay = Math.max(0, D.diff(today, t.scheduledDate || today));
               return `
-                <div class="task-row">
-                  <div class="task-row-left">
+                <div class="task-row" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
+                  <div class="task-row-left" style="flex-wrap:wrap;">
                     <button class="check-circle" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
                     <span>${this.esc(t.title)}</span>
+                    ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
+                    ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
+                    ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
                   </div>
                   <span style="font-size:0.72rem; color:var(--text-muted); cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--surface);" onclick="App.cycleRole('${t.id}')" title="Kliknij, aby zmienić rodzaj (Ciało / Umysł / Relacje / Finanse)">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
                   <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Kliknij, aby zmienić ćwiartkę">Q${t.q || 2}</span>
                 </div>
               `;
-            }).join('') : (sawList.length === 0 ? `<div style="color:var(--text-dim); font-size:0.8rem; margin:auto 0; text-align:center;">Brak zadań w tej ćwiartce</div>` : '')}
+            }).join('') : `<div style="color:var(--text-dim); font-size:0.8rem; margin:auto 0; text-align:center;">Brak zadań w tej ćwiartce</div>`}
           </div>
           <form class="quick-add-row" onsubmit="event.preventDefault(); App.addTaskFromMatrix(${m.q}, this);" style="padding-top:10px; border-top:1px solid var(--border);">
             <input type="text" name="title" class="input-clean" placeholder="+ Dodaj zadanie do Q${m.q}..." required style="flex:1;">
@@ -441,12 +514,15 @@ const App = {
   addTaskFromMatrix(q, form) {
     const title = form.title.value.trim();
     if (!title) return;
+    const today = this.today();
     const roleId = form.roleId.value || Store.state.roles[0].id;
     Store.state.tasks.push({
       id: 't_' + Date.now(),
       title,
       roleId,
       q,
+      scheduledDate: today,
+      delayDays: 0,
       year: Store.state.year,
       createdAt: Date.now()
     });
@@ -518,10 +594,28 @@ const App = {
     const s = Store.state.saw.find(x => x.id === id);
     if (!s) return;
     if (!Array.isArray(s.activeDays)) s.activeDays = [0,1,2,3,4,5,6];
+    const today = this.today();
+    const todayDow = D.dow(today);
+
     const i = s.activeDays.indexOf(dowIdx);
-    if (i >= 0) s.activeDays.splice(i, 1);
-    else s.activeDays.push(dowIdx);
+    if (i >= 0) {
+      s.activeDays.splice(i, 1);
+      // Jeśli wyłączono dzisiejszy dzień tygodnia, usuń dzisiejsze niewykonane wystąpienie z listy
+      if (dowIdx === todayDow) {
+        const taskId = `t_saw_${s.id}_${today}`;
+        Store.state.tasks = Store.state.tasks.filter(t => t.id !== taskId);
+        if (Array.isArray(s.spawnedDates)) {
+          s.spawnedDates = s.spawnedDates.filter(d => d !== today);
+        }
+      }
+    } else {
+      s.activeDays.push(dowIdx);
+      if (dowIdx === todayDow && Array.isArray(s.spawnedDates)) {
+        s.spawnedDates = s.spawnedDates.filter(d => d !== today);
+      }
+    }
     s.activeDays.sort((a, b) => a - b);
+    this.processDueReminders();
     this.save();
     this.renderAll();
   },
@@ -531,6 +625,8 @@ const App = {
     const s = Store.state.saw.find(x => x.id === id);
     if (!s) return;
     s.q = ((s.q || 2) % 4) + 1;
+    // Zaktualizuj też aktywne zadania tej pozycji na liście
+    (Store.state.tasks || []).forEach(t => { if (t.sawId === id) t.q = s.q; });
     this.save();
     this.renderAll();
   },
@@ -540,12 +636,14 @@ const App = {
     const s = Store.state.saw.find(x => x.id === id);
     if (!s) return;
     s.roleId = roleId;
+    (Store.state.tasks || []).forEach(t => { if (t.sawId === id) t.roleId = roleId; });
     this.save();
     this.renderAll();
   },
 
   deleteSaw(id) {
     Store.state.saw = Store.state.saw.filter(x => x.id !== id);
+    Store.state.tasks = Store.state.tasks.filter(t => t.sawId !== id);
     if (this.editingSawId === id) this.editingSawId = null;
     this.save();
     this.renderAll();
@@ -698,9 +796,12 @@ const App = {
       roleId,
       q,
       activeDays: [...this.newSawDays],
+      startDate: this.today(),
+      spawnedDates: [],
       doneDays: [],
       createdAt: Date.now()
     });
+    this.processDueReminders();
     this.save();
     this.closeModal();
     this.renderAll();
