@@ -94,9 +94,24 @@ const Store = {
     if (!Array.isArray(s.archive)) s.archive = [];
     if (!Array.isArray(s.goalsArchive)) s.goalsArchive = [];
     if (!s.goals || typeof s.goals !== 'object') s.goals = def.goals;
-    if (!s.goals[s.year]) s.goals[s.year] = def.goals[2026];
 
-    // Ujednolicenie kluczy celów dla każdego roku i roli (tylko weekly i quarterly)
+    // Lata działają wyłącznie na zasadzie zapisanego tekstu w miesiącach danego roku
+    const savedYears = this.getSavedYears(s);
+    if (!savedYears.includes(Number(s.year))) {
+      s.year = savedYears.includes(2026) ? 2026 : (savedYears[savedYears.length - 1] || 2026);
+    }
+    if (!s.goals[s.year]) {
+      s.goals[s.year] = s.year === 2026 ? def.goals[2026] : {};
+    }
+
+    // Usuń puste lata, w których żaden miesiąc nie ma zapisanych zadań/przypomnień/archiwum
+    Object.keys(s.goals).forEach(yr => {
+      if (!savedYears.includes(Number(yr))) {
+        delete s.goals[yr];
+      }
+    });
+
+    // Ujednolicenie kluczy celów dla każdego aktywnego roku i roli (tylko weekly i quarterly)
     Object.keys(s.goals).forEach(yr => {
       if (!s.goals[yr] || typeof s.goals[yr] !== 'object') s.goals[yr] = {};
       s.roles.forEach(r => {
@@ -110,6 +125,48 @@ const Store = {
 
     delete s.completedDays;
     return s;
+  },
+
+  getSavedYears(s) {
+    const years = new Set();
+    const addFromDateStr = (dStr, fallbackYear) => {
+      const str = String(dStr || '').trim();
+      if (/^\d{4}-\d{2}/.test(str)) {
+        const y = parseInt(str.slice(0, 4), 10);
+        if (y >= 2020 && y <= 2100) {
+          years.add(y);
+          return;
+        }
+      }
+      const fy = Number(fallbackYear);
+      if (fy >= 2020 && fy <= 2100) years.add(fy);
+    };
+
+    (s?.tasks || []).forEach(t => {
+      if (!t || !String(t.title || '').trim()) return;
+      addFromDateStr(t.scheduledDate || t.fromCalendarDate || t.sawDate || t.date, t.year);
+    });
+
+    (s?.reminders || []).forEach(r => {
+      if (!r || !String(r.title || '').trim()) return;
+      addFromDateStr(r.date);
+    });
+
+    (s?.archive || []).forEach(a => {
+      if (!a || !String(a.title || '').trim()) return;
+      addFromDateStr(a.doneAt || a.scheduledDate, a.year);
+    });
+
+    (s?.goalsArchive || []).forEach(g => {
+      if (!g || !String(g.title || '').trim()) return;
+      addFromDateStr(g.doneAt, g.year);
+    });
+
+    if (years.size === 0) {
+      years.add(new Date().getFullYear() || 2026);
+    }
+
+    return [...years].sort((a, b) => a - b);
   },
 
   COLLECTIONS: ['tasks', 'roles', 'later', 'reminders', 'saw', 'archive', 'goalsArchive', 'affirmations', 'quotes'],

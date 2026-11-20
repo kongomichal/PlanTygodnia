@@ -64,19 +64,38 @@ const App = {
   },
 
   setYear(y) {
-    Store.state.year = Number(y) || 2026;
+    const savedYears = Store.getSavedYears(Store.state);
+    const target = Number(y) || 2026;
+    if (!savedYears.includes(target)) return;
+    Store.state.year = target;
     this.calYear = Store.state.year;
     if (!Store.state.goals[Store.state.year]) {
       Store.state.goals[Store.state.year] = {
-        r1: { weekly: '', monthly: '', quarterly: '', yearly: '' },
-        r2: { weekly: '', monthly: '', quarterly: '', yearly: '' },
-        r3: { weekly: '', monthly: '', quarterly: '', yearly: '' },
-        r4: { weekly: '', monthly: '', quarterly: '', yearly: '' }
+        r1: { weekly: '', quarterly: '' },
+        r2: { weekly: '', quarterly: '' },
+        r3: { weekly: '', quarterly: '' },
+        r4: { weekly: '', quarterly: '' }
       };
     }
     this.save();
     this.renderGoals(true);
     this.renderAll();
+  },
+
+  renderYearSelect() {
+    const savedYears = Store.getSavedYears(Store.state);
+    if (!savedYears.includes(Number(Store.state.year))) {
+      Store.state.year = savedYears.includes(2026) ? 2026 : (savedYears[savedYears.length - 1] || 2026);
+      this.calYear = Store.state.year;
+    }
+    const sel = document.getElementById('yearSelect');
+    if (sel) {
+      sel.innerHTML = savedYears
+        .map(yr => `<option value="${yr}" ${yr === Number(Store.state.year) ? 'selected' : ''}>${yr}</option>`)
+        .join('');
+      sel.value = String(Store.state.year);
+    }
+    document.querySelectorAll('.yearLabel').forEach(el => { el.textContent = Store.state.year; });
   },
 
   /* ---- WIDOK 1: PLAN TYGODNIA (4 KAFELKI CELÓW KWARTALNYCH + 4 RUBRYCZKI RÓL + KALENDARZ) ---- */
@@ -1296,7 +1315,7 @@ const App = {
       this.processDueReminders();
       this._processingReminders = false;
     }
-    document.querySelectorAll('.yearLabel').forEach(el => { el.textContent = Store.state.year; });
+    this.renderYearSelect();
     this.renderIcon();
     this.renderPlan();
     this.renderCalendar();
