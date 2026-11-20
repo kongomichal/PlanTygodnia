@@ -230,11 +230,23 @@ const App = {
       html += `
         <div class="cal-cell ${isCur ? '' : 'other'} ${dStr === today ? 'today' : ''}" onclick="App.openCalendarModal('${dStr}')">
           <div class="cal-num">${d.getDate()}</div>
-          ${rems.map(r => {
+          ${rems.slice(0, 3).map(r => {
             const role = Store.state.roles.find(x => x.id === r.roleId);
             const borderColor = role ? role.color : 'var(--accent)';
-            return `<div class="cal-chip" style="border-left-color:${borderColor}; ${r.done ? 'text-decoration:line-through; opacity:0.6;' : ''}" title="${role ? role.name : ''} · Q${r.q || 2}: ${this.esc(r.title)}">${role ? role.emoji : '🔔'} <span class="q-tag q${r.q || 2}" style="font-size:0.58rem; padding:0 4px;">Q${r.q || 2}</span> ${this.esc(r.title)}</div>`;
+            const roleLabel = role ? `${role.emoji} ${this.esc(role.name)}` : '🔔 Przypomnienie';
+            return `
+              <div class="cal-chip-wrap">
+                <div class="cal-chip" style="border-left-color:${borderColor}; ${r.done ? 'text-decoration:line-through; opacity:0.6;' : ''}">
+                  ${role ? role.emoji : '🔔'} <span class="q-tag q${r.q || 2}" style="font-size:0.58rem; padding:0 4px;">Q${r.q || 2}</span> ${this.esc(r.title)}
+                </div>
+                <div class="cal-tooltip">
+                  <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">${roleLabel} · Ćwiartka Q${r.q || 2}</div>
+                  <div style="font-weight:600; color:#ffffff;">${this.esc(r.title)}</div>
+                </div>
+              </div>
+            `;
           }).join('')}
+          ${rems.length > 3 ? `<div style="font-size:0.66rem; color:var(--accent); font-weight:700; padding-left:2px;">+${rems.length - 3} więcej...</div>` : ''}
         </div>
       `;
     }

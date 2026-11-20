@@ -394,44 +394,101 @@ button { cursor: pointer; }
 }
 .cal-weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  margin-bottom: 6px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
   text-align: center;
-  font-size: 0.73rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--text-muted);
 }
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
 }
 .cal-cell {
-  min-height: 92px;
+  height: 124px;
+  min-height: 124px;
+  max-height: 124px;
+  min-width: 0;
+  width: 100%;
   background: var(--surface-alt);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
+  padding: 8px 9px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
+  position: relative;
   transition: 0.12s;
 }
-.cal-cell:hover { border-color: var(--accent); background: var(--surface); }
+.cal-cell:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+  z-index: 30;
+}
 .cal-cell.other { opacity: 0.35; }
 .cal-cell.today { border: 2px solid var(--accent); background: var(--accent-light); }
-.cal-num { font-size: 0.75rem; font-weight: 800; }
+.cal-num {
+  font-size: 0.78rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.cal-chip-wrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
 .cal-chip {
-  font-size: 0.68rem;
-  padding: 2px 5px;
-  border-radius: 4px;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  font-size: 0.71rem;
+  padding: 3px 6px;
+  border-radius: 5px;
   background: var(--surface);
-  border-left: 2.5px solid var(--accent);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.cal-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 260px;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+  word-wrap: break-word;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.35);
+  z-index: 999;
+  pointer-events: none;
+  text-align: left;
+}
+.cal-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: #0f172a transparent transparent transparent;
+}
+.cal-chip-wrap:hover .cal-tooltip {
+  display: block;
 }
 
 /* OSOBNA ZAKŁADKA: MATRYCA EISENHOWERA */
