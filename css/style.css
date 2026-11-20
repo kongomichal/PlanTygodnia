@@ -121,6 +121,11 @@ button { cursor: pointer; }
   align-items: center;
   gap: 4px;
   overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.nav-tabs::-webkit-scrollbar {
+  display: none;
 }
 .tab-btn {
   border: none;

@@ -229,7 +229,9 @@ const App = {
             ${gw ? `<div class="role-goal-hint">🎯 ${this.esc(gw)}</div>` : ''}
             <div class="task-list">
               ${rTasks.map(t => {
-                const delay = Math.max(0, D.diff(today, t.scheduledDate || today));
+                const rawDiff = D.diff(today, t.scheduledDate || today);
+                const delay = Math.max(0, rawDiff);
+                const daysUntil = rawDiff < 0 ? Math.abs(rawDiff) : 0;
                 return `
                   <div class="task-row" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
                     <div class="task-row-left" style="flex-wrap:wrap;">
@@ -237,6 +239,7 @@ const App = {
                       <span>${this.esc(t.title)}</span>
                       ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
                       ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
+                      ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
                       ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
                     </div>
                     <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
@@ -345,6 +348,52 @@ const App = {
     this.renderAll();
   },
 
+  addMonthsISO(isoDate, monthsToAdd) {
+    const parts = String(isoDate || this.today()).split('-').map(Number);
+    const y = parts[0] || 2026;
+    const m = parts[1] || 1;
+    const d = parts[2] || 1;
+    const targetMonthIndex = (m - 1) + monthsToAdd;
+    const targetYear = y + Math.floor(targetMonthIndex / 12);
+    const normMonth = ((targetMonthIndex % 12) + 12) % 12;
+    const maxDayInTargetMonth = new Date(targetYear, normMonth + 1, 0).getDate();
+    const clampedDay = Math.min(d, maxDayInTargetMonth);
+    return `${targetYear}-${String(normMonth + 1).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+  },
+
+  getSawOccurrenceDate(s, k) {
+    const start = s.startDate || this.today();
+    const freq = s.freq || 'weekdays';
+    if (freq === 'biweekly') return D.addDays(start, k * 14);
+    if (freq === 'monthly') return this.addMonthsISO(start, k * 1);
+    if (freq === 'quarterly') return this.addMonthsISO(start, k * 3);
+    if (freq === 'semiannual') return this.addMonthsISO(start, k * 6);
+    if (freq === 'yearly') return this.addMonthsISO(start, k * 12);
+    return D.addDays(start, k);
+  },
+
+  getSawOccurrencesInRange(s, minDate, maxDate) {
+    const freq = s.freq || 'weekdays';
+    const start = s.startDate || this.today();
+    const results = [];
+    if (freq === 'weekdays') {
+      const act = Array.isArray(s.activeDays) ? s.activeDays : [0, 1, 2, 3, 4, 5, 6];
+      let cur = start > minDate ? start : minDate;
+      let guard = 0;
+      while (cur <= maxDate && guard++ < 90) {
+        if (act.includes(D.dow(cur))) results.push(cur);
+        cur = D.addDays(cur, 1);
+      }
+    } else {
+      for (let k = 0; k < 400; k++) {
+        const occ = this.getSawOccurrenceDate(s, k);
+        if (occ > maxDate) break;
+        if (occ >= minDate && occ >= start) results.push(occ);
+      }
+    }
+    return results;
+  },
+
   /* ---- KALENDARZ I OSTRZENIE PIŁY: MATERIALIZACJA ZADAŃ I LICZENIE OPÓŹNIEŃ ---- */
   processDueReminders() {
     const today = this.today();
@@ -377,51 +426,50 @@ const App = {
       }
     });
 
-    // 2. Zadania z Ostrzenia Piły (wskakują w zaznaczone dni tygodnia, dublują się w kolejne dni i nie znikają aż do odklikania)
+    // 2. Zadania z Ostrzenia Piły (obsługuje dni tygodnia Pn-Nd oraz dłuższe cykle: co 2 tyg., co miesiąc, co 3 mies., co pół roku, co rok + wyprzedzenie leadDays + datę startu)
     (Store.state.saw || []).forEach(s => {
       if (!s || typeof s !== 'object') return;
-      if (!s.startDate || s.startDate > today) s.startDate = today;
+      if (!s.startDate) s.startDate = today;
+      if (!s.freq) s.freq = 'weekdays';
+      const leadDays = Math.max(0, parseInt(s.leadDays, 10) || 0);
       if (!Array.isArray(s.spawnedDates)) s.spawnedDates = [];
       if (!Array.isArray(s.doneDays)) s.doneDays = [];
       if (!Array.isArray(s.dismissedDays)) s.dismissedDays = [];
-      const act = Array.isArray(s.activeDays) ? s.activeDays : [0, 1, 2, 3, 4, 5, 6];
 
-      // Sprawdzamy każdy dzień od startDate (maks. 45 dni wstecz) aż do dzisiaj
-      const minStart = D.addDays(today, -45);
-      let cur = s.startDate < minStart ? minStart : s.startDate;
-      let guard = 0;
-      while (cur <= today && guard++ < 50) {
-        const dow = D.dow(cur);
-        if (act.includes(dow)) {
-          const taskId = `t_saw_${s.id}_${cur}`;
-          const alreadySpawned = s.spawnedDates.includes(cur);
-          const alreadyDone = s.doneDays.includes(cur);
-          const alreadyDismissed = s.dismissedDays.includes(cur) || Boolean(Store.state.deleted && Store.state.deleted['tasks:' + taskId]);
-          const existsOnList = Store.state.tasks.some(t => t.id === taskId);
+      const horizonDate = D.addDays(today, leadDays);
+      const minStart = s.freq === 'weekdays' ? D.addDays(today, -45) : D.addDays(today, -370);
+      const dueDates = this.getSawOccurrencesInRange(s, minStart, horizonDate);
 
-          if (!alreadySpawned && !alreadyDone && !alreadyDismissed && !existsOnList) {
-            Store.state.tasks.push({
-              id: taskId,
-              title: s.title,
-              roleId: s.roleId || 'r1',
-              q: Number(s.q) || 2,
-              scheduledDate: cur,
-              sawId: s.id,
-              sawDate: cur,
-              delayDays: Math.max(0, D.diff(today, cur)),
-              year: parseInt(cur.slice(0, 4), 10) || Store.state.year,
-              createdAt: Date.now()
-            });
-            s.spawnedDates.push(cur);
-            spawnedNewTask = true;
-            changed = true;
-          } else if (!alreadySpawned && (alreadyDone || alreadyDismissed || existsOnList)) {
-            s.spawnedDates.push(cur);
-            changed = true;
-          }
+      dueDates.forEach(cur => {
+        const taskId = `t_saw_${s.id}_${cur}`;
+        const alreadySpawned = s.spawnedDates.includes(cur);
+        const alreadyDone = s.doneDays.includes(cur);
+        const alreadyDismissed = s.dismissedDays.includes(cur) || Boolean(Store.state.deleted && Store.state.deleted['tasks:' + taskId]);
+        const existsOnList = Store.state.tasks.some(t => t.id === taskId);
+
+        if (!alreadySpawned && !alreadyDone && !alreadyDismissed && !existsOnList) {
+          Store.state.tasks.push({
+            id: taskId,
+            title: s.title,
+            roleId: s.roleId || 'r1',
+            q: Number(s.q) || 2,
+            scheduledDate: cur,
+            sawId: s.id,
+            sawDate: cur,
+            sawFreq: s.freq,
+            leadDays,
+            delayDays: Math.max(0, D.diff(today, cur)),
+            year: parseInt(cur.slice(0, 4), 10) || Store.state.year,
+            createdAt: Date.now()
+          });
+          s.spawnedDates.push(cur);
+          spawnedNewTask = true;
+          changed = true;
+        } else if (!alreadySpawned && (alreadyDone || alreadyDismissed || existsOnList)) {
+          s.spawnedDates.push(cur);
+          changed = true;
         }
-        cur = D.addDays(cur, 1);
-      }
+      });
     });
 
     // 3. Aktualizacja pola delayDays na wszystkich aktywnych zadaniach
@@ -458,12 +506,41 @@ const App = {
     const total = Math.ceil((startOffset + daysInMonth) / 7) * 7;
     const today = this.today();
 
+    const firstGridDate = new Date(this.calYear, this.calMonth, 1 - startOffset);
+    const lastGridDate = new Date(this.calYear, this.calMonth, 1 - startOffset + total - 1);
+    const minGridStr = `${firstGridDate.getFullYear()}-${String(firstGridDate.getMonth()+1).padStart(2,'0')}-${String(firstGridDate.getDate()).padStart(2,'0')}`;
+    const maxGridStr = `${lastGridDate.getFullYear()}-${String(lastGridDate.getMonth()+1).padStart(2,'0')}-${String(lastGridDate.getDate()).padStart(2,'0')}`;
+
+    // Zbierz również dłuższe zadania cykliczne z Ostrzenia Piły (co 2 tyg., co miesiąc, co 3 mies., co pół roku, co rok), aby były widoczne w kalendarzu
+    const sawByDate = {};
+    (Store.state.saw || []).forEach(s => {
+      if (!s || (s.freq || 'weekdays') === 'weekdays') return;
+      const occs = this.getSawOccurrencesInRange(s, minGridStr, maxGridStr);
+      occs.forEach(dt => {
+        if (!sawByDate[dt]) sawByDate[dt] = [];
+        sawByDate[dt].push({
+          id: 'sawcal_' + s.id + '_' + dt,
+          sawId: s.id,
+          date: dt,
+          title: s.title,
+          roleId: s.roleId,
+          q: s.q || 2,
+          done: Array.isArray(s.doneDays) && s.doneDays.includes(dt),
+          isSawCycle: true,
+          freqLabel: this.getSawFreqLabel(s.freq)
+        });
+      });
+    });
+
     let html = '';
     for (let i = 0; i < total; i++) {
       const d = new Date(this.calYear, this.calMonth, 1 - startOffset + i);
       const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       const isCur = d.getMonth() === this.calMonth;
-      const rems = Store.state.reminders.filter(r => r.date === dStr);
+      const rems = [
+        ...Store.state.reminders.filter(r => r.date === dStr),
+        ...(sawByDate[dStr] || [])
+      ];
 
       html += `
         <div class="cal-cell ${isCur ? '' : 'other'} ${dStr === today ? 'today' : ''} ${rems.length ? 'has-rems' : ''}" onclick="App.openCalendarModal('${dStr}')">
@@ -478,10 +555,10 @@ const App = {
             return `
               <div class="cal-chip-wrap">
                 <div class="cal-chip" style="border-left-color:${borderColor}; ${r.done ? 'text-decoration:line-through; opacity:0.6;' : ''}">
-                  ${role ? role.emoji : '🔔'} <span class="q-tag q${r.q || 2}" style="font-size:0.58rem; padding:0 4px;">Q${r.q || 2}</span> ${this.esc(r.title)}
+                  ${r.isSawCycle ? '🪚' : (role ? role.emoji : '🔔')} <span class="q-tag q${r.q || 2}" style="font-size:0.58rem; padding:0 4px;">Q${r.q || 2}</span> ${this.esc(r.title)}
                 </div>
                 <div class="cal-tooltip">
-                  <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">${roleLabel} · Ćwiartka Q${r.q || 2}</div>
+                  <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">${roleLabel} · Ćwiartka Q${r.q || 2}${r.isSawCycle ? ' · 🪚 ' + this.esc(r.freqLabel) : ''}</div>
                   <div style="font-weight:600; color:#ffffff;">${this.esc(r.title)}</div>
                 </div>
               </div>
@@ -498,9 +575,13 @@ const App = {
     const mobListEl = document.getElementById('calMobileRemindersList');
     if (mobListEl) {
       const monthPrefix = `${this.calYear}-${String(this.calMonth + 1).padStart(2, '0')}`;
-      const monthRems = (Store.state.reminders || [])
-        .filter(r => r && r.date && r.date.startsWith(monthPrefix))
-        .sort((a, b) => (a.date > b.date ? 1 : -1));
+      const sawMonthItems = Object.keys(sawByDate)
+        .filter(dt => dt.startsWith(monthPrefix))
+        .flatMap(dt => sawByDate[dt]);
+      const monthRems = [
+        ...(Store.state.reminders || []).filter(r => r && r.date && r.date.startsWith(monthPrefix)),
+        ...sawMonthItems
+      ].sort((a, b) => (a.date > b.date ? 1 : -1));
       if (monthRems.length) {
         mobListEl.innerHTML = `
           <div style="font-size:0.78rem; font-weight:800; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;">
@@ -512,7 +593,7 @@ const App = {
               return `
                 <div class="task-row" style="border-left: 3px solid ${role ? role.color : 'var(--accent)'}; ${r.done ? 'opacity:0.6; text-decoration:line-through;' : ''}" onclick="App.openCalendarModal('${r.date}')">
                   <div class="task-row-left" style="flex-wrap:wrap;">
-                    <span style="font-size:0.74rem; font-weight:800; color:var(--accent); background:var(--accent-light); padding:2px 7px; border-radius:999px;">📅 ${this.esc(r.date)}</span>
+                    <span style="font-size:0.74rem; font-weight:800; color:var(--accent); background:var(--accent-light); padding:2px 7px; border-radius:999px;">${r.isSawCycle ? '🪚' : '📅'} ${this.esc(r.date)}</span>
                     <span style="font-weight:600;">${this.esc(r.title)}</span>
                   </div>
                   <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
@@ -534,6 +615,20 @@ const App = {
     const root = document.getElementById('modalRoot');
     if (!root) return;
     const rems = Store.state.reminders.filter(r => r.date === dateStr);
+    const sawRems = [];
+    (Store.state.saw || []).forEach(s => {
+      if (!s || (s.freq || 'weekdays') === 'weekdays') return;
+      const occs = this.getSawOccurrencesInRange(s, dateStr, dateStr);
+      if (occs.includes(dateStr)) {
+        sawRems.push({
+          id: s.id,
+          title: s.title,
+          roleId: s.roleId,
+          q: s.q || 2,
+          freqLabel: this.getSawFreqLabel(s.freq)
+        });
+      }
+    });
     const isTodayOrPast = dateStr <= this.today();
 
     root.innerHTML = `
@@ -550,19 +645,34 @@ const App = {
           </div>
 
           <div style="display:flex; flex-direction:column; gap:6px;">
-            ${rems.length ? rems.map(r => {
-              const role = Store.state.roles.find(x => x.id === r.roleId);
-              return `
-                <div class="task-row">
-                  <div class="task-row-left">
-                    <span>${role ? role.emoji : '🔔'} <strong>${this.esc(r.title)}</strong></span>
+            ${(rems.length || sawRems.length) ? `
+              ${rems.map(r => {
+                const role = Store.state.roles.find(x => x.id === r.roleId);
+                return `
+                  <div class="task-row">
+                    <div class="task-row-left">
+                      <span>${role ? role.emoji : '🔔'} <strong>${this.esc(r.title)}</strong></span>
+                    </div>
+                    <span style="font-size:0.72rem; color:var(--text-muted);">${role ? this.esc(role.name) : ''}</span>
+                    <span class="q-tag q${r.q || 2}">Q${r.q || 2}</span>
+                    <button class="btn" style="padding:2px 6px;" onclick="App.deleteReminder('${r.id}', '${dateStr}')">✕</button>
                   </div>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">${role ? this.esc(role.name) : ''}</span>
-                  <span class="q-tag q${r.q || 2}">Q${r.q || 2}</span>
-                  <button class="btn" style="padding:2px 6px;" onclick="App.deleteReminder('${r.id}', '${dateStr}')">✕</button>
-                </div>
-              `;
-            }).join('') : `<div style="font-size:0.8rem; color:var(--text-dim); padding:6px 0;">Brak przypomnień w tym dniu.</div>`}
+                `;
+              }).join('')}
+              ${sawRems.map(sr => {
+                const role = Store.state.roles.find(x => x.id === sr.roleId);
+                return `
+                  <div class="task-row" style="border-left:3px solid var(--emerald);">
+                    <div class="task-row-left" style="flex-wrap:wrap;">
+                      <span>🪚 <strong>${this.esc(sr.title)}</strong></span>
+                      <span style="font-size:0.68rem; color:var(--emerald); background:var(--emerald-light); padding:1px 7px; border-radius:999px; font-weight:700;">${this.esc(sr.freqLabel)}</span>
+                    </div>
+                    <span style="font-size:0.72rem; color:var(--text-muted);">${role ? role.emoji + ' ' + this.esc(role.name) : ''}</span>
+                    <span class="q-tag q${sr.q || 2}">Q${sr.q || 2}</span>
+                  </div>
+                `;
+              }).join('')}
+            ` : `<div style="font-size:0.8rem; color:var(--text-dim); padding:6px 0;">Brak przypomnień w tym dniu.</div>`}
           </div>
 
           <form onsubmit="event.preventDefault(); App.saveCalendarReminder('${dateStr}', this);" style="display:flex; flex-direction:column; gap:10px; padding-top:12px; border-top:1px solid var(--border);">
@@ -652,7 +762,9 @@ const App = {
           <div class="task-list" style="flex:1;">
             ${list.length ? list.map(t => {
               const r = Store.state.roles.find(x => x.id === t.roleId);
-              const delay = Math.max(0, D.diff(today, t.scheduledDate || today));
+              const rawDiff = D.diff(today, t.scheduledDate || today);
+              const delay = Math.max(0, rawDiff);
+              const daysUntil = rawDiff < 0 ? Math.abs(rawDiff) : 0;
               return `
                 <div class="task-row" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
                   <div class="task-row-left" style="flex-wrap:wrap;">
@@ -660,6 +772,7 @@ const App = {
                     <span>${this.esc(t.title)}</span>
                     ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
                     ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
+                    ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
                     ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
                   </div>
                   <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
@@ -713,11 +826,64 @@ const App = {
     this.renderAll();
   },
 
-  /* ---- ZAKŁADKA 3: OSTRZENIE PIŁY ---- */
+  /* ---- ZAKŁADKA 3: OSTRZENIE PIŁY (DNI TYGODNIA + DŁUŻSZE CYKLE + DATA STARTU + WYPRZEDZENIE) ---- */
   editingSawId: null,
   newSawDays: [0, 1, 2, 3, 4, 5, 6],
+  newSawFreq: 'weekdays',
+
+  getSawFreqLabel(freq) {
+    const map = {
+      weekdays: 'Wybrane dni tygodnia (Pn–Nd)',
+      biweekly: 'Co 2 tygodnie',
+      monthly: 'Co miesiąc',
+      quarterly: 'Co 3 miesiące (co kwartał)',
+      semiannual: 'Co pół roku (co 6 mies.)',
+      yearly: 'Co rok'
+    };
+    return map[freq || 'weekdays'] || 'Wybrane dni tygodnia';
+  },
+
+  getSawLeadLabel(leadDays) {
+    const n = parseInt(leadDays, 10) || 0;
+    if (n <= 0) return 'W dniu terminu';
+    if (n === 1) return '1 dzień wcześniej';
+    if (n === 7) return '7 dni wcześniej (1 tydz.)';
+    if (n === 14) return '14 dni wcześniej (2 tyg.)';
+    if (n === 30) return '30 dni wcześniej (1 mies.)';
+    return `${n} dni wcześniej`;
+  },
+
+  getSawNextOccurrence(s) {
+    const today = this.today();
+    const start = s.startDate || today;
+    const freq = s.freq || 'weekdays';
+    const done = Array.isArray(s.doneDays) ? s.doneDays : [];
+    const dismissed = Array.isArray(s.dismissedDays) ? s.dismissedDays : [];
+
+    if (freq === 'weekdays') {
+      const act = Array.isArray(s.activeDays) ? s.activeDays : [0, 1, 2, 3, 4, 5, 6];
+      if (!act.length) return null;
+      let cur = start > today ? start : today;
+      for (let i = 0; i < 14; i++) {
+        if (act.includes(D.dow(cur)) && !done.includes(cur)) return cur;
+        cur = D.addDays(cur, 1);
+      }
+      return start;
+    }
+
+    for (let k = 0; k < 400; k++) {
+      const occ = this.getSawOccurrenceDate(s, k);
+      if (occ >= today && !done.includes(occ) && !dismissed.includes(occ)) {
+        return occ;
+      }
+    }
+    return start;
+  },
 
   getSawCycleLabel(s) {
+    if ((s.freq || 'weekdays') !== 'weekdays') {
+      return this.getSawFreqLabel(s.freq);
+    }
     const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
     const act = Array.isArray(s.activeDays) ? s.activeDays : [0,1,2,3,4,5,6];
     if (act.length === 7) return 'Codziennie';
@@ -725,40 +891,46 @@ const App = {
     return act.slice().sort((a,b) => a - b).map(i => days[i]).join(', ');
   },
 
-  isSawDueToday(s) {
-    if (!s) return false;
-    const now = new Date();
-    const dow = (now.getDay() + 6) % 7; // 0 = Poniedziałek .. 6 = Niedziela
-    const act = Array.isArray(s.activeDays) ? s.activeDays : [0,1,2,3,4,5,6];
-    return act.includes(dow);
+  toggleEditSaw(id) {
+    this.editingSawId = (this.editingSawId === id) ? null : id;
+    this.renderSaw();
   },
 
-  doneSawToday(id) {
+  refreshSawSpawnedTasks(s) {
+    // Przelicz aktywne (jeszcze nieodhaczone) zadania tego cyklu po zmianie daty startu, cyklu lub wyprzedzenia
+    Store.state.tasks = (Store.state.tasks || []).filter(t => t.sawId !== s.id);
+    s.spawnedDates = [];
+    this.processDueReminders();
+  },
+
+  updateSawFreq(id, newFreq) {
+    if (this.editingSawId !== id) return;
     const s = Store.state.saw.find(x => x.id === id);
     if (!s) return;
-    const today = this.today();
-    if (!Array.isArray(s.doneDays)) s.doneDays = [];
-    if (!s.doneDays.includes(today)) {
-      s.doneDays.push(today);
-    }
-    const now = new Date();
-    const stamp = `${today} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    Store.state.archive.unshift({
-      id: 'ar_saw_' + Date.now(),
-      title: s.title,
-      roleId: s.roleId || 'r1',
-      q: s.q || 2,
-      doneAt: stamp,
-      year: Store.state.year,
-      createdAt: Date.now()
-    });
+    s.freq = newFreq || 'weekdays';
+    this.refreshSawSpawnedTasks(s);
     this.save();
     this.renderAll();
   },
 
-  toggleEditSaw(id) {
-    this.editingSawId = (this.editingSawId === id) ? null : id;
-    this.renderSaw();
+  updateSawStartDate(id, newDateStr) {
+    if (this.editingSawId !== id) return;
+    const s = Store.state.saw.find(x => x.id === id);
+    if (!s || !newDateStr) return;
+    s.startDate = newDateStr;
+    this.refreshSawSpawnedTasks(s);
+    this.save();
+    this.renderAll();
+  },
+
+  updateSawLeadDays(id, newLead) {
+    if (this.editingSawId !== id) return;
+    const s = Store.state.saw.find(x => x.id === id);
+    if (!s) return;
+    s.leadDays = Math.max(0, parseInt(newLead, 10) || 0);
+    this.refreshSawSpawnedTasks(s);
+    this.save();
+    this.renderAll();
   },
 
   toggleSawActiveDay(id, dowIdx) {
@@ -772,7 +944,6 @@ const App = {
     const i = s.activeDays.indexOf(dowIdx);
     if (i >= 0) {
       s.activeDays.splice(i, 1);
-      // Jeśli wyłączono dzisiejszy dzień tygodnia, usuń dzisiejsze niewykonane wystąpienie z listy
       if (dowIdx === todayDow) {
         const taskId = `t_saw_${s.id}_${today}`;
         Store.state.tasks = Store.state.tasks.filter(t => t.id !== taskId);
@@ -797,7 +968,6 @@ const App = {
     const s = Store.state.saw.find(x => x.id === id);
     if (!s) return;
     s.q = ((s.q || 2) % 4) + 1;
-    // Zaktualizuj też aktywne zadania tej pozycji na liście
     (Store.state.tasks || []).forEach(t => { if (t.sawId === id) t.q = s.q; });
     this.save();
     this.renderAll();
@@ -832,20 +1002,41 @@ const App = {
       <table class="clean-table">
         <thead>
           <tr>
-            <th style="width:36%;">Ostrzenie Piły (Nawyk / Zadanie cykliczne)</th>
-            <th style="width:24%;">Rola (Gdzie wskakuje)</th>
-            <th style="width:10%;">Ćwiartka</th>
-            <th style="width:30%;">Dni tygodnia (Pn–Nd)</th>
+            <th style="width:28%;">Ostrzenie Piły (Nawyk / Zadanie cykliczne)</th>
+            <th style="width:20%;">Rola (Gdzie wskakuje)</th>
+            <th style="width:8%;">Ćwiartka</th>
+            <th style="width:44%;">Cykl, Data Startu & Wyprzedzenie</th>
           </tr>
         </thead>
         <tbody>
           ${Store.state.saw.map(s => {
             const isEditing = (this.editingSawId === s.id);
+            const freq = s.freq || 'weekdays';
+            const leadDays = Math.max(0, parseInt(s.leadDays, 10) || 0);
+            const startDate = s.startDate || this.today();
+            const nextOcc = this.getSawNextOccurrence(s);
             const act = Array.isArray(s.activeDays) ? s.activeDays : [0,1,2,3,4,5,6];
             const role = Store.state.roles.find(r => r.id === (s.roleId || 'r1')) || Store.state.roles[0];
             return `
               <tr style="${isEditing ? 'background:var(--accent-light);' : ''}">
-                <td><strong>${this.esc(s.title)}</strong></td>
+                <td>
+                  <strong>${this.esc(s.title)}</strong>
+                  <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                    <span style="font-size:0.7rem; color:var(--text-muted); background:var(--surface-alt); border:1px solid var(--border); padding:1px 7px; border-radius:999px;">
+                      📅 Start: <strong>${this.esc(startDate)}</strong>
+                    </span>
+                    ${nextOcc ? `
+                      <span style="font-size:0.7rem; color:var(--emerald); background:var(--emerald-light); border:1px solid var(--emerald-border); padding:1px 7px; border-radius:999px; font-weight:700;">
+                        ⏭️ Następny: ${this.esc(nextOcc)}
+                      </span>
+                    ` : ''}
+                    ${leadDays > 0 ? `
+                      <span style="font-size:0.7rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:700;">
+                        🔔 Przypomnienie: ${this.esc(this.getSawLeadLabel(leadDays))}
+                      </span>
+                    ` : ''}
+                  </div>
+                </td>
                 <td>
                   ${isEditing ? `
                     <select class="input-clean" style="padding:5px 8px; font-weight:600;" onchange="App.updateSawRole('${s.id}', this.value)">
@@ -859,20 +1050,60 @@ const App = {
                   <span class="q-tag q${s.q || 2}" style="${isEditing ? 'cursor:pointer;' : 'cursor:default;'}" onclick="App.cycleSawQ('${s.id}', true)" title="${isEditing ? 'Kliknij, aby zmienić ćwiartkę' : 'Kliknij Edytuj, aby zmienić'}">Q${s.q || 2}</span>
                 </td>
                 <td>
-                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                    <div class="week-dots">
-                      ${days.map((dLabel, idx) => {
-                        const isSelected = act.includes(idx);
-                        return `<button type="button" class="dot-btn ${isSelected ? 'done' : ''}"
-                          style="${isEditing ? 'cursor:pointer;' : 'cursor:default; opacity:0.88;'}"
-                          ${isEditing ? `onclick="App.toggleSawActiveDay('${s.id}', ${idx})"` : 'disabled'}
-                          title="${isEditing ? 'Kliknij, aby włączyć/wyłączyć ten dzień tygodnia' : 'Kliknij Edytuj obok, aby zmienić dni'}">${dLabel}</button>`;
-                      }).join('')}
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      ${freq === 'weekdays' ? `
+                        <div class="week-dots">
+                          ${days.map((dLabel, idx) => {
+                            const isSelected = act.includes(idx);
+                            return `<button type="button" class="dot-btn ${isSelected ? 'done' : ''}"
+                              style="${isEditing ? 'cursor:pointer;' : 'cursor:default; opacity:0.88;'}"
+                              ${isEditing ? `onclick="App.toggleSawActiveDay('${s.id}', ${idx})"` : 'disabled'}
+                              title="${isEditing ? 'Kliknij, aby włączyć/wyłączyć ten dzień tygodnia' : 'Kliknij Edytuj obok, aby zmienić dni'}">${dLabel}</button>`;
+                          }).join('')}
+                        </div>
+                      ` : `
+                        <span style="font-size:0.78rem; font-weight:800; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:4px 10px; border-radius:999px;">
+                          🔄 ${this.esc(this.getSawFreqLabel(freq))}
+                        </span>
+                      `}
+                      <button type="button" class="btn ${isEditing ? 'btn-primary' : ''}" style="padding:3px 10px; font-size:0.74rem;" onclick="App.toggleEditSaw('${s.id}')">
+                        ${isEditing ? '✓ Zapisz' : '✏️ Edytuj'}
+                      </button>
+                      <button type="button" class="btn" style="padding:3px 7px;" onclick="App.deleteSaw('${s.id}')" title="Usuń pozycję">✕</button>
                     </div>
-                    <button type="button" class="btn ${isEditing ? 'btn-primary' : ''}" style="padding:3px 10px; font-size:0.74rem;" onclick="App.toggleEditSaw('${s.id}')">
-                      ${isEditing ? '✓ Zapisz' : '✏️ Edytuj'}
-                    </button>
-                    <button type="button" class="btn" style="padding:3px 7px;" onclick="App.deleteSaw('${s.id}')" title="Usuń pozycję">✕</button>
+
+                    ${isEditing ? `
+                      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px; padding:10px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm);">
+                        <div>
+                          <label style="font-size:0.68rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:2px;">Częstotliwość (Cykl):</label>
+                          <select class="input-clean" style="padding:5px 8px; font-weight:600; font-size:0.76rem;" onchange="App.updateSawFreq('${s.id}', this.value)">
+                            <option value="weekdays" ${freq === 'weekdays' ? 'selected' : ''}>Wybrane dni tygodnia (Pn–Nd)</option>
+                            <option value="biweekly" ${freq === 'biweekly' ? 'selected' : ''}>Co 2 tygodnie</option>
+                            <option value="monthly" ${freq === 'monthly' ? 'selected' : ''}>Co miesiąc</option>
+                            <option value="quarterly" ${freq === 'quarterly' ? 'selected' : ''}>Co 3 miesiące (co kwartał)</option>
+                            <option value="semiannual" ${freq === 'semiannual' ? 'selected' : ''}>Co pół roku (co 6 mies.)</option>
+                            <option value="yearly" ${freq === 'yearly' ? 'selected' : ''}>Co rok</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style="font-size:0.68rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:2px;">Dokładna data startu:</label>
+                          <input type="date" class="input-clean" style="padding:4px 8px; font-weight:600; font-size:0.76rem;" value="${this.esc(startDate)}" onchange="App.updateSawStartDate('${s.id}', this.value)">
+                        </div>
+                        <div>
+                          <label style="font-size:0.68rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:2px;">Przypomnij z wyprzedzeniem:</label>
+                          <select class="input-clean" style="padding:5px 8px; font-weight:600; font-size:0.76rem;" onchange="App.updateSawLeadDays('${s.id}', this.value)">
+                            <option value="0" ${leadDays === 0 ? 'selected' : ''}>W dniu terminu (0 dni)</option>
+                            <option value="1" ${leadDays === 1 ? 'selected' : ''}>1 dzień wcześniej</option>
+                            <option value="2" ${leadDays === 2 ? 'selected' : ''}>2 dni wcześniej</option>
+                            <option value="3" ${leadDays === 3 ? 'selected' : ''}>3 dni wcześniej</option>
+                            <option value="7" ${leadDays === 7 ? 'selected' : ''}>7 dni wcześniej (1 tydzień)</option>
+                            <option value="14" ${leadDays === 14 ? 'selected' : ''}>14 dni wcześniej (2 tygodnie)</option>
+                            <option value="30" ${leadDays === 30 ? 'selected' : ''}>30 dni wcześniej (1 miesiąc)</option>
+                          </select>
+                        </div>
+                      </div>
+                    ` : ''}
                   </div>
                 </td>
               </tr>
@@ -898,20 +1129,30 @@ const App = {
     }
   },
 
+  onNewSawFreqChange(val) {
+    this.newSawFreq = val || 'weekdays';
+    const weekdaysBox = document.getElementById('modalNewSawWeekdaysSection');
+    if (weekdaysBox) {
+      weekdaysBox.style.display = (this.newSawFreq === 'weekdays') ? 'block' : 'none';
+    }
+  },
+
   openAddSawModal() {
     const root = document.getElementById('modalRoot');
     if (!root) return;
     this.newSawDays = [0, 1, 2, 3, 4, 5, 6];
+    this.newSawFreq = 'weekdays';
     const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
+    const today = this.today();
 
     root.innerHTML = `
       <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
-        <div class="modal" style="max-width:500px;">
+        <div class="modal" style="max-width:540px;">
           <div class="modal-header">
             <div>
               <h3 style="font-size:1.1rem; font-weight:800;">🪚 Dodaj do Ostrzenia Piły</h3>
               <p style="font-size:0.76rem; color:var(--text-muted); margin-top:2px;">
-                Zaznacz dni tygodnia, w które to przypomnienie ma się pojawiać na głównej liście.
+                Ustaw nawyk tygodniowy lub dłuższy cel cykliczny (co 2 tygodnie, co miesiąc, co 3 miesiące, co pół roku, co rok) z dokładną datą startu i wyprzedzeniem.
               </p>
             </div>
             <button class="btn" onclick="App.closeModal()">✕</button>
@@ -920,7 +1161,7 @@ const App = {
           <form onsubmit="event.preventDefault(); App.saveNewSaw(this);" style="display:flex; flex-direction:column; gap:12px;">
             <div>
               <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Nazwa nawyku / zadania cyklicznego:</label>
-              <input type="text" name="title" class="input-clean" placeholder="np. Wyjście na spacer, Przegląd faktur..." required autofocus>
+              <input type="text" name="title" class="input-clean" placeholder="np. Wyjście na spacer, Przegląd kwartalny, Dentysta co pół roku..." required autofocus>
             </div>
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
@@ -942,11 +1183,42 @@ const App = {
             </div>
 
             <div>
+              <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Częstotliwość (Cykl w perspektywie):</label>
+              <select name="freq" class="input-clean" style="font-weight:700;" onchange="App.onNewSawFreqChange(this.value)">
+                <option value="weekdays">📅 Wybrane dni tygodnia (Pn–Nd)</option>
+                <option value="biweekly">🔄 Co 2 tygodnie (co 14 dni od daty startu)</option>
+                <option value="monthly">🗓️ Co miesiąc (od wybranej daty startu)</option>
+                <option value="quarterly">📊 Co 3 miesiące / Co kwartał</option>
+                <option value="semiannual">🌗 Co pół roku (co 6 miesięcy)</option>
+                <option value="yearly">🎯 Co rok (co 12 miesięcy)</option>
+              </select>
+            </div>
+
+            <div id="modalNewSawWeekdaysSection">
               <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Zaznacz dni tygodnia (Pn–Nd), w które ma się pojawiać:</label>
               <div class="week-dots" id="modalNewSawDaysWrap" style="gap:6px;">
                 ${days.map((dLabel, dIdx) => `
                   <button type="button" class="dot-btn done" style="width:34px; height:34px; font-size:0.78rem;" onclick="App.toggleNewSawModalDay(${dIdx})">${dLabel}</button>
                 `).join('')}
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div>
+                <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Dokładna data startu (1. termin):</label>
+                <input type="date" name="startDate" class="input-clean" style="font-weight:700;" value="${today}" required>
+              </div>
+              <div>
+                <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Przypomnij z wyprzedzeniem:</label>
+                <select name="leadDays" class="input-clean" style="font-weight:600;">
+                  <option value="0">W dniu terminu (0 dni)</option>
+                  <option value="1">1 dzień wcześniej</option>
+                  <option value="2">2 dni wcześniej</option>
+                  <option value="3">3 dni wcześniej</option>
+                  <option value="7">7 dni wcześniej (1 tydzień)</option>
+                  <option value="14">14 dni wcześniej (2 tygodnie)</option>
+                  <option value="30">30 dni wcześniej (1 miesiąc)</option>
+                </select>
               </div>
             </div>
 
@@ -964,16 +1236,22 @@ const App = {
     if (!title) return;
     const roleId = form.roleId.value || Store.state.roles[0].id;
     const q = parseInt(form.q.value, 10) || 2;
+    const freq = form.freq ? form.freq.value : 'weekdays';
+    const startDate = (form.startDate && form.startDate.value) ? form.startDate.value : this.today();
+    const leadDays = form.leadDays ? (parseInt(form.leadDays.value, 10) || 0) : 0;
 
     Store.state.saw.push({
       id: 's_' + Date.now(),
       title,
       roleId,
       q,
+      freq,
+      leadDays,
       activeDays: [...this.newSawDays],
-      startDate: this.today(),
+      startDate,
       spawnedDates: [],
       doneDays: [],
+      dismissedDays: [],
       createdAt: Date.now()
     });
     this.processDueReminders();

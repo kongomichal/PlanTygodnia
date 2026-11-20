@@ -111,6 +111,8 @@ const Store = {
     s.saw.forEach(item => {
       if (!item || typeof item !== 'object') return;
       if (!item.startDate) item.startDate = todayStr;
+      if (!item.freq) item.freq = 'weekdays';
+      if (typeof item.leadDays !== 'number' || isNaN(item.leadDays)) item.leadDays = parseInt(item.leadDays, 10) || 0;
       if (!Array.isArray(item.spawnedDates)) item.spawnedDates = [];
       if (!Array.isArray(item.doneDays)) item.doneDays = [];
       if (!Array.isArray(item.dismissedDays)) item.dismissedDays = [];
@@ -207,6 +209,11 @@ const Store = {
     (s?.goalsArchive || []).forEach(g => {
       if (!g || !String(g.title || '').trim()) return;
       addFromDateStr(g.doneAt, g.year);
+    });
+
+    (s?.saw || []).forEach(sw => {
+      if (!sw || !String(sw.title || '').trim()) return;
+      addFromDateStr(sw.startDate);
     });
 
     if (years.size === 0) {
