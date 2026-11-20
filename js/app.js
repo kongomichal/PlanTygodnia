@@ -143,7 +143,10 @@ const App = {
                       ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
                       ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
                     </div>
-                    <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Zmień ćwiartkę Matrycy">Q${t.q || 2}</span>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                      <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Zmień ćwiartkę Matrycy">Q${t.q || 2}</span>
+                      <button type="button" class="btn" style="padding:1px 6px; font-size:0.7rem; color:var(--text-dim); border-color:transparent; background:transparent;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń zadanie">✕</button>
+                    </div>
                   </div>
                 `;
               }).join('')}
@@ -156,6 +159,12 @@ const App = {
         `;
       }).join('');
     }
+  },
+
+  deleteActiveTask(id) {
+    Store.state.tasks = Store.state.tasks.filter(t => t.id !== id);
+    this.save();
+    this.renderAll();
   },
 
   addTask(roleId, form) {
@@ -1090,7 +1099,13 @@ const App = {
     el.innerHTML = list.length ? `
       <table class="clean-table">
         <thead>
-          <tr><th>Data odkliknięcia</th><th>Zadanie</th><th>Rola</th><th>Ćwiartka</th></tr>
+          <tr>
+            <th>Data odkliknięcia</th>
+            <th>Zadanie</th>
+            <th>Rola</th>
+            <th>Ćwiartka</th>
+            <th style="text-align:right;">Akcje</th>
+          </tr>
         </thead>
         <tbody>
           ${list.map(a => {
@@ -1101,12 +1116,41 @@ const App = {
                 <td>${this.esc(a.title)}</td>
                 <td>${r ? r.emoji + ' ' + this.esc(r.name) : '—'}</td>
                 <td><span class="q-tag q${a.q || 2}">Q${a.q || 2}</span></td>
+                <td style="text-align:right;">
+                  <div style="display:inline-flex; gap:6px; align-items:center;">
+                    <button type="button" class="btn" style="padding:3px 9px; font-size:0.74rem;" onclick="App.restoreFromArchive('${a.id}')" title="Cofnij odkliknięcie i przywróć zadanie na aktywną listę">↩ Przywróć</button>
+                    <button type="button" class="btn" style="padding:3px 8px; font-size:0.74rem;" onclick="App.deleteFromArchive('${a.id}')" title="Usuń całkowicie z Archiwum">✕</button>
+                  </div>
+                </td>
               </tr>
             `;
           }).join('')}
         </tbody>
       </table>
     ` : `<p style="color:var(--text-dim); padding:16px 0;">Brak wykonanych zadań w roku ${y}.</p>`;
+  },
+
+  restoreFromArchive(id) {
+    const idx = Store.state.archive.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const [item] = Store.state.archive.splice(idx, 1);
+    Store.state.tasks.push({
+      id: 't_' + Date.now(),
+      title: item.title,
+      roleId: item.roleId || Store.state.roles[0].id,
+      q: item.q || 2,
+      scheduledDate: item.scheduledDate || this.today(),
+      year: Store.state.year,
+      createdAt: Date.now()
+    });
+    this.save();
+    this.renderAll();
+  },
+
+  deleteFromArchive(id) {
+    Store.state.archive = Store.state.archive.filter(a => a.id !== id);
+    this.save();
+    this.renderAll();
   },
 
   /* ---- SZUFLADA „NA PÓŹNIEJ” ---- */
