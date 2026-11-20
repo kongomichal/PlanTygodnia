@@ -239,18 +239,52 @@ const App = {
               return `
                 <div class="task-row">
                   <div class="task-row-left">
-                    <button class="check-circle" onclick="App.doneTask('${t.id}')">✓</button>
+                    <button class="check-circle" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
                     <span>${this.esc(t.title)}</span>
                   </div>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
-                  <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')">Q${t.q || 2}</span>
+                  <span style="font-size:0.72rem; color:var(--text-muted); cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--surface);" onclick="App.cycleRole('${t.id}')" title="Kliknij, aby zmienić rodzaj (Ciało / Umysł / Relacje / Finanse)">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
+                  <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Kliknij, aby zmienić ćwiartkę">Q${t.q || 2}</span>
                 </div>
               `;
             }).join('') : `<div style="color:var(--text-dim); font-size:0.8rem; margin:auto 0; text-align:center;">Brak zadań w tej ćwiartce</div>`}
           </div>
+          <form class="quick-add-row" onsubmit="event.preventDefault(); App.addTaskFromMatrix(${m.q}, this);" style="padding-top:10px; border-top:1px solid var(--border);">
+            <input type="text" name="title" class="input-clean" placeholder="+ Dodaj zadanie do Q${m.q}..." required style="flex:1;">
+            <select name="roleId" class="input-clean" style="width:auto; max-width:170px; font-weight:600; cursor:pointer;" title="Wybierz rodzaj (Ciało, Umysł, Relacje, Praca & Finanse)">
+              ${Store.state.roles.map(r => `<option value="${r.id}">${r.emoji} ${this.esc(r.name)}</option>`).join('')}
+            </select>
+            <button type="submit" class="btn btn-primary">+</button>
+          </form>
         </div>
       `;
     }).join('');
+  },
+
+  addTaskFromMatrix(q, form) {
+    const title = form.title.value.trim();
+    if (!title) return;
+    const roleId = form.roleId.value || Store.state.roles[0].id;
+    Store.state.tasks.push({
+      id: 't_' + Date.now(),
+      title,
+      roleId,
+      q,
+      year: Store.state.year,
+      createdAt: Date.now()
+    });
+    form.title.value = '';
+    this.save();
+    this.renderAll();
+  },
+
+  cycleRole(id) {
+    const t = Store.state.tasks.find(x => x.id === id);
+    if (!t || !Store.state.roles.length) return;
+    const idx = Store.state.roles.findIndex(r => r.id === t.roleId);
+    const nextIdx = (idx + 1) % Store.state.roles.length;
+    t.roleId = Store.state.roles[nextIdx].id;
+    this.save();
+    this.renderAll();
   },
 
   /* ---- ZAKŁADKA 3: OSTRZENIE PIŁY ---- */
