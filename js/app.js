@@ -75,6 +75,7 @@ const App = {
       };
     }
     this.save();
+    this.renderGoals(true);
     this.renderAll();
   },
 
@@ -706,12 +707,17 @@ const App = {
   },
 
   /* ---- ZAKŁADKA 4: CELE (TYGODNIOWE & KWARTALNE - SMART) ---- */
-  renderGoals() {
+  renderGoals(forceRebuild = false) {
     const y = Store.state.year;
     const curQ = Math.floor(new Date().getMonth() / 3) + 1;
     const gYear = Store.state.goals[y] || {};
     const el = document.getElementById('goalsTableContainer');
     if (!el) return;
+
+    // Jeśli użytkownik właśnie edytuje lub zaznacza tekst w którymś okienku celów — nie niszcz DOM!
+    if (!forceRebuild && el.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') {
+      return;
+    }
 
     const smartPlaceholders = {
       r1: {
@@ -736,9 +742,9 @@ const App = {
       <table class="clean-table">
         <thead>
           <tr>
-            <th style="width:20%;">Rola (Noga Stołu)</th>
-            <th style="width:40%;">⚡ Cel Tygodniowy — konkretny, policzalny krok (widoczny w rubryczce Roli)</th>
-            <th style="width:40%;">📊 Cel Kwartalny Q${curQ} (${y}) — mierzalny wynik SMART (widoczny w kafelku na górze)</th>
+            <th style="width:18%;">Rola (Noga Stołu)</th>
+            <th style="width:41%;">⚡ Cel Tygodniowy — konkretny, policzalny krok (widoczny w rubryczce Roli)</th>
+            <th style="width:41%;">📊 Cel Kwartalny Q${curQ} (${y}) — mierzalny wynik SMART (widoczny w kafelku na górze)</th>
           </tr>
         </thead>
         <tbody>
@@ -749,10 +755,10 @@ const App = {
               <tr>
                 <td><strong>${r.emoji} ${this.esc(r.name)}</strong></td>
                 <td>
-                  <input class="input-clean" value="${this.esc(g.weekly || '')}" placeholder="${this.esc(ph.weekly)}" onchange="App.saveGoal('${r.id}','weekly',this.value)">
+                  <input type="text" class="input-clean goal-edit-input" value="${this.esc(g.weekly || '')}" placeholder="${this.esc(ph.weekly)}" oninput="App.saveGoal('${r.id}','weekly',this.value)">
                 </td>
                 <td>
-                  <input class="input-clean" value="${this.esc(g.quarterly || '')}" placeholder="${this.esc(ph.quarterly)}" onchange="App.saveGoal('${r.id}','quarterly',this.value)">
+                  <input type="text" class="input-clean goal-edit-input" value="${this.esc(g.quarterly || '')}" placeholder="${this.esc(ph.quarterly)}" oninput="App.saveGoal('${r.id}','quarterly',this.value)">
                 </td>
               </tr>
             `;
@@ -762,6 +768,7 @@ const App = {
     `;
   },
 
+  _goalSaveTimer: null,
   saveGoal(roleId, horizon, val) {
     const y = Store.state.year;
     if (!Store.state.goals[y]) Store.state.goals[y] = {};
@@ -769,8 +776,13 @@ const App = {
     Store.state.goals[y][roleId][horizon] = val.trim();
     if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
     Store.state.fieldStamps[`goal:${y}:${roleId}:${horizon}`] = Date.now();
-    this.save();
+
+    // Odśwież od razu kafelki na ekranie Planu Tygodnia, ale NIE przebudowuj tabeli celów (żeby nie gubić kursora i zaznaczenia!)
     this.renderPlan();
+    clearTimeout(this._goalSaveTimer);
+    this._goalSaveTimer = setTimeout(() => {
+      Store.persist(false, true);
+    }, 350);
   },
 
   /* ---- ZAKŁADKA 5: MYŚLI & AFIRMACJE ---- */

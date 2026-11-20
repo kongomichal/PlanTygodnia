@@ -199,7 +199,19 @@ const Store = {
     if (!s) return '';
     const c = { ...s };
     delete c.updatedAt;
-    return JSON.stringify(c);
+    delete c.fieldStamps;
+    delete c.deleted;
+    this.COLLECTIONS.forEach(col => {
+      c[col] = [...(s[col] || [])].map(it => {
+        if (!it || typeof it !== 'object') return it;
+        const copy = { ...it };
+        delete copy.updatedAt;
+        return copy;
+      }).sort((x, y) => (String(x?.id) > String(y?.id) ? 1 : -1));
+    });
+    const norm = v => Array.isArray(v) ? v.map(norm)
+      : (v && typeof v === 'object') ? Object.keys(v).sort().reduce((o, k) => (o[k] = norm(v[k]), o), {}) : v;
+    return JSON.stringify(norm(c));
   },
 
   persist(emit = true, syncCloud = true) {

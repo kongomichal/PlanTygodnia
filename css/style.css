@@ -377,6 +377,9 @@ button { cursor: pointer; }
   padding: 7px 10px;
   border-radius: var(--radius-sm);
   font-size: 0.8rem;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 .input-clean:focus {
   outline: none;
