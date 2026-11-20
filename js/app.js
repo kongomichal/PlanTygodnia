@@ -143,9 +143,9 @@ const App = {
                       ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
                       ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
                     </div>
-                    <div style="display:flex; align-items:center; gap:4px;">
+                    <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
                       <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Zmień ćwiartkę Matrycy">Q${t.q || 2}</span>
-                      <button type="button" class="btn" style="padding:1px 6px; font-size:0.7rem; color:var(--text-dim); border-color:transparent; background:transparent;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń zadanie">✕</button>
+                      <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z tego filaru, z Matrycy i z Kalendarza)">✕</button>
                     </div>
                   </div>
                 `;
@@ -162,7 +162,10 @@ const App = {
   },
 
   deleteActiveTask(id) {
-    Store.state.tasks = Store.state.tasks.filter(t => t.id !== id);
+    // 1. Usuń zadanie z aktywnej listy (znika z Filaru i z Matrycy Eisenhowera)
+    Store.state.tasks = (Store.state.tasks || []).filter(t => t.id !== id);
+    // 2. Jeśli zadanie pochodziło z Kalendarza, usuń je również z Kalendarza
+    Store.state.reminders = (Store.state.reminders || []).filter(r => r.activatedTaskId !== id && ('t_cal_' + r.id) !== id);
     this.save();
     this.renderAll();
   },
@@ -502,8 +505,11 @@ const App = {
                     ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
                     ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
                   </div>
-                  <span style="font-size:0.72rem; color:var(--text-muted); cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--surface);" onclick="App.cycleRole('${t.id}')" title="Kliknij, aby zmienić rodzaj (Ciało / Umysł / Relacje / Finanse)">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
-                  <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Kliknij, aby zmienić ćwiartkę">Q${t.q || 2}</span>
+                  <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
+                    <span style="font-size:0.72rem; color:var(--text-muted); cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--surface);" onclick="App.cycleRole('${t.id}')" title="Kliknij, aby zmienić rodzaj (Ciało / Umysł / Relacje / Finanse)">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
+                    <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Kliknij, aby zmienić ćwiartkę">Q${t.q || 2}</span>
+                    <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z Filaru, Matrycy i Kalendarza)">✕</button>
+                  </div>
                 </div>
               `;
             }).join('') : `<div style="color:var(--text-dim); font-size:0.8rem; margin:auto 0; text-align:center;">Brak zadań w tej ćwiartce</div>`}
