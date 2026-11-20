@@ -1980,12 +1980,45 @@ const App = {
   },
 
   /* ---- JSON & NARZĘDZIA ---- */
-  exportJSON() {
-    const blob = new Blob([JSON.stringify(Store.state, null, 2)], { type: 'application/json' });
+  async exportJSON() {
+    const filename = `PlanTygodnia_${this.today()}.json`;
+    const jsonText = JSON.stringify(Store.state, null, 2);
+
+    // 1. Natywne okno Finder „Zapisz jako...” (Chrome / Edge / Arc / Brave)
+    if (typeof window.showSaveFilePicker === 'function') {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'Kopia zapasowa Plan Tygodnia (JSON)',
+            accept: { 'application/json': ['.json'] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonText);
+        await writable.close();
+        alert(`✅ Zapisano plik: ${handle.name || filename}`);
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        console.warn('showSaveFilePicker fallback:', err);
+      }
+    }
+
+    // 2. Bezpośrednie pobieranie do Finder -> Pobrane (Safari / Dock Web App / iPhone / Firefox)
+    const blob = new Blob([jsonText], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `PlanTygodnia_${this.today()}.json`;
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
+    setTimeout(() => {
+      try { document.body.removeChild(a); } catch (e) {}
+      try { URL.revokeObjectURL(url); } catch (e) {}
+    }, 5000);
   },
 
   importJSON(e) {
