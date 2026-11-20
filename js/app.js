@@ -117,6 +117,7 @@ const App = {
                   <div class="task-row-left">
                     <button class="check-circle" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
                     <span>${this.esc(t.title)}</span>
+                    ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
                   </div>
                   <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Zmień ćwiartkę Matrycy">Q${t.q || 2}</span>
                 </div>
@@ -153,6 +154,10 @@ const App = {
     const idx = Store.state.tasks.findIndex(x => x.id === id);
     if (idx < 0) return;
     const [t] = Store.state.tasks.splice(idx, 1);
+    // Oznacz powiązane przypomnienie w kalendarzu jako wykonane
+    const rem = (Store.state.reminders || []).find(r => r.activatedTaskId === id);
+    if (rem) rem.done = true;
+
     const now = new Date();
     const stamp = `${this.today()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     Store.state.archive.unshift({
@@ -168,7 +173,35 @@ const App = {
     this.renderAll();
   },
 
-  /* ---- KALENDARZ NA DOLE ---- */
+  /* ---- KALENDARZ NA DOLE (Z WYBOREM ROLI, ĆWIARTKI I AUTO-WRZUCANIEM DO ZADAŃ W TYM DNIU) ---- */
+  processDueReminders() {
+    const today = this.today();
+    let changed = false;
+    (Store.state.reminders || []).forEach(r => {
+      if (!r || !r.date || r.done) return;
+      if (r.date <= today && !r.activatedTaskId) {
+        const newTaskId = 't_cal_' + r.id;
+        const exists = Store.state.tasks.some(t => t.id === newTaskId);
+        if (!exists) {
+          Store.state.tasks.push({
+            id: newTaskId,
+            title: r.title,
+            roleId: r.roleId || Store.state.roles[0].id,
+            q: Number(r.q) || 2,
+            fromCalendarDate: r.date,
+            year: parseInt(r.date.slice(0, 4), 10) || Store.state.year,
+            createdAt: Date.now()
+          });
+        }
+        r.activatedTaskId = newTaskId;
+        changed = true;
+      }
+    });
+    if (changed) {
+      this.save();
+    }
+  },
+
   changeMonth(d) {
     this.calMonth += d;
     if (this.calMonth < 0) { this.calMonth = 11; this.calYear--; }
@@ -195,9 +228,13 @@ const App = {
       const rems = Store.state.reminders.filter(r => r.date === dStr);
 
       html += `
-        <div class="cal-cell ${isCur ? '' : 'other'} ${dStr === today ? 'today' : ''}" onclick="App.addReminderPrompt('${dStr}')">
+        <div class="cal-cell ${isCur ? '' : 'other'} ${dStr === today ? 'today' : ''}" onclick="App.openCalendarModal('${dStr}')">
           <div class="cal-num">${d.getDate()}</div>
-          ${rems.map(r => `<div class="cal-chip">🔔 ${this.esc(r.title)}</div>`).join('')}
+          ${rems.map(r => {
+            const role = Store.state.roles.find(x => x.id === r.roleId);
+            const borderColor = role ? role.color : 'var(--accent)';
+            return `<div class="cal-chip" style="border-left-color:${borderColor}; ${r.done ? 'text-decoration:line-through; opacity:0.6;' : ''}" title="${role ? role.name : ''} · Q${r.q || 2}: ${this.esc(r.title)}">${role ? role.emoji : '🔔'} <span class="q-tag q${r.q || 2}" style="font-size:0.58rem; padding:0 4px;">Q${r.q || 2}</span> ${this.esc(r.title)}</div>`;
+          }).join('')}
         </div>
       `;
     }
@@ -205,12 +242,100 @@ const App = {
     if (gridEl) gridEl.innerHTML = html;
   },
 
-  addReminderPrompt(dateStr) {
-    const title = (prompt(`Dodaj przypomnienie w kalendarzu na dzień ${dateStr}:`) || '').trim();
+  openCalendarModal(dateStr) {
+    const root = document.getElementById('modalRoot');
+    if (!root) return;
+    const rems = Store.state.reminders.filter(r => r.date === dateStr);
+    const isTodayOrPast = dateStr <= this.today();
+
+    root.innerHTML = `
+      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
+        <div class="modal" style="max-width:520px;">
+          <div class="modal-header">
+            <div>
+              <h3 style="font-size:1.1rem; font-weight:800;">📅 Kalendarz: ${dateStr}</h3>
+              <p style="font-size:0.76rem; color:var(--text-muted); margin-top:2px;">
+                ${isTodayOrPast ? 'Wpisane zadanie od razu wskoczy do wybranej Roli i Ćwiartki.' : 'W tym dniu zadanie automatycznie wskoczy na listę zadań wybranej Roli i Ćwiartki.'}
+              </p>
+            </div>
+            <button class="btn" onclick="App.closeModal()">✕</button>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            ${rems.length ? rems.map(r => {
+              const role = Store.state.roles.find(x => x.id === r.roleId);
+              return `
+                <div class="task-row">
+                  <div class="task-row-left">
+                    <span>${role ? role.emoji : '🔔'} <strong>${this.esc(r.title)}</strong></span>
+                  </div>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">${role ? this.esc(role.name) : ''}</span>
+                  <span class="q-tag q${r.q || 2}">Q${r.q || 2}</span>
+                  <button class="btn" style="padding:2px 6px;" onclick="App.deleteReminder('${r.id}', '${dateStr}')">✕</button>
+                </div>
+              `;
+            }).join('') : `<div style="font-size:0.8rem; color:var(--text-dim); padding:6px 0;">Brak przypomnień w tym dniu.</div>`}
+          </div>
+
+          <form onsubmit="event.preventDefault(); App.saveCalendarReminder('${dateStr}', this);" style="display:flex; flex-direction:column; gap:10px; padding-top:12px; border-top:1px solid var(--border);">
+            <input type="text" name="title" class="input-clean" placeholder="+ Wpisz treść przypomnienia / zadania..." required autofocus>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <div>
+                <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Wybierz Rolę (Cel):</label>
+                <select name="roleId" class="input-clean" style="font-weight:600;">
+                  ${Store.state.roles.map(r => `<option value="${r.id}">${r.emoji} ${this.esc(r.name)}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Wybierz Ćwiartkę:</label>
+                <select name="q" class="input-clean" style="font-weight:600;">
+                  <option value="2">💎 Q2: Ważne, niepilne</option>
+                  <option value="1">🔥 Q1: Pilne i Ważne</option>
+                  <option value="3">⚡ Q3: Pilne, nieważne</option>
+                  <option value="4">🗑️ Q4: Niepilne, nieważne</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="justify-content:center; padding:10px;">
+              + Zapisz w kalendarzu (${dateStr})
+            </button>
+          </form>
+        </div>
+      </div>
+    `;
+  },
+
+  saveCalendarReminder(dateStr, form) {
+    const title = form.title.value.trim();
     if (!title) return;
-    Store.state.reminders.push({ id: 'c_' + Date.now(), date: dateStr, title, createdAt: Date.now() });
+    const roleId = form.roleId.value || Store.state.roles[0].id;
+    const q = parseInt(form.q.value, 10) || 2;
+
+    Store.state.reminders.push({
+      id: 'c_' + Date.now(),
+      date: dateStr,
+      title,
+      roleId,
+      q,
+      activatedTaskId: null,
+      done: false,
+      createdAt: Date.now()
+    });
+    this.processDueReminders();
     this.save();
-    this.renderCalendar();
+    this.renderAll();
+    this.openCalendarModal(dateStr);
+  },
+
+  deleteReminder(id, dateStr) {
+    const rem = Store.state.reminders.find(r => r.id === id);
+    if (rem && rem.activatedTaskId) {
+      Store.state.tasks = Store.state.tasks.filter(t => t.id !== rem.activatedTaskId);
+    }
+    Store.state.reminders = Store.state.reminders.filter(r => r.id !== id);
+    this.save();
+    this.renderAll();
+    this.openCalendarModal(dateStr);
   },
 
   /* ---- ZAKŁADKA 2: MATRYCA EISENHOWERA ---- */
@@ -568,6 +693,11 @@ const App = {
   },
 
   renderAll() {
+    if (!this._processingReminders) {
+      this._processingReminders = true;
+      this.processDueReminders();
+      this._processingReminders = false;
+    }
     document.querySelectorAll('.yearLabel').forEach(el => { el.textContent = Store.state.year; });
     this.renderIcon();
     this.renderPlan();
