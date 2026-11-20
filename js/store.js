@@ -53,18 +53,17 @@ const Store = {
         else item.roleId = 'r1';
       }
       if (!item.q) item.q = 2;
-      if (!item.cycleKey) {
-        const c = String(item.cycle || item.cycleLabel || 'Codziennie').toLowerCase();
-        if (c.includes('poniedziałek')) item.cycleKey = 'weekly_0';
-        else if (c.includes('wtorek')) item.cycleKey = 'weekly_1';
-        else if (c.includes('środ')) item.cycleKey = 'weekly_2';
-        else if (c.includes('czwartek')) item.cycleKey = 'weekly_3';
-        else if (c.includes('piątek')) item.cycleKey = 'weekly_4';
-        else if (c.includes('sobot')) item.cycleKey = 'weekly_5';
-        else if (c.includes('niedziel')) item.cycleKey = 'weekly_6';
-        else if (c.includes('robocz')) item.cycleKey = 'workdays';
-        else if (c.includes('miesiąc')) item.cycleKey = 'monthly_10';
-        else item.cycleKey = 'daily';
+      if (!Array.isArray(item.activeDays)) {
+        const c = String(item.cycleKey || item.cycle || item.cycleLabel || 'daily').toLowerCase();
+        if (c.includes('weekly_0') || c.includes('poniedziałek')) item.activeDays = [0];
+        else if (c.includes('weekly_1') || c.includes('wtorek')) item.activeDays = [1];
+        else if (c.includes('weekly_2') || c.includes('środ')) item.activeDays = [2];
+        else if (c.includes('weekly_3') || c.includes('czwartek')) item.activeDays = [3];
+        else if (c.includes('weekly_4') || c.includes('piątek')) item.activeDays = [4];
+        else if (c.includes('weekly_5') || c.includes('sobot')) item.activeDays = [5];
+        else if (c.includes('weekly_6') || c.includes('niedziel')) item.activeDays = [6];
+        else if (c.includes('workdays') || c.includes('robocz')) item.activeDays = [0, 1, 2, 3, 4];
+        else item.activeDays = [0, 1, 2, 3, 4, 5, 6];
       }
     });
     if (!Array.isArray(s.rules)) s.rules = def.rules;

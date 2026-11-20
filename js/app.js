@@ -457,45 +457,23 @@ const App = {
   },
 
   /* ---- ZAKŁADKA 3: OSTRZENIE PIŁY ---- */
-  SAW_CYCLE_OPTIONS: [
-    { key: 'daily', label: 'Codziennie' },
-    { key: 'workdays', label: 'Dni robocze (Pn–Pt)' },
-    { key: 'weekly_0', label: 'Co tydzień (Poniedziałek)' },
-    { key: 'weekly_1', label: 'Co tydzień (Wtorek)' },
-    { key: 'weekly_2', label: 'Co tydzień (Środa)' },
-    { key: 'weekly_3', label: 'Co tydzień (Czwartek)' },
-    { key: 'weekly_4', label: 'Co tydzień (Piątek)' },
-    { key: 'weekly_5', label: 'Co tydzień (Sobota)' },
-    { key: 'weekly_6', label: 'Co tydzień (Niedziela)' },
-    { key: 'monthly_1', label: 'Co miesiąc (1. dzień)' },
-    { key: 'monthly_10', label: 'Co miesiąc (10. dzień)' },
-    { key: 'monthly_15', label: 'Co miesiąc (15. dzień)' },
-    { key: 'monthly_25', label: 'Co miesiąc (25. dzień)' }
-  ],
+  editingSawId: null,
+  newSawDays: [0, 1, 2, 3, 4, 5, 6],
 
   getSawCycleLabel(s) {
-    const opt = this.SAW_CYCLE_OPTIONS.find(o => o.key === s.cycleKey);
-    return opt ? opt.label : (s.cycle || s.cycleLabel || 'Codziennie');
+    const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
+    const act = Array.isArray(s.activeDays) ? s.activeDays : [0,1,2,3,4,5,6];
+    if (act.length === 7) return 'Codziennie';
+    if (act.length === 0) return 'Brak dni';
+    return act.slice().sort((a,b) => a - b).map(i => days[i]).join(', ');
   },
 
   isSawDueToday(s) {
     if (!s) return false;
-    const key = s.cycleKey || 'daily';
     const now = new Date();
     const dow = (now.getDay() + 6) % 7; // 0 = Poniedziałek .. 6 = Niedziela
-    const dom = now.getDate();
-
-    if (key === 'daily') return true;
-    if (key === 'workdays') return dow >= 0 && dow <= 4;
-    if (key.startsWith('weekly_')) {
-      const targetDow = parseInt(key.split('_')[1], 10);
-      return dow === targetDow;
-    }
-    if (key.startsWith('monthly_')) {
-      const targetDom = parseInt(key.split('_')[1], 10);
-      return dom === targetDom;
-    }
-    return true;
+    const act = Array.isArray(s.activeDays) ? s.activeDays : [0,1,2,3,4,5,6];
+    return act.includes(dow);
   },
 
   doneSawToday(id) {
@@ -521,7 +499,26 @@ const App = {
     this.renderAll();
   },
 
-  cycleSawQ(id) {
+  toggleEditSaw(id) {
+    this.editingSawId = (this.editingSawId === id) ? null : id;
+    this.renderSaw();
+  },
+
+  toggleSawActiveDay(id, dowIdx) {
+    if (this.editingSawId !== id) return; // Zablokowane jeśli nie kliknięto „Edytuj”
+    const s = Store.state.saw.find(x => x.id === id);
+    if (!s) return;
+    if (!Array.isArray(s.activeDays)) s.activeDays = [0,1,2,3,4,5,6];
+    const i = s.activeDays.indexOf(dowIdx);
+    if (i >= 0) s.activeDays.splice(i, 1);
+    else s.activeDays.push(dowIdx);
+    s.activeDays.sort((a, b) => a - b);
+    this.save();
+    this.renderAll();
+  },
+
+  cycleSawQ(id, requireEdit = false) {
+    if (requireEdit && this.editingSawId !== id) return;
     const s = Store.state.saw.find(x => x.id === id);
     if (!s) return;
     s.q = ((s.q || 2) % 4) + 1;
@@ -530,6 +527,7 @@ const App = {
   },
 
   updateSawRole(id, roleId) {
+    if (this.editingSawId !== id) return;
     const s = Store.state.saw.find(x => x.id === id);
     if (!s) return;
     s.roleId = roleId;
@@ -537,92 +535,93 @@ const App = {
     this.renderAll();
   },
 
-  updateSawCycle(id, cycleKey) {
-    const s = Store.state.saw.find(x => x.id === id);
-    if (!s) return;
-    s.cycleKey = cycleKey;
-    s.cycle = this.getSawCycleLabel(s);
-    this.save();
-    this.renderAll();
-  },
-
   deleteSaw(id) {
     Store.state.saw = Store.state.saw.filter(x => x.id !== id);
+    if (this.editingSawId === id) this.editingSawId = null;
     this.save();
     this.renderAll();
   },
 
   renderSaw() {
     const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
-    const now = new Date();
-    const dow = (now.getDay() + 6) % 7;
-    const mon = new Date(now); mon.setDate(now.getDate() - dow);
-    const weekDates = [0,1,2,3,4,5,6].map(i => {
-      const d = new Date(mon); d.setDate(mon.getDate() + i);
-      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    });
-
     const el = document.getElementById('sawContainer');
     if (!el) return;
     el.innerHTML = `
       <table class="clean-table">
         <thead>
           <tr>
-            <th style="width:32%;">Ostrzenie Piły (Nawyk / Zadanie cykliczne)</th>
-            <th style="width:22%;">Rola (Gdzie wskakuje)</th>
-            <th style="width:22%;">Cykl (W jaki dzień)</th>
-            <th style="width:8%;">Ćwiartka</th>
-            <th style="width:16%;">Ten tydzień (Pn–Nd)</th>
+            <th style="width:36%;">Ostrzenie Piły (Nawyk / Zadanie cykliczne)</th>
+            <th style="width:24%;">Rola (Gdzie wskakuje)</th>
+            <th style="width:10%;">Ćwiartka</th>
+            <th style="width:30%;">Dni tygodnia (Pn–Nd)</th>
           </tr>
         </thead>
         <tbody>
-          ${Store.state.saw.map(s => `
-            <tr>
-              <td><strong>${this.esc(s.title)}</strong></td>
-              <td>
-                <select class="input-clean" style="padding:5px 8px; font-weight:600;" onchange="App.updateSawRole('${s.id}', this.value)">
-                  ${Store.state.roles.map(r => `<option value="${r.id}" ${(s.roleId || 'r1') === r.id ? 'selected' : ''}>${r.emoji} ${this.esc(r.name)}</option>`).join('')}
-                </select>
-              </td>
-              <td>
-                <select class="input-clean" style="padding:5px 8px; font-weight:600;" onchange="App.updateSawCycle('${s.id}', this.value)">
-                  ${this.SAW_CYCLE_OPTIONS.map(opt => `<option value="${opt.key}" ${(s.cycleKey || 'daily') === opt.key ? 'selected' : ''}>${this.esc(opt.label)}</option>`).join('')}
-                </select>
-              </td>
-              <td>
-                <span class="q-tag q${s.q || 2}" onclick="App.cycleSawQ('${s.id}')" title="Kliknij, aby zmienić ćwiartkę">Q${s.q || 2}</span>
-              </td>
-              <td>
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <div class="week-dots">
-                    ${weekDates.map((dStr, idx) => {
-                      const isDone = (s.doneDays || []).includes(dStr);
-                      return `<button class="dot-btn ${isDone ? 'done' : ''}" onclick="App.toggleSawDay('${s.id}','${dStr}')">${days[idx]}</button>`;
-                    }).join('')}
+          ${Store.state.saw.map(s => {
+            const isEditing = (this.editingSawId === s.id);
+            const act = Array.isArray(s.activeDays) ? s.activeDays : [0,1,2,3,4,5,6];
+            const role = Store.state.roles.find(r => r.id === (s.roleId || 'r1')) || Store.state.roles[0];
+            return `
+              <tr style="${isEditing ? 'background:var(--accent-light);' : ''}">
+                <td><strong>${this.esc(s.title)}</strong></td>
+                <td>
+                  ${isEditing ? `
+                    <select class="input-clean" style="padding:5px 8px; font-weight:600;" onchange="App.updateSawRole('${s.id}', this.value)">
+                      ${Store.state.roles.map(r => `<option value="${r.id}" ${(s.roleId || 'r1') === r.id ? 'selected' : ''}>${r.emoji} ${this.esc(r.name)}</option>`).join('')}
+                    </select>
+                  ` : `
+                    <span style="font-weight:600;">${role.emoji} ${this.esc(role.name)}</span>
+                  `}
+                </td>
+                <td>
+                  <span class="q-tag q${s.q || 2}" style="${isEditing ? 'cursor:pointer;' : 'cursor:default;'}" onclick="App.cycleSawQ('${s.id}', true)" title="${isEditing ? 'Kliknij, aby zmienić ćwiartkę' : 'Kliknij Edytuj, aby zmienić'}">Q${s.q || 2}</span>
+                </td>
+                <td>
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <div class="week-dots">
+                      ${days.map((dLabel, idx) => {
+                        const isSelected = act.includes(idx);
+                        return `<button type="button" class="dot-btn ${isSelected ? 'done' : ''}"
+                          style="${isEditing ? 'cursor:pointer;' : 'cursor:default; opacity:0.88;'}"
+                          ${isEditing ? `onclick="App.toggleSawActiveDay('${s.id}', ${idx})"` : 'disabled'}
+                          title="${isEditing ? 'Kliknij, aby włączyć/wyłączyć ten dzień tygodnia' : 'Kliknij Edytuj obok, aby zmienić dni'}">${dLabel}</button>`;
+                      }).join('')}
+                    </div>
+                    <button type="button" class="btn ${isEditing ? 'btn-primary' : ''}" style="padding:3px 10px; font-size:0.74rem;" onclick="App.toggleEditSaw('${s.id}')">
+                      ${isEditing ? '✓ Zapisz' : '✏️ Edytuj'}
+                    </button>
+                    <button type="button" class="btn" style="padding:3px 7px;" onclick="App.deleteSaw('${s.id}')" title="Usuń pozycję">✕</button>
                   </div>
-                  <button class="btn" style="padding:2px 6px;" onclick="App.deleteSaw('${s.id}')" title="Usuń pozycję">✕</button>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
+                </td>
+              </tr>
+            `;
+          }).join('')}
         </tbody>
       </table>
     `;
   },
 
-  toggleSawDay(id, dStr) {
-    const s = Store.state.saw.find(x => x.id === id);
-    if (!s) return;
-    if (!Array.isArray(s.doneDays)) s.doneDays = [];
-    const i = s.doneDays.indexOf(dStr);
-    if (i >= 0) s.doneDays.splice(i, 1); else s.doneDays.push(dStr);
-    this.save();
-    this.renderAll();
+  toggleNewSawModalDay(idx) {
+    const i = this.newSawDays.indexOf(idx);
+    if (i >= 0) this.newSawDays.splice(i, 1);
+    else this.newSawDays.push(idx);
+    this.newSawDays.sort((a, b) => a - b);
+    const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
+    const wrap = document.getElementById('modalNewSawDaysWrap');
+    if (wrap) {
+      wrap.innerHTML = days.map((dLabel, dIdx) => {
+        const isSel = this.newSawDays.includes(dIdx);
+        return `<button type="button" class="dot-btn ${isSel ? 'done' : ''}" style="width:34px; height:34px; font-size:0.78rem;" onclick="App.toggleNewSawModalDay(${dIdx})">${dLabel}</button>`;
+      }).join('');
+    }
   },
 
   openAddSawModal() {
     const root = document.getElementById('modalRoot');
     if (!root) return;
+    this.newSawDays = [0, 1, 2, 3, 4, 5, 6];
+    const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
+
     root.innerHTML = `
       <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
         <div class="modal" style="max-width:500px;">
@@ -630,7 +629,7 @@ const App = {
             <div>
               <h3 style="font-size:1.1rem; font-weight:800;">🪚 Dodaj do Ostrzenia Piły</h3>
               <p style="font-size:0.76rem; color:var(--text-muted); margin-top:2px;">
-                W wybranym dniu zadanie automatycznie wyświetli się na głównej liście wybranej Roli.
+                Zaznacz dni tygodnia, w które to przypomnienie ma się pojawiać na głównej liście.
               </p>
             </div>
             <button class="btn" onclick="App.closeModal()">✕</button>
@@ -661,10 +660,12 @@ const App = {
             </div>
 
             <div>
-              <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Kiedy ma wskakiwać na główną listę (Cykl):</label>
-              <select name="cycleKey" class="input-clean" style="font-weight:600;">
-                ${this.SAW_CYCLE_OPTIONS.map(opt => `<option value="${opt.key}">${this.esc(opt.label)}</option>`).join('')}
-              </select>
+              <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Zaznacz dni tygodnia (Pn–Nd), w które ma się pojawiać:</label>
+              <div class="week-dots" id="modalNewSawDaysWrap" style="gap:6px;">
+                ${days.map((dLabel, dIdx) => `
+                  <button type="button" class="dot-btn done" style="width:34px; height:34px; font-size:0.78rem;" onclick="App.toggleNewSawModalDay(${dIdx})">${dLabel}</button>
+                `).join('')}
+              </div>
             </div>
 
             <button type="submit" class="btn btn-primary" style="justify-content:center; padding:10px;">
@@ -681,16 +682,13 @@ const App = {
     if (!title) return;
     const roleId = form.roleId.value || Store.state.roles[0].id;
     const q = parseInt(form.q.value, 10) || 2;
-    const cycleKey = form.cycleKey.value || 'daily';
-    const opt = this.SAW_CYCLE_OPTIONS.find(o => o.key === cycleKey);
 
     Store.state.saw.push({
       id: 's_' + Date.now(),
       title,
       roleId,
       q,
-      cycleKey,
-      cycle: opt ? opt.label : 'Codziennie',
+      activeDays: [...this.newSawDays],
       doneDays: [],
       createdAt: Date.now()
     });
