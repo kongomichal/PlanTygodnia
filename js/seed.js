@@ -21,10 +21,22 @@ const Seed = {
       ],
       goals: {
         2026: {
-          r1: { weekly: 'Codzienny spacer min. 30 min', monthly: '25 dni ruchu w miesiącu', quarterly: 'Dobra kondycja i stały rytm snu', yearly: 'Wysoka energia i zdrowie przez cały rok' },
-          r2: { weekly: 'Prowadzić dziennik + nauka', monthly: 'Przeczytać 1 książkę', quarterly: 'Zaliczyć semestr bez zaległości', yearly: 'Rozwój osobisty i pewność siebie' },
-          r3: { weekly: 'Wartościowy czas z bliskimi', monthly: 'Wspólny wyjazd / wyjście', quarterly: 'Pogłębienie relacji rodzinnych', yearly: 'Silne, wspierające relacje' },
-          r4: { weekly: 'Domknąć najważniejsze sprawy w pracy', monthly: 'Uporządkować sprawy finansowe', quarterly: 'Rozwinąć główne projekty', yearly: 'Stabilny wzrost finansowy' }
+          r1: {
+            weekly: '7 spacerów po min. 30 min (ok. 3 km każdy) do niedzieli',
+            quarterly: 'Zrealizować min. 75 spacerów po 30 min i 24 treningi w tym kwartale'
+          },
+          r2: {
+            weekly: '7 wpisów w dzienniku + oddać 1 gotowy projekt na studia do niedzieli',
+            quarterly: 'Zaliczyć 100% przedmiotów w semestrze w 1. terminie i przeczytać 3 książki'
+          },
+          r3: {
+            weekly: 'Min. 3 wieczory po 2h z bliskimi bez telefonu w tym tygodniu',
+            quarterly: 'Zorganizować 6 wspólnych wyjść/wyjazdów z bliskimi w tym kwartale'
+          },
+          r4: {
+            weekly: 'Opłacić 100% faktur w terminie i wysłać 5 ofert na strony WWW do piątku',
+            quarterly: 'Pozyskać 3 nowe zlecenia na strony WWW i domknąć 100% rozliczeń KSeF w terminie'
+          }
         }
       },
       tasks: [],

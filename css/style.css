@@ -211,45 +211,57 @@ button { cursor: pointer; }
   padding: 24px 24px 60px;
 }
 
-/* LEKKI PASEK CELÓW NA GÓRZE PLANU TYGODNIA */
-.goals-summary-strip {
+/* SIATKA 4 KAFELKÓW CELÓW KWARTALNYCH NA GÓRZE (OPCJA B: 1 LINIA + DYMEK) */
+.quarterly-goals-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.q-goal-tile {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 12px 18px;
-  margin-bottom: 20px;
+  padding: 10px 14px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  min-width: 0;
+  transition: 0.15s;
+}
+.q-goal-tile:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  z-index: 35;
+}
+.q-goal-tile-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  box-shadow: var(--shadow-sm);
-}
-.goals-strip-items {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
-  flex: 1;
-}
-.goal-pill-item {
-  display: flex;
-  align-items: center;
   gap: 6px;
-  font-size: 0.82rem;
-}
-.goal-pill-role {
+  font-size: 0.68rem;
   font-weight: 800;
-  color: var(--text-main);
-}
-.goal-pill-val {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.q-goal-tile-text {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.q-goal-tile:hover .cal-tooltip {
+  display: block;
 }
 
-/* SIATKA 4 RÓL (4 ESTETYCZNE RUBRYCZKI OBOK SIEBIE – IDENTYCZNIE JAK W DEMO) */
+/* SIATKA 4 RÓL (4 ESTETYCZNE RUBRYCZKI OBOK SIEBIE) */
 .roles-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 28px;
   align-items: start;
@@ -614,8 +626,8 @@ button { cursor: pointer; }
 }
 
 @media (max-width: 1100px) {
-  .roles-grid { grid-template-columns: repeat(2, 1fr); }
+  .roles-grid, .quarterly-goals-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 680px) {
-  .roles-grid, .matrix-2x2, .habits-simple-grid { grid-template-columns: 1fr; }
+  .roles-grid, .quarterly-goals-bar, .matrix-2x2, .habits-simple-grid { grid-template-columns: 1fr; }
 }

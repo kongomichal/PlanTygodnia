@@ -78,20 +78,28 @@ const App = {
     this.renderAll();
   },
 
-  /* ---- WIDOK 1: PLAN TYGODNIA (ROLE + KALENDARZ — IDENTYCZNIE JAK W DEMO) ---- */
+  /* ---- WIDOK 1: PLAN TYGODNIA (4 KAFELKI CELÓW KWARTALNYCH + 4 RUBRYCZKI RÓL + KALENDARZ) ---- */
   renderPlan() {
     const y = Store.state.year;
     const gYear = Store.state.goals[y] || {};
+    const curQ = Math.floor(new Date().getMonth() / 3) + 1;
 
-    // Pasek celów na górze
+    // 4 równe kafelki Celów Kwartalnych w jednym rzędzie na górze (z ucinaniem tekstu i dymkiem po najechaniu)
     const stripEl = document.getElementById('goalsStripItems');
     if (stripEl) {
       stripEl.innerHTML = Store.state.roles.map(r => {
-        const gw = gYear[r.id]?.weekly || 'Brak celu tygodniowego';
+        const gq = gYear[r.id]?.quarterly || 'Kliknij, aby ustalić mierzalny cel kwartalny...';
         return `
-          <div class="goal-pill-item">
-            <span class="goal-pill-role">${r.emoji} ${this.esc(r.name)}:</span>
-            <span class="goal-pill-val">${this.esc(gw)}</span>
+          <div class="q-goal-tile" style="border-left: 4px solid ${r.color};" onclick="App.switchTab('goals')">
+            <div class="q-goal-tile-head">
+              <span>${r.emoji} ${this.esc(r.name)} · KWARTAŁ Q${curQ}</span>
+              <span style="color:var(--accent);">Edytuj →</span>
+            </div>
+            <div class="q-goal-tile-text">${this.esc(gq)}</div>
+            <div class="cal-tooltip">
+              <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">📊 Cel Kwartalny (Q${curQ} ${y}) · ${r.emoji} ${this.esc(r.name)}</div>
+              <div style="font-weight:600; color:#ffffff;">${this.esc(gq)}</div>
+            </div>
           </div>
         `;
       }).join('');
@@ -697,33 +705,55 @@ const App = {
     this.renderAll();
   },
 
-  /* ---- ZAKŁADKA 4: CELE ---- */
+  /* ---- ZAKŁADKA 4: CELE (TYGODNIOWE & KWARTALNE - SMART) ---- */
   renderGoals() {
     const y = Store.state.year;
+    const curQ = Math.floor(new Date().getMonth() / 3) + 1;
     const gYear = Store.state.goals[y] || {};
     const el = document.getElementById('goalsTableContainer');
     if (!el) return;
+
+    const smartPlaceholders = {
+      r1: {
+        weekly: 'np. 7 spacerów po min. 30 min (ok. 3 km) do niedzieli',
+        quarterly: 'np. Zrealizować min. 75 spacerów po 30 min i 24 treningi do końca kwartału'
+      },
+      r2: {
+        weekly: 'np. 7 wpisów w dzienniku + oddać 1 gotowy projekt WSB do niedzieli',
+        quarterly: 'np. Zaliczyć 100% przedmiotów w 1. terminie i przeczytać 3 książki w tym kwartale'
+      },
+      r3: {
+        weekly: 'np. Min. 3 wieczory po 2h z bliskimi bez telefonu w tym tygodniu',
+        quarterly: 'np. Zorganizować 6 wspólnych wyjść/spotkań z bliskimi w tym kwartale'
+      },
+      r4: {
+        weekly: 'np. Opłacić 100% faktur i wysłać 5 ofert na strony WWW do piątku',
+        quarterly: 'np. Pozyskać 3 nowe zlecenia na strony WWW (min. X zł) do końca kwartału'
+      }
+    };
+
     el.innerHTML = `
       <table class="clean-table">
         <thead>
           <tr>
-            <th style="width:18%;">Rola (Noga Stołu)</th>
-            <th>Cel Tygodniowy</th>
-            <th>Cel Miesięczny</th>
-            <th>Cel Kwartalny</th>
-            <th>Cel Roczny (${y})</th>
+            <th style="width:20%;">Rola (Noga Stołu)</th>
+            <th style="width:40%;">⚡ Cel Tygodniowy — konkretny, policzalny krok (widoczny w rubryczce Roli)</th>
+            <th style="width:40%;">📊 Cel Kwartalny Q${curQ} (${y}) — mierzalny wynik SMART (widoczny w kafelku na górze)</th>
           </tr>
         </thead>
         <tbody>
           ${Store.state.roles.map(r => {
-            const g = gYear[r.id] || { weekly: '', monthly: '', quarterly: '', yearly: '' };
+            const g = gYear[r.id] || { weekly: '', quarterly: '' };
+            const ph = smartPlaceholders[r.id] || { weekly: 'Ile? Co dokładnie? Do końca tygodnia...', quarterly: 'Ile? Co dokładnie? Do końca kwartału...' };
             return `
               <tr>
                 <td><strong>${r.emoji} ${this.esc(r.name)}</strong></td>
-                <td><input class="input-clean" value="${this.esc(g.weekly)}" onchange="App.saveGoal('${r.id}','weekly',this.value)"></td>
-                <td><input class="input-clean" value="${this.esc(g.monthly)}" onchange="App.saveGoal('${r.id}','monthly',this.value)"></td>
-                <td><input class="input-clean" value="${this.esc(g.quarterly)}" onchange="App.saveGoal('${r.id}','quarterly',this.value)"></td>
-                <td><input class="input-clean" value="${this.esc(g.yearly)}" onchange="App.saveGoal('${r.id}','yearly',this.value)"></td>
+                <td>
+                  <input class="input-clean" value="${this.esc(g.weekly || '')}" placeholder="${this.esc(ph.weekly)}" onchange="App.saveGoal('${r.id}','weekly',this.value)">
+                </td>
+                <td>
+                  <input class="input-clean" value="${this.esc(g.quarterly || '')}" placeholder="${this.esc(ph.quarterly)}" onchange="App.saveGoal('${r.id}','quarterly',this.value)">
+                </td>
               </tr>
             `;
           }).join('')}
