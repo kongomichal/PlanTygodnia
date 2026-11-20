@@ -587,6 +587,118 @@ button { cursor: pointer; }
 }
 .drawer.open { transform: translateX(0); }
 
+/* FOLDERY W SZUFLADZIE „NA PÓŹNIEJ” — IDENTYCZNY ROZMIAR, UKŁAD SYMETRYCZNY + DYMEK */
+.later-folders-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+.later-folders-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.later-folder-card {
+  position: relative;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 10px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: 0.15s;
+}
+.later-folder-card:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+  z-index: 45;
+}
+.later-folder-card.active {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.later-folder-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.later-folder-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+.later-folder-count {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.later-folder-card.active .later-folder-count {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.later-folder-del {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.later-folder-del:hover {
+  background: var(--crimson-light);
+  color: var(--crimson);
+}
+.later-folder-card:hover .cal-tooltip {
+  display: block;
+}
+.later-folder-card .cal-tooltip {
+  top: calc(100% + 7px);
+  bottom: auto;
+  max-width: 240px;
+}
+.later-folder-card .cal-tooltip::after {
+  top: auto;
+  bottom: 100%;
+  border-color: transparent transparent #0f172a transparent;
+}
+.later-folder-card:nth-child(odd) .cal-tooltip {
+  left: 0;
+  right: auto;
+  transform: none;
+}
+.later-folder-card:nth-child(odd) .cal-tooltip::after {
+  left: 24px;
+  transform: none;
+}
+.later-folder-card:nth-child(even) .cal-tooltip {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+.later-folder-card:nth-child(even) .cal-tooltip::after {
+  left: auto;
+  right: 24px;
+  transform: none;
+}
+
 /* SPOKOJNY EKRAN POWITALNY (7 NAWYKÓW) + MODALE */
 .welcome-overlay, .modal-backdrop {
   position: fixed;

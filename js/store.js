@@ -94,6 +94,7 @@ const Store = {
       }
     });
     if (!Array.isArray(s.later)) s.later = [];
+    if (!Array.isArray(s.laterFolders)) s.laterFolders = [];
     if (!Array.isArray(s.reminders)) s.reminders = [];
     if (!Array.isArray(s.saw)) s.saw = def.saw;
     // Jeśli przed wprowadzeniem potwierdzenia usunięto domyślny Spacer lub Dziennik — przywróć je z niskim znacznikiem czasu (1), aby nie nadpisywały chmury
@@ -223,7 +224,7 @@ const Store = {
     return [...years].sort((a, b) => a - b);
   },
 
-  COLLECTIONS: ['tasks', 'roles', 'later', 'reminders', 'saw', 'archive', 'goalsArchive', 'affirmations', 'quotes'],
+  COLLECTIONS: ['tasks', 'roles', 'later', 'laterFolders', 'reminders', 'saw', 'archive', 'goalsArchive', 'affirmations', 'quotes'],
   baseline: {},
 
   _fp(item) {

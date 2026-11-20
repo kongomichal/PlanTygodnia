@@ -1636,33 +1636,155 @@ const App = {
     this.renderAll();
   },
 
-  /* ---- SZUFLADA „NA PÓŹNIEJ” ---- */
+  /* ---- SZUFLADA „NA PÓŹNIEJ” Z FOLDERAMI ---- */
+  activeLaterFolderId: 'all',
+
   toggleLater() { document.getElementById('laterDrawer').classList.toggle('open'); },
 
+  selectLaterFolder(folderId) {
+    this.activeLaterFolderId = folderId || 'all';
+    this.renderLater();
+  },
+
+  addLaterFolder() {
+    const inp = document.getElementById('laterFolderInput');
+    if (!inp) return;
+    const name = inp.value.trim();
+    if (!name) return;
+    if (!Array.isArray(Store.state.laterFolders)) Store.state.laterFolders = [];
+    const newFolder = { id: 'lf_' + Date.now(), name, createdAt: Date.now() };
+    Store.state.laterFolders.push(newFolder);
+    this.activeLaterFolderId = newFolder.id;
+    inp.value = '';
+    this.save();
+    this.renderLater();
+  },
+
+  deleteLaterFolder(id, ev) {
+    if (ev) ev.stopPropagation();
+    const f = (Store.state.laterFolders || []).find(x => x.id === id);
+    const label = f ? `„${f.name}”` : 'ten folder';
+    if (!confirm(`Czy na pewno chcesz usunąć folder ${label}? Pomysły ze środka pozostaną w zakładce „Wszystkie”.`)) return;
+    Store.state.laterFolders = (Store.state.laterFolders || []).filter(x => x.id !== id);
+    (Store.state.later || []).forEach(l => {
+      if (l.folderId === id) l.folderId = null;
+    });
+    if (this.activeLaterFolderId === id) this.activeLaterFolderId = 'all';
+    this.save();
+    this.renderLater();
+  },
+
+  setLaterItemFolder(laterId, folderId) {
+    const item = (Store.state.later || []).find(x => x.id === laterId);
+    if (!item) return;
+    item.folderId = folderId || null;
+    this.save();
+    this.renderLater();
+  },
+
   renderLater() {
+    const allItems = Store.state.later || [];
+    const folders = Store.state.laterFolders || [];
     const cnt = document.getElementById('laterCount');
-    if (cnt) cnt.textContent = Store.state.later.length;
+    if (cnt) cnt.textContent = allItems.length;
+
+    // Jeśli aktywny folder już nie istnieje, wróć do „Wszystkie”
+    if (this.activeLaterFolderId !== 'all' && !folders.some(f => f.id === this.activeLaterFolderId)) {
+      this.activeLaterFolderId = 'all';
+    }
+
+    // Siatka folderów — identyczny rozmiar i symetryczny układ 2 kolumn + dymek dla długich nazw
+    const foldersEl = document.getElementById('laterFoldersGrid');
+    if (foldersEl) {
+      const allTile = `
+        <div class="later-folder-card ${this.activeLaterFolderId === 'all' ? 'active' : ''}" onclick="App.selectLaterFolder('all')">
+          <span class="later-folder-icon">📥</span>
+          <span class="later-folder-name">Wszystkie</span>
+          <span class="later-folder-count">${allItems.length}</span>
+          <div class="cal-tooltip">
+            <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">Folder główny</div>
+            <div style="font-weight:600; color:#ffffff;">📥 Wszystkie pomysły (${allItems.length})</div>
+          </div>
+        </div>
+      `;
+      const customTiles = folders.map(f => {
+        const count = allItems.filter(l => l.folderId === f.id).length;
+        const isAct = this.activeLaterFolderId === f.id;
+        return `
+          <div class="later-folder-card ${isAct ? 'active' : ''}" onclick="App.selectLaterFolder('${f.id}')">
+            <span class="later-folder-icon">📁</span>
+            <span class="later-folder-name">${this.esc(f.name)}</span>
+            <span class="later-folder-count">${count}</span>
+            <button type="button" class="later-folder-del" onclick="App.deleteLaterFolder('${f.id}', event)" title="Usuń folder">✕</button>
+            <div class="cal-tooltip">
+              <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">📁 Folder (${count} ${count === 1 ? 'pomysł' : 'pomysłów'})</div>
+              <div style="font-weight:600; color:#ffffff;">${this.esc(f.name)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      foldersEl.innerHTML = allTile + customTiles;
+    }
+
+    // Dopasuj placeholder pola dodawania do aktualnie wybranego folderu
+    const inp = document.getElementById('laterInput');
+    if (inp) {
+      const actFolder = folders.find(f => f.id === this.activeLaterFolderId);
+      inp.placeholder = actFolder ? `+ Pomysł do „${actFolder.name}”...` : '+ Wpisz pomysł na później...';
+    }
+
     const listEl = document.getElementById('laterList');
     if (!listEl) return;
-    listEl.innerHTML = Store.state.later.map(l => `
-      <div class="task-row" style="flex-direction:column; align-items:stretch; gap:6px;">
-        <div style="display:flex; justify-content:space-between;">
-          <strong>💡 ${this.esc(l.title)}</strong>
-          <button class="btn" style="padding:1px 6px;" onclick="App.removeLater('${l.id}')">✕</button>
+
+    const visibleItems = this.activeLaterFolderId === 'all'
+      ? allItems
+      : allItems.filter(l => l.folderId === this.activeLaterFolderId);
+
+    if (!visibleItems.length) {
+      listEl.innerHTML = `<div style="font-size:0.8rem; color:var(--text-dim); text-align:center; padding:18px 8px;">Brak pomysłów w tym folderze.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = visibleItems.map(l => {
+      const itemFolder = folders.find(f => f.id === l.folderId);
+      return `
+        <div class="task-row" style="flex-direction:column; align-items:stretch; gap:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
+            <div style="display:flex; flex-direction:column; gap:3px; min-width:0; flex:1;">
+              <strong style="word-break:break-word;">💡 ${this.esc(l.title)}</strong>
+              ${itemFolder && this.activeLaterFolderId === 'all' ? `<span style="font-size:0.68rem; color:var(--accent); font-weight:700;">📁 ${this.esc(itemFolder.name)}</span>` : ''}
+            </div>
+            <button class="btn" style="padding:1px 6px; flex-shrink:0;" onclick="App.removeLater('${l.id}')">✕</button>
+          </div>
+          ${folders.length ? `
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:0.68rem; color:var(--text-muted); font-weight:600;">Folder:</span>
+              <select class="input-clean" style="padding:3px 6px; font-size:0.72rem; flex:1;" onchange="App.setLaterItemFolder('${l.id}', this.value)">
+                <option value="" ${!l.folderId ? 'selected' : ''}>📥 Bez folderu (Ogólne)</option>
+                ${folders.map(f => `<option value="${f.id}" ${l.folderId === f.id ? 'selected' : ''}>📁 ${this.esc(f.name)}</option>`).join('')}
+              </select>
+            </div>
+          ` : ''}
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            ${Store.state.roles.map(r => `
+              <button class="btn" style="font-size:0.7rem; padding:2px 6px;" onclick="App.moveLaterToRole('${l.id}','${r.id}')">→ ${r.emoji} ${this.esc(r.name)}</button>
+            `).join('')}
+          </div>
         </div>
-        <div style="display:flex; gap:4px; flex-wrap:wrap;">
-          ${Store.state.roles.map(r => `
-            <button class="btn" style="font-size:0.7rem; padding:2px 6px;" onclick="App.moveLaterToRole('${l.id}','${r.id}')">→ ${r.emoji} ${this.esc(r.name)}</button>
-          `).join('')}
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   },
 
   addLater() {
     const inp = document.getElementById('laterInput');
     if (!inp.value.trim()) return;
-    Store.state.later.unshift({ id: 'l_' + Date.now(), title: inp.value.trim(), createdAt: Date.now() });
+    const folderId = this.activeLaterFolderId === 'all' ? null : this.activeLaterFolderId;
+    Store.state.later.unshift({
+      id: 'l_' + Date.now(),
+      title: inp.value.trim(),
+      folderId,
+      createdAt: Date.now()
+    });
     inp.value = '';
     this.save();
     this.renderLater();

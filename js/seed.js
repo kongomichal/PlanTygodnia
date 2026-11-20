@@ -53,6 +53,7 @@ const Seed = {
       },
       tasks: [],
       later: [],
+      laterFolders: [],
       reminders: [],
       saw: [
         { id: 's1', title: '🚶‍♂️ Wyjście na spacer', roleId: 'r1', q: 2, activeDays: [0, 1, 2, 3, 4, 5, 6], doneDays: [], spawnedDates: [], dismissedDays: [], createdAt: 1, updatedAt: 1 },
