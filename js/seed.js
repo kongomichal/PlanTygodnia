@@ -31,10 +31,10 @@ const Seed = {
       later: [],
       reminders: [],
       saw: [
-        { id: 's1', title: '🚶‍♂️ Wyjście na spacer', cycle: 'Codziennie', dim: 'Ciało', doneDays: [] },
-        { id: 's2', title: '📓 Pisanie dziennika', cycle: 'Codziennie', dim: 'Umysł', doneDays: [] },
-        { id: 's3', title: '🧭 Planowanie tygodnia i przegląd celów', cycle: 'Co tydzień (Poniedziałek)', dim: 'Duch', doneDays: [] },
-        { id: 's4', title: '📊 Rozliczenia i dokumenty', cycle: 'Co miesiąc', dim: 'Praca', doneDays: [] }
+        { id: 's1', title: '🚶‍♂️ Wyjście na spacer', roleId: 'r1', q: 2, cycleKey: 'daily', cycle: 'Codziennie', doneDays: [] },
+        { id: 's2', title: '📓 Pisanie dziennika', roleId: 'r2', q: 2, cycleKey: 'daily', cycle: 'Codziennie', doneDays: [] },
+        { id: 's3', title: '🧭 Planowanie tygodnia i przegląd celów', roleId: 'r2', q: 2, cycleKey: 'weekly_0', cycle: 'Co tydzień (Poniedziałek)', doneDays: [] },
+        { id: 's4', title: '📊 Rozliczenia, faktury i KSeF', roleId: 'r4', q: 2, cycleKey: 'monthly_10', cycle: 'Co miesiąc (10. dzień)', doneDays: [] }
       ],
       affirmations: [
         { id: 'af1', text: 'Jestem spokojny, pewny siebie i mówię otwarcie to, co myślę.' },

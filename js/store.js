@@ -43,6 +43,30 @@ const Store = {
     if (!Array.isArray(s.later)) s.later = [];
     if (!Array.isArray(s.reminders)) s.reminders = [];
     if (!Array.isArray(s.saw)) s.saw = def.saw;
+    s.saw.forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      if (!item.roleId || !s.roles.some(r => r.id === item.roleId)) {
+        const d = String(item.dim || '').toLowerCase();
+        if (d.includes('umysł') || d.includes('studia') || d.includes('duch') || /dziennik|planowanie/i.test(item.title)) item.roleId = 'r2';
+        else if (d.includes('relacje') || d.includes('bliscy')) item.roleId = 'r3';
+        else if (d.includes('praca') || d.includes('finanse') || /faktur|ksef|rozlicz/i.test(item.title)) item.roleId = 'r4';
+        else item.roleId = 'r1';
+      }
+      if (!item.q) item.q = 2;
+      if (!item.cycleKey) {
+        const c = String(item.cycle || item.cycleLabel || 'Codziennie').toLowerCase();
+        if (c.includes('poniedziałek')) item.cycleKey = 'weekly_0';
+        else if (c.includes('wtorek')) item.cycleKey = 'weekly_1';
+        else if (c.includes('środ')) item.cycleKey = 'weekly_2';
+        else if (c.includes('czwartek')) item.cycleKey = 'weekly_3';
+        else if (c.includes('piątek')) item.cycleKey = 'weekly_4';
+        else if (c.includes('sobot')) item.cycleKey = 'weekly_5';
+        else if (c.includes('niedziel')) item.cycleKey = 'weekly_6';
+        else if (c.includes('robocz')) item.cycleKey = 'workdays';
+        else if (c.includes('miesiąc')) item.cycleKey = 'monthly_10';
+        else item.cycleKey = 'daily';
+      }
+    });
     if (!Array.isArray(s.rules)) s.rules = def.rules;
     if (!Array.isArray(s.affirmations)) s.affirmations = def.affirmations;
     if (!Array.isArray(s.quotes)) s.quotes = def.quotes;

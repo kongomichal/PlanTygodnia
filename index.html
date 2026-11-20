@@ -11,22 +11,22 @@
   <meta name="application-name" content="Plan Tygodnia">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#f4f6fb" id="metaThemeColor">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=12.6">
-  <link rel="icon" type="image/svg+xml" href="icon.svg?v=12.6">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=12.6">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=12.6">
-  <link rel="manifest" href="manifest.webmanifest?v=12.6">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=12.7">
+  <link rel="icon" type="image/svg+xml" href="icon.svg?v=12.7">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=12.7">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=12.7">
+  <link rel="manifest" href="manifest.webmanifest?v=12.7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="css/style.css?v=12.6">
+  <link rel="stylesheet" href="css/style.css?v=12.7">
 
   <script>
     (function() {
-      const APP_VERSION = '12.6';
+      const APP_VERSION = '12.7';
       try {
         const url = new URL(window.location.href);
         if (url.searchParams.get('v') !== APP_VERSION) {
@@ -195,7 +195,7 @@
   <div id="screenAuth">
     <div class="auth-portal-card">
       <div class="auth-portal-brand">
-        <img src="icon.svg?v=12.6" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
+        <img src="icon.svg?v=12.7" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
         <h1 class="auth-portal-title">Plan Tygodnia</h1>
       </div>
       <p class="auth-portal-subtitle">
@@ -355,15 +355,15 @@
         <div class="matrix-2x2" id="matrixGrid"></div>
       </section>
 
-      <!-- ==================== ZAKŁADKA 3: OSTRZENIE PIŁY (ZAMIAST RUTYN) ==================== -->
+      <!-- ==================== ZAKŁADKA 3: OSTRZENIE PIŁY ==================== -->
       <section id="view_saw" class="tab-section" style="display:none;">
         <div class="section-box">
           <div class="section-head">
             <div>
-              <h2>🪚 Ostrzenie Piły (Dawne Rutyny)</h2>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Codzienna odnowa (w tym przywrócone: Wyjście na spacer i Pisanie dziennika) oraz zadania cykliczne</p>
+              <h2>🪚 Ostrzenie Piły</h2>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Cykliczne nawyki i zadania, które w wybranym dniu automatycznie wyświetlają się na głównej liście wybranej Roli</p>
             </div>
-            <button class="btn btn-primary" onclick="App.addSawPrompt()">+ Dodaj nawyk / cykl</button>
+            <button class="btn btn-primary" onclick="App.openAddSawModal()">+ Dodaj nawyk / cykl</button>
           </div>
           <div id="sawContainer"></div>
         </div>
@@ -452,14 +452,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=12.6"></script>
+  <script src="js/firebase-config.js?v=12.7"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=12.6"></script>
-  <script src="js/seed.js?v=12.6"></script>
-  <script src="js/sync.js?v=12.6"></script>
-  <script src="js/store.js?v=12.6"></script>
-  <script src="js/app.js?v=12.6"></script>
+  <script src="js/utils.js?v=12.7"></script>
+  <script src="js/seed.js?v=12.7"></script>
+  <script src="js/sync.js?v=12.7"></script>
+  <script src="js/store.js?v=12.7"></script>
+  <script src="js/app.js?v=12.7"></script>
 
   <script>
     window.handleAuthAction = async function(type) {

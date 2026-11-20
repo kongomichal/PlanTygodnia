@@ -97,21 +97,36 @@ const App = {
       }).join('');
     }
 
-    // 4 estetyczne rubryczki Ról
+    // 4 estetyczne rubryczki Ról (wraz z pozycjami Ostrzenia Piły przypadającymi na dziś)
+    const today = this.today();
     const tasks = Store.state.tasks.filter(t => (t.year || y) === y);
+    const dueSawToday = (Store.state.saw || []).filter(s => this.isSawDueToday(s) && !(s.doneDays || []).includes(today));
+
     const gridEl = document.getElementById('rolesGrid');
     if (gridEl) {
       gridEl.innerHTML = Store.state.roles.map(r => {
         const rTasks = tasks.filter(t => t.roleId === r.id);
+        const rSaw = dueSawToday.filter(s => (s.roleId || 'r1') === r.id);
+        const totalCount = rTasks.length + rSaw.length;
         const gw = gYear[r.id]?.weekly || '';
         return `
           <div class="role-card" style="border-top: 3px solid ${r.color};">
             <div class="role-card-head">
               <div class="role-card-title">${r.emoji} ${this.esc(r.name)}</div>
-              <span class="role-card-count">${rTasks.length}</span>
+              <span class="role-card-count">${totalCount}</span>
             </div>
             ${gw ? `<div class="role-goal-hint">🎯 ${this.esc(gw)}</div>` : ''}
             <div class="task-list">
+              ${rSaw.map(s => `
+                <div class="task-row" style="border-left: 3px solid var(--emerald);">
+                  <div class="task-row-left">
+                    <button class="check-circle" onclick="App.doneSawToday('${s.id}')" title="Odhacz dzisiejsze Ostrzenie Piły">✓</button>
+                    <span>${this.esc(s.title)}</span>
+                    <span style="font-size:0.66rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc(this.getSawCycleLabel(s))}</span>
+                  </div>
+                  <span class="q-tag q${s.q || 2}" onclick="App.cycleSawQ('${s.id}')" title="Zmień ćwiartkę Matrycy">Q${s.q || 2}</span>
+                </div>
+              `).join('')}
               ${rTasks.map(t => `
                 <div class="task-row">
                   <div class="task-row-left">
@@ -358,19 +373,36 @@ const App = {
       { q: 3, title: '⚡ Ćwiartka III: Pilne, ale Nieważne', sub: 'Bieżączka i rozproszenia do zminimalizowania' },
       { q: 4, title: '🗑️ Ćwiartka IV: Niepilne i Nieważne', sub: 'Pożeracze czasu do odrzucenia' }
     ];
+    const today = this.today();
     const tasks = Store.state.tasks.filter(t => (t.year || Store.state.year) === Store.state.year);
+    const dueSawToday = (Store.state.saw || []).filter(s => this.isSawDueToday(s) && !(s.doneDays || []).includes(today));
 
     const gridEl = document.getElementById('matrixGrid');
     if (!gridEl) return;
     gridEl.innerHTML = meta.map(m => {
       const list = tasks.filter(t => (t.q || 2) === m.q);
+      const sawList = dueSawToday.filter(s => (s.q || 2) === m.q);
+      const totalLen = list.length + sawList.length;
       return `
         <div class="quad-card q${m.q}">
           <div>
-            <h3 style="font-size:0.95rem; font-weight:800;">${m.title} (${list.length})</h3>
+            <h3 style="font-size:0.95rem; font-weight:800;">${m.title} (${totalLen})</h3>
             <p style="font-size:0.76rem; color:var(--text-muted);">${m.sub}</p>
           </div>
           <div class="task-list" style="flex:1;">
+            ${sawList.map(s => {
+              const r = Store.state.roles.find(x => x.id === (s.roleId || 'r1'));
+              return `
+                <div class="task-row" style="border-left: 3px solid var(--emerald);">
+                  <div class="task-row-left">
+                    <button class="check-circle" onclick="App.doneSawToday('${s.id}')" title="Odhacz dzisiejsze Ostrzenie Piły">✓</button>
+                    <span>${this.esc(s.title)}</span>
+                  </div>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
+                  <span class="q-tag q${s.q || 2}" onclick="App.cycleSawQ('${s.id}')">Q${s.q || 2}</span>
+                </div>
+              `;
+            }).join('')}
             ${list.length ? list.map(t => {
               const r = Store.state.roles.find(x => x.id === t.roleId);
               return `
@@ -383,7 +415,7 @@ const App = {
                   <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Kliknij, aby zmienić ćwiartkę">Q${t.q || 2}</span>
                 </div>
               `;
-            }).join('') : `<div style="color:var(--text-dim); font-size:0.8rem; margin:auto 0; text-align:center;">Brak zadań w tej ćwiartce</div>`}
+            }).join('') : (sawList.length === 0 ? `<div style="color:var(--text-dim); font-size:0.8rem; margin:auto 0; text-align:center;">Brak zadań w tej ćwiartce</div>` : '')}
           </div>
           <form class="quick-add-row" onsubmit="event.preventDefault(); App.addTaskFromMatrix(${m.q}, this);" style="padding-top:10px; border-top:1px solid var(--border);">
             <input type="text" name="title" class="input-clean" placeholder="+ Dodaj zadanie do Q${m.q}..." required style="flex:1;">
@@ -425,6 +457,101 @@ const App = {
   },
 
   /* ---- ZAKŁADKA 3: OSTRZENIE PIŁY ---- */
+  SAW_CYCLE_OPTIONS: [
+    { key: 'daily', label: 'Codziennie' },
+    { key: 'workdays', label: 'Dni robocze (Pn–Pt)' },
+    { key: 'weekly_0', label: 'Co tydzień (Poniedziałek)' },
+    { key: 'weekly_1', label: 'Co tydzień (Wtorek)' },
+    { key: 'weekly_2', label: 'Co tydzień (Środa)' },
+    { key: 'weekly_3', label: 'Co tydzień (Czwartek)' },
+    { key: 'weekly_4', label: 'Co tydzień (Piątek)' },
+    { key: 'weekly_5', label: 'Co tydzień (Sobota)' },
+    { key: 'weekly_6', label: 'Co tydzień (Niedziela)' },
+    { key: 'monthly_1', label: 'Co miesiąc (1. dzień)' },
+    { key: 'monthly_10', label: 'Co miesiąc (10. dzień)' },
+    { key: 'monthly_15', label: 'Co miesiąc (15. dzień)' },
+    { key: 'monthly_25', label: 'Co miesiąc (25. dzień)' }
+  ],
+
+  getSawCycleLabel(s) {
+    const opt = this.SAW_CYCLE_OPTIONS.find(o => o.key === s.cycleKey);
+    return opt ? opt.label : (s.cycle || s.cycleLabel || 'Codziennie');
+  },
+
+  isSawDueToday(s) {
+    if (!s) return false;
+    const key = s.cycleKey || 'daily';
+    const now = new Date();
+    const dow = (now.getDay() + 6) % 7; // 0 = Poniedziałek .. 6 = Niedziela
+    const dom = now.getDate();
+
+    if (key === 'daily') return true;
+    if (key === 'workdays') return dow >= 0 && dow <= 4;
+    if (key.startsWith('weekly_')) {
+      const targetDow = parseInt(key.split('_')[1], 10);
+      return dow === targetDow;
+    }
+    if (key.startsWith('monthly_')) {
+      const targetDom = parseInt(key.split('_')[1], 10);
+      return dom === targetDom;
+    }
+    return true;
+  },
+
+  doneSawToday(id) {
+    const s = Store.state.saw.find(x => x.id === id);
+    if (!s) return;
+    const today = this.today();
+    if (!Array.isArray(s.doneDays)) s.doneDays = [];
+    if (!s.doneDays.includes(today)) {
+      s.doneDays.push(today);
+    }
+    const now = new Date();
+    const stamp = `${today} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    Store.state.archive.unshift({
+      id: 'ar_saw_' + Date.now(),
+      title: s.title,
+      roleId: s.roleId || 'r1',
+      q: s.q || 2,
+      doneAt: stamp,
+      year: Store.state.year,
+      createdAt: Date.now()
+    });
+    this.save();
+    this.renderAll();
+  },
+
+  cycleSawQ(id) {
+    const s = Store.state.saw.find(x => x.id === id);
+    if (!s) return;
+    s.q = ((s.q || 2) % 4) + 1;
+    this.save();
+    this.renderAll();
+  },
+
+  updateSawRole(id, roleId) {
+    const s = Store.state.saw.find(x => x.id === id);
+    if (!s) return;
+    s.roleId = roleId;
+    this.save();
+    this.renderAll();
+  },
+
+  updateSawCycle(id, cycleKey) {
+    const s = Store.state.saw.find(x => x.id === id);
+    if (!s) return;
+    s.cycleKey = cycleKey;
+    s.cycle = this.getSawCycleLabel(s);
+    this.save();
+    this.renderAll();
+  },
+
+  deleteSaw(id) {
+    Store.state.saw = Store.state.saw.filter(x => x.id !== id);
+    this.save();
+    this.renderAll();
+  },
+
   renderSaw() {
     const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
     const now = new Date();
@@ -441,24 +568,39 @@ const App = {
       <table class="clean-table">
         <thead>
           <tr>
-            <th>Ostrzenie Piły (Nawyk / Zadanie cykliczne)</th>
-            <th>Wymiar</th>
-            <th>Cykl</th>
-            <th>Ten tydzień (Pn–Nd)</th>
+            <th style="width:32%;">Ostrzenie Piły (Nawyk / Zadanie cykliczne)</th>
+            <th style="width:22%;">Rola (Gdzie wskakuje)</th>
+            <th style="width:22%;">Cykl (W jaki dzień)</th>
+            <th style="width:8%;">Ćwiartka</th>
+            <th style="width:16%;">Ten tydzień (Pn–Nd)</th>
           </tr>
         </thead>
         <tbody>
           ${Store.state.saw.map(s => `
             <tr>
               <td><strong>${this.esc(s.title)}</strong></td>
-              <td>${this.esc(s.dim || 'Odnowa')}</td>
-              <td>${this.esc(s.cycle || s.cycleLabel || 'Codziennie')}</td>
               <td>
-                <div class="week-dots">
-                  ${weekDates.map((dStr, idx) => {
-                    const isDone = (s.doneDays || []).includes(dStr);
-                    return `<button class="dot-btn ${isDone ? 'done' : ''}" onclick="App.toggleSawDay('${s.id}','${dStr}')">${days[idx]}</button>`;
-                  }).join('')}
+                <select class="input-clean" style="padding:5px 8px; font-weight:600;" onchange="App.updateSawRole('${s.id}', this.value)">
+                  ${Store.state.roles.map(r => `<option value="${r.id}" ${(s.roleId || 'r1') === r.id ? 'selected' : ''}>${r.emoji} ${this.esc(r.name)}</option>`).join('')}
+                </select>
+              </td>
+              <td>
+                <select class="input-clean" style="padding:5px 8px; font-weight:600;" onchange="App.updateSawCycle('${s.id}', this.value)">
+                  ${this.SAW_CYCLE_OPTIONS.map(opt => `<option value="${opt.key}" ${(s.cycleKey || 'daily') === opt.key ? 'selected' : ''}>${this.esc(opt.label)}</option>`).join('')}
+                </select>
+              </td>
+              <td>
+                <span class="q-tag q${s.q || 2}" onclick="App.cycleSawQ('${s.id}')" title="Kliknij, aby zmienić ćwiartkę">Q${s.q || 2}</span>
+              </td>
+              <td>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <div class="week-dots">
+                    ${weekDates.map((dStr, idx) => {
+                      const isDone = (s.doneDays || []).includes(dStr);
+                      return `<button class="dot-btn ${isDone ? 'done' : ''}" onclick="App.toggleSawDay('${s.id}','${dStr}')">${days[idx]}</button>`;
+                    }).join('')}
+                  </div>
+                  <button class="btn" style="padding:2px 6px;" onclick="App.deleteSaw('${s.id}')" title="Usuń pozycję">✕</button>
                 </div>
               </td>
             </tr>
@@ -475,16 +617,86 @@ const App = {
     const i = s.doneDays.indexOf(dStr);
     if (i >= 0) s.doneDays.splice(i, 1); else s.doneDays.push(dStr);
     this.save();
-    this.renderSaw();
+    this.renderAll();
   },
 
-  addSawPrompt() {
-    const title = (prompt('Nazwa czynności w Ostrzeniu Piły:') || '').trim();
+  openAddSawModal() {
+    const root = document.getElementById('modalRoot');
+    if (!root) return;
+    root.innerHTML = `
+      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
+        <div class="modal" style="max-width:500px;">
+          <div class="modal-header">
+            <div>
+              <h3 style="font-size:1.1rem; font-weight:800;">🪚 Dodaj do Ostrzenia Piły</h3>
+              <p style="font-size:0.76rem; color:var(--text-muted); margin-top:2px;">
+                W wybranym dniu zadanie automatycznie wyświetli się na głównej liście wybranej Roli.
+              </p>
+            </div>
+            <button class="btn" onclick="App.closeModal()">✕</button>
+          </div>
+
+          <form onsubmit="event.preventDefault(); App.saveNewSaw(this);" style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+              <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Nazwa nawyku / zadania cyklicznego:</label>
+              <input type="text" name="title" class="input-clean" placeholder="np. Wyjście na spacer, Przegląd faktur..." required autofocus>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div>
+                <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Wybierz Rolę (z 4):</label>
+                <select name="roleId" class="input-clean" style="font-weight:600;">
+                  ${Store.state.roles.map(r => `<option value="${r.id}">${r.emoji} ${this.esc(r.name)}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Wybierz Ćwiartkę:</label>
+                <select name="q" class="input-clean" style="font-weight:600;">
+                  <option value="2">💎 Q2: Ważne, niepilne</option>
+                  <option value="1">🔥 Q1: Pilne i Ważne</option>
+                  <option value="3">⚡ Q3: Pilne, nieważne</option>
+                  <option value="4">🗑️ Q4: Niepilne, nieważne</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Kiedy ma wskakiwać na główną listę (Cykl):</label>
+              <select name="cycleKey" class="input-clean" style="font-weight:600;">
+                ${this.SAW_CYCLE_OPTIONS.map(opt => `<option value="${opt.key}">${this.esc(opt.label)}</option>`).join('')}
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="justify-content:center; padding:10px;">
+              + Zapisz w Ostrzeniu Piły
+            </button>
+          </form>
+        </div>
+      </div>
+    `;
+  },
+
+  saveNewSaw(form) {
+    const title = form.title.value.trim();
     if (!title) return;
-    const cycle = (prompt('Cykl (np. Codziennie, Co tydzień, Co miesiąc):', 'Codziennie') || 'Codziennie').trim();
-    Store.state.saw.push({ id: 's_' + Date.now(), title, cycle, dim: 'Odnowa', doneDays: [], createdAt: Date.now() });
+    const roleId = form.roleId.value || Store.state.roles[0].id;
+    const q = parseInt(form.q.value, 10) || 2;
+    const cycleKey = form.cycleKey.value || 'daily';
+    const opt = this.SAW_CYCLE_OPTIONS.find(o => o.key === cycleKey);
+
+    Store.state.saw.push({
+      id: 's_' + Date.now(),
+      title,
+      roleId,
+      q,
+      cycleKey,
+      cycle: opt ? opt.label : 'Codziennie',
+      doneDays: [],
+      createdAt: Date.now()
+    });
     this.save();
-    this.renderSaw();
+    this.closeModal();
+    this.renderAll();
   },
 
   /* ---- ZAKŁADKA 4: CELE ---- */
