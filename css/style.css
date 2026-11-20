@@ -351,6 +351,115 @@ button { cursor: pointer; }
   flex: 1;
   min-width: 0;
 }
+/* UKŁAD PRZYPOMNIEŃ JAK W MACOS (DUŻY TYTUŁ + MNIEJSZA NOTATKA POD SPODEM) */
+.task-row-macos {
+  align-items: flex-start;
+}
+.task-main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.task-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.task-title-main {
+  font-size: 0.87rem;
+  font-weight: 600;
+  color: var(--text-main);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.task-note-text {
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.38;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+  margin-top: 1px;
+}
+.task-note-text:hover {
+  color: var(--text-main);
+}
+.task-note-add-hint {
+  font-size: 0.71rem;
+  color: var(--text-dim);
+  cursor: text;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.14s ease, max-height 0.14s ease;
+}
+.task-row-macos:hover .task-note-add-hint {
+  opacity: 0.85;
+  max-height: 22px;
+  margin-top: 1px;
+}
+.task-note-add-hint:hover {
+  color: var(--accent);
+  opacity: 1;
+}
+.task-note-editor {
+  width: 100%;
+  margin-top: 4px;
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-main);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+}
+.task-note-inline-input {
+  width: 100%;
+  margin-top: 2px;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+  line-height: 1.38;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+}
+.task-note-inline-input:hover {
+  border-color: var(--border);
+  background: var(--surface);
+}
+.task-note-inline-input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+  color: var(--text-main);
+}
+@media (max-width: 768px) {
+  .task-title-main {
+    font-size: 0.94rem;
+  }
+  .task-note-text {
+    font-size: 0.8rem;
+  }
+  .task-note-add-hint {
+    opacity: 0.65;
+    max-height: 22px;
+    margin-top: 2px;
+    font-size: 0.75rem;
+  }
+  .task-note-editor, .task-note-inline-input {
+    font-size: 16px !important;
+  }
+}
 .check-circle {
   width: 17px;
   height: 17px;

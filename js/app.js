@@ -102,6 +102,89 @@ const App = {
     r4: 'Klienci · faktury · finanse · projekty'
   },
 
+  editingNoteTaskId: null,
+  _noteSaveTimer: null,
+
+  startEditTaskNote(taskId) {
+    this.editingNoteTaskId = taskId;
+    this.renderPlan();
+    this.renderMatrix();
+    setTimeout(() => {
+      const ta = document.querySelector(`textarea[data-note-task="${taskId}"]`);
+      if (ta) {
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+      }
+    }, 0);
+  },
+
+  updateTaskNote(taskId, val) {
+    const t = (Store.state.tasks || []).find(x => x.id === taskId);
+    if (!t) return;
+    t.note = val;
+    // Zsynchronizuj notatkę również z powiązanym przypomnieniem w Kalendarzu
+    const rem = (Store.state.reminders || []).find(r => r.activatedTaskId === taskId || ('t_cal_' + r.id) === taskId);
+    if (rem) rem.note = val;
+
+    Store.persist(false, false, true);
+    clearTimeout(this._noteSaveTimer);
+    this._noteSaveTimer = setTimeout(() => {
+      this._noteSaveTimer = null;
+      if (window.Sync && typeof window.Sync.pushToCloud === 'function') {
+        window.Sync.pushToCloud();
+      }
+    }, 300);
+  },
+
+  finishEditTaskNote(taskId) {
+    if (this.editingNoteTaskId !== taskId) return;
+    this.editingNoteTaskId = null;
+    if (this._noteSaveTimer) {
+      clearTimeout(this._noteSaveTimer);
+      this._noteSaveTimer = null;
+      Store.persist(false, true, true);
+    }
+    this.renderPlan();
+    this.renderMatrix();
+    this.renderCalendar();
+  },
+
+  updateReminderNote(remId, val) {
+    const rem = (Store.state.reminders || []).find(r => r.id === remId);
+    if (!rem) return;
+    rem.note = val;
+    // Jeśli przypomnienie już wskoczyło na aktywną listę zadań, zaktualizuj notatkę także tam
+    const task = (Store.state.tasks || []).find(t => t.id === rem.activatedTaskId || t.id === ('t_cal_' + rem.id));
+    if (task) task.note = val;
+
+    Store.persist(false, false, true);
+    this.renderPlan();
+    this.renderMatrix();
+    clearTimeout(this._noteSaveTimer);
+    this._noteSaveTimer = setTimeout(() => {
+      this._noteSaveTimer = null;
+      if (window.Sync && typeof window.Sync.pushToCloud === 'function') {
+        window.Sync.pushToCloud();
+      }
+    }, 300);
+  },
+
+  renderTaskNoteBlock(t) {
+    const note = String(t.note || '');
+    if (this.editingNoteTaskId === t.id) {
+      return `
+        <textarea class="task-note-editor" data-note-task="${t.id}" rows="2" placeholder="Wpisz notatkę pod przypomnieniem..."
+          oninput="App.updateTaskNote('${t.id}', this.value)"
+          onblur="App.finishEditTaskNote('${t.id}')"
+          onkeydown="if(event.key==='Escape') App.finishEditTaskNote('${t.id}')">${this.esc(note)}</textarea>
+      `;
+    }
+    if (note.trim()) {
+      return `<div class="task-note-text" onclick="App.startEditTaskNote('${t.id}')" title="Kliknij, aby edytować notatkę">${this.esc(note)}</div>`;
+    }
+    return `<div class="task-note-add-hint" onclick="App.startEditTaskNote('${t.id}')">+ Dodaj notatkę...</div>`;
+  },
+
   renderQTagWithTooltip(taskId, q) {
     const curQ = Number(q) || 2;
     const rows = [
@@ -279,14 +362,17 @@ const App = {
                 const delay = Math.max(0, rawDiff);
                 const daysUntil = rawDiff < 0 ? Math.abs(rawDiff) : 0;
                 return `
-                  <div class="task-row" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
-                    <div class="task-row-left" style="flex-wrap:wrap;">
-                      <button class="check-circle" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
-                      <span>${this.esc(t.title)}</span>
-                      ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
-                      ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
-                      ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
-                      ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
+                  <div class="task-row task-row-macos" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
+                    <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
+                    <div class="task-main-col">
+                      <div class="task-title-line">
+                        <span class="task-title-main">${this.esc(t.title)}</span>
+                        ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
+                        ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
+                        ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
+                        ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
+                      </div>
+                      ${this.renderTaskNoteBlock(t)}
                     </div>
                     <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
                       ${this.renderQTagWithTooltip(t.id, t.q || 2)}
@@ -382,6 +468,7 @@ const App = {
     Store.state.archive.unshift({
       id: 'ar_' + Date.now(),
       title: t.title,
+      note: t.note || '',
       roleId: t.roleId,
       q: t.q || 2,
       scheduledDate: t.scheduledDate || today,
@@ -457,6 +544,7 @@ const App = {
           Store.state.tasks.push({
             id: newTaskId,
             title: r.title,
+            note: r.note || '',
             roleId: r.roleId || Store.state.roles[0].id,
             q: Number(r.q) || 2,
             scheduledDate: r.date,
@@ -497,6 +585,7 @@ const App = {
           Store.state.tasks.push({
             id: taskId,
             title: s.title,
+            note: s.note || '',
             roleId: s.roleId || 'r1',
             q: Number(s.q) || 2,
             scheduledDate: cur,
@@ -606,6 +695,7 @@ const App = {
                 <div class="cal-tooltip">
                   <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">${roleLabel} · Ćwiartka Q${r.q || 2}${r.isSawCycle ? ' · 🪚 ' + this.esc(r.freqLabel) : ''}</div>
                   <div style="font-weight:600; color:#ffffff;">${this.esc(r.title)}</div>
+                  ${r.note ? `<div style="font-size:0.71rem; color:#cbd5e1; margin-top:3px; white-space:pre-wrap;">${this.esc(r.note)}</div>` : ''}
                 </div>
               </div>
             `;
@@ -690,18 +780,24 @@ const App = {
             <button class="btn" onclick="App.closeModal()">✕</button>
           </div>
 
-          <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; flex-direction:column; gap:8px;">
             ${(rems.length || sawRems.length) ? `
               ${rems.map(r => {
                 const role = Store.state.roles.find(x => x.id === r.roleId);
                 return `
-                  <div class="task-row">
-                    <div class="task-row-left">
-                      <span>${role ? role.emoji : '🔔'} <strong>${this.esc(r.title)}</strong></span>
+                  <div class="task-row task-row-macos">
+                    <div class="task-main-col">
+                      <div class="task-title-line">
+                        <span class="task-title-main">${role ? role.emoji : '🔔'} ${this.esc(r.title)}</span>
+                      </div>
+                      <textarea class="task-note-inline-input" rows="1" placeholder="+ Dodaj notatkę..."
+                        oninput="App.updateReminderNote('${r.id}', this.value)">${this.esc(r.note || '')}</textarea>
                     </div>
-                    <span style="font-size:0.72rem; color:var(--text-muted);">${role ? this.esc(role.name) : ''}</span>
-                    <span class="q-tag q${r.q || 2}">Q${r.q || 2}</span>
-                    <button class="btn" style="padding:2px 6px;" onclick="App.deleteReminder('${r.id}', '${dateStr}')">✕</button>
+                    <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                      <span style="font-size:0.72rem; color:var(--text-muted);">${role ? this.esc(role.name) : ''}</span>
+                      <span class="q-tag q${r.q || 2}">Q${r.q || 2}</span>
+                      <button class="btn" style="padding:2px 6px;" onclick="App.deleteReminder('${r.id}', '${dateStr}')">✕</button>
+                    </div>
                   </div>
                 `;
               }).join('')}
@@ -722,7 +818,8 @@ const App = {
           </div>
 
           <form onsubmit="event.preventDefault(); App.saveCalendarReminder('${dateStr}', this);" style="display:flex; flex-direction:column; gap:10px; padding-top:12px; border-top:1px solid var(--border);">
-            <input type="text" name="title" class="input-clean" placeholder="+ Wpisz treść przypomnienia / zadania..." required autofocus>
+            <input type="text" name="title" class="input-clean" style="font-weight:700;" placeholder="+ Wpisz treść przypomnienia / zadania..." required autofocus>
+            <textarea name="note" class="input-clean" rows="2" style="resize:vertical; font-size:0.78rem; color:var(--text-muted);" placeholder="Notatka pod przypomnieniem (opcjonalnie, np. szczegóły, wytyczne...)"></textarea>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
               <div>
                 <label style="font-size:0.72rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Wybierz Rolę (Cel):</label>
@@ -752,6 +849,7 @@ const App = {
   saveCalendarReminder(dateStr, form) {
     const title = form.title.value.trim();
     if (!title) return;
+    const note = form.note ? form.note.value.trim() : '';
     const roleId = form.roleId.value || Store.state.roles[0].id;
     const q = parseInt(form.q.value, 10) || 2;
 
@@ -759,6 +857,7 @@ const App = {
       id: 'c_' + Date.now(),
       date: dateStr,
       title,
+      note,
       roleId,
       q,
       activatedTaskId: null,
@@ -812,14 +911,17 @@ const App = {
               const delay = Math.max(0, rawDiff);
               const daysUntil = rawDiff < 0 ? Math.abs(rawDiff) : 0;
               return `
-                <div class="task-row" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
-                  <div class="task-row-left" style="flex-wrap:wrap;">
-                    <button class="check-circle" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
-                    <span>${this.esc(t.title)}</span>
-                    ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
-                    ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
-                    ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
-                    ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
+                <div class="task-row task-row-macos" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
+                  <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
+                  <div class="task-main-col">
+                    <div class="task-title-line">
+                      <span class="task-title-main">${this.esc(t.title)}</span>
+                      ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
+                      ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
+                      ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
+                      ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
+                    </div>
+                    ${this.renderTaskNoteBlock(t)}
                   </div>
                   <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
                     <span style="font-size:0.72rem; color:var(--text-muted); cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--surface);" onclick="App.cycleRole('${t.id}')" title="Kliknij, aby zmienić rodzaj (Ciało / Umysł / Relacje / Finanse)">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
@@ -1210,6 +1312,11 @@ const App = {
               <input type="text" name="title" class="input-clean" placeholder="np. Wyjście na spacer, Przegląd kwartalny, Dentysta co pół roku..." required autofocus>
             </div>
 
+            <div>
+              <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Notatka pod zadaniem (opcjonalnie):</label>
+              <textarea name="note" class="input-clean" rows="2" style="resize:vertical; font-size:0.78rem; color:var(--text-muted);" placeholder="Dodatkowe szczegóły widoczne pod tytułem zadania..."></textarea>
+            </div>
+
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
               <div>
                 <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Wybierz Rolę (z 4):</label>
@@ -1280,6 +1387,7 @@ const App = {
   saveNewSaw(form) {
     const title = form.title.value.trim();
     if (!title) return;
+    const note = form.note ? form.note.value.trim() : '';
     const roleId = form.roleId.value || Store.state.roles[0].id;
     const q = parseInt(form.q.value, 10) || 2;
     const freq = form.freq ? form.freq.value : 'weekdays';
@@ -1289,6 +1397,7 @@ const App = {
     Store.state.saw.push({
       id: 's_' + Date.now(),
       title,
+      note,
       roleId,
       q,
       freq,
@@ -1639,7 +1748,10 @@ const App = {
             return `
               <tr>
                 <td style="color:var(--emerald); font-weight:700;">✓ ${this.esc(a.doneAt)}</td>
-                <td>${this.esc(a.title)}</td>
+                <td>
+                  <div style="font-weight:600;">${this.esc(a.title)}</div>
+                  ${a.note ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px; white-space:pre-wrap;">${this.esc(a.note)}</div>` : ''}
+                </td>
                 <td>${r ? r.emoji + ' ' + this.esc(r.name) : '—'}</td>
                 <td><span class="q-tag q${a.q || 2}">Q${a.q || 2}</span></td>
                 <td style="text-align:right;">
@@ -1663,6 +1775,7 @@ const App = {
     Store.state.tasks.push({
       id: 't_' + Date.now(),
       title: item.title,
+      note: item.note || '',
       roleId: item.roleId || Store.state.roles[0].id,
       q: item.q || 2,
       scheduledDate: item.scheduledDate || this.today(),
