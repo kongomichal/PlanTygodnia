@@ -338,7 +338,17 @@ const App = {
     const gridEl = document.getElementById('rolesGrid');
     if (gridEl) {
       gridEl.innerHTML = Store.state.roles.map(r => {
-        const rTasks = tasks.filter(t => t.roleId === r.id);
+        const rTasks = tasks
+          .filter(t => t.roleId === r.id)
+          .sort((a, b) => {
+            const qa = Number(a.q) || 2;
+            const qb = Number(b.q) || 2;
+            if (qa !== qb) return qa - qb;
+            const da = a.scheduledDate || today;
+            const db = b.scheduledDate || today;
+            if (da !== db) return da < db ? -1 : 1;
+            return (a.createdAt || 0) - (b.createdAt || 0);
+          });
         const doneInArchive = allArchive.filter(a => a.roleId === r.id).length;
         const pctInArchive = totalArchivedCount > 0 ? Math.round((doneInArchive / totalArchivedCount) * 100) : 0;
         const gw = gYear[r.id]?.weekly || '';
@@ -750,7 +760,9 @@ const App = {
   openCalendarModal(dateStr) {
     const root = document.getElementById('modalRoot');
     if (!root) return;
-    const rems = Store.state.reminders.filter(r => r.date === dateStr);
+    const rems = Store.state.reminders
+      .filter(r => r.date === dateStr)
+      .sort((a, b) => (Number(a.q) || 2) - (Number(b.q) || 2));
     const sawRems = [];
     (Store.state.saw || []).forEach(s => {
       if (!s || (s.freq || 'weekdays') === 'weekdays') return;
