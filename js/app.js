@@ -162,8 +162,11 @@ const App = {
   },
 
   deleteActiveTask(id) {
+    const t = (Store.state.tasks || []).find(x => x.id === id);
+    const label = t ? `„${t.title}”` : 'to zadanie';
+    if (!confirm(`Czy na pewno chcesz usunąć ${label}?`)) return;
     // 1. Usuń zadanie z aktywnej listy (znika z Filaru i z Matrycy Eisenhowera)
-    Store.state.tasks = (Store.state.tasks || []).filter(t => t.id !== id);
+    Store.state.tasks = (Store.state.tasks || []).filter(x => x.id !== id);
     // 2. Jeśli zadanie pochodziło z Kalendarza, usuń je również z Kalendarza
     Store.state.reminders = (Store.state.reminders || []).filter(r => r.activatedTaskId !== id && ('t_cal_' + r.id) !== id);
     this.save();
@@ -462,6 +465,8 @@ const App = {
 
   deleteReminder(id, dateStr) {
     const rem = Store.state.reminders.find(r => r.id === id);
+    const label = rem ? `„${rem.title}”` : 'to przypomnienie';
+    if (!confirm(`Czy na pewno chcesz usunąć ${label} z kalendarza?`)) return;
     if (rem && rem.activatedTaskId) {
       Store.state.tasks = Store.state.tasks.filter(t => t.id !== rem.activatedTaskId);
     }
@@ -657,6 +662,9 @@ const App = {
   },
 
   deleteSaw(id) {
+    const s = (Store.state.saw || []).find(x => x.id === id);
+    const label = s ? `„${s.title}”` : 'tę pozycję';
+    if (!confirm(`Czy na pewno chcesz usunąć ${label} z Ostrzenia Piły?`)) return;
     Store.state.saw = Store.state.saw.filter(x => x.id !== id);
     Store.state.tasks = Store.state.tasks.filter(t => t.sawId !== id);
     if (this.editingSawId === id) this.editingSawId = null;
@@ -1043,7 +1051,10 @@ const App = {
   },
 
   deleteGoalFromArchive(id) {
-    Store.state.goalsArchive = (Store.state.goalsArchive || []).filter(g => g.id !== id);
+    const g = (Store.state.goalsArchive || []).find(x => x.id === id);
+    const label = g ? `„${g.title}”` : 'ten cel';
+    if (!confirm(`Czy na pewno chcesz usunąć zarchiwizowany cel ${label}?`)) return;
+    Store.state.goalsArchive = (Store.state.goalsArchive || []).filter(x => x.id !== id);
     this.save();
     this.renderGoalsArchive();
   },
@@ -1057,7 +1068,7 @@ const App = {
         return `
           <div class="task-row" style="background:var(--emerald-light);">
             <span>✨ ${this.esc(txt)}</span>
-            <button class="btn" style="padding:2px 6px;" onclick="Store.state.affirmations.splice(${i},1); App.save(); App.renderMind();">✕</button>
+            <button class="btn" style="padding:2px 6px;" onclick="App.deleteAffirmationAt(${i})">✕</button>
           </div>
         `;
       }).join('');
@@ -1070,11 +1081,30 @@ const App = {
         return `
           <div class="task-row">
             <span>💭 ${this.esc(txt)}</span>
-            <button class="btn" style="padding:2px 6px;" onclick="Store.state.quotes.splice(${i},1); App.save(); App.renderMind();">✕</button>
+            <button class="btn" style="padding:2px 6px;" onclick="App.deleteQuoteAt(${i})">✕</button>
           </div>
         `;
       }).join('');
     }
+  },
+
+  deleteAffirmationAt(i) {
+    const a = Store.state.affirmations[i];
+    const txt = typeof a === 'object' ? a.text : a;
+    if (!confirm(`Czy na pewno chcesz usunąć afirmację „${txt || ''}”?`)) return;
+    Store.state.affirmations.splice(i, 1);
+    this.save();
+    this.renderMind();
+    this.renderWelcome();
+  },
+
+  deleteQuoteAt(i) {
+    const q = Store.state.quotes[i];
+    const txt = typeof q === 'object' ? q.text : q;
+    if (!confirm(`Czy na pewno chcesz usunąć myśl/cytat „${txt || ''}”?`)) return;
+    Store.state.quotes.splice(i, 1);
+    this.save();
+    this.renderMind();
   },
 
   addAffirmation() {
@@ -1154,7 +1184,10 @@ const App = {
   },
 
   deleteFromArchive(id) {
-    Store.state.archive = Store.state.archive.filter(a => a.id !== id);
+    const a = (Store.state.archive || []).find(x => x.id === id);
+    const label = a ? `„${a.title}”` : 'ten wpis';
+    if (!confirm(`Czy na pewno chcesz usunąć zadanie ${label} z Archiwum?`)) return;
+    Store.state.archive = Store.state.archive.filter(x => x.id !== id);
     this.save();
     this.renderAll();
   },
@@ -1201,6 +1234,9 @@ const App = {
   },
 
   removeLater(id) {
+    const item = (Store.state.later || []).find(x => x.id === id);
+    const label = item ? `„${item.title}”` : 'ten pomysł';
+    if (!confirm(`Czy na pewno chcesz usunąć ${label} z listy Na później?`)) return;
     Store.state.later = Store.state.later.filter(x => x.id !== id);
     this.save();
     this.renderLater();

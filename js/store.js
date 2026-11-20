@@ -50,6 +50,18 @@ const Store = {
     if (!Array.isArray(s.later)) s.later = [];
     if (!Array.isArray(s.reminders)) s.reminders = [];
     if (!Array.isArray(s.saw)) s.saw = def.saw;
+    // Jeśli przed wprowadzeniem potwierdzenia usunięto domyślny Spacer lub Dziennik — przywróć je
+    if (!s.restoredDefaultSawV135) {
+      if (!s.saw.some(x => /spacer/i.test(x.title))) {
+        delete s.deleted['saw:s1'];
+        s.saw.unshift({ id: 's1', title: '🚶‍♂️ Wyjście na spacer', roleId: 'r1', q: 2, activeDays: [0, 1, 2, 3, 4, 5, 6], doneDays: [], startDate: todayStr, spawnedDates: [], createdAt: Date.now(), updatedAt: Date.now() });
+      }
+      if (!s.saw.some(x => /dziennik/i.test(x.title))) {
+        delete s.deleted['saw:s2'];
+        s.saw.splice(1, 0, { id: 's2', title: '📓 Pisanie dziennika', roleId: 'r2', q: 2, activeDays: [0, 1, 2, 3, 4, 5, 6], doneDays: [], startDate: todayStr, spawnedDates: [], createdAt: Date.now(), updatedAt: Date.now() });
+      }
+      s.restoredDefaultSawV135 = true;
+    }
     s.saw.forEach(item => {
       if (!item || typeof item !== 'object') return;
       if (!item.startDate) item.startDate = todayStr;
