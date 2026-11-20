@@ -82,6 +82,50 @@ const App = {
     }
   },
 
+  mobileQLegendOpen: false,
+  toggleMobileQLegend() {
+    this.mobileQLegendOpen = !this.mobileQLegendOpen;
+    const barEl = document.getElementById('qLegendBar');
+    const btnEl = document.getElementById('mobileQLegendToggleBtn');
+    if (barEl) barEl.classList.toggle('mobile-open', this.mobileQLegendOpen);
+    if (btnEl) {
+      btnEl.textContent = this.mobileQLegendOpen
+        ? '❓ Ukryj podpowiedź Q1 / Q2 / Q3 / Q4 ▴'
+        : '❓ Kiedy Q1 / Q2 / Q3 / Q4? ▾';
+    }
+  },
+
+  ROLE_SCOPES: {
+    r1: 'Ciało · ruch · sen · wygląd · dom',
+    r2: 'Studia · dziennik · książki · porządek cyfrowy',
+    r3: 'Rodzina · znajomi · wspólny czas',
+    r4: 'Klienci · faktury · finanse · projekty'
+  },
+
+  renderQTagWithTooltip(taskId, q) {
+    const curQ = Number(q) || 2;
+    const rows = [
+      { q: 1, icon: '🔥', label: 'Q1', desc: 'Pilne pożary, terminy na dziś' },
+      { q: 2, icon: '💎', label: 'Q2', desc: 'Głazy: rozwój, studia, zdrowie, cele' },
+      { q: 3, icon: '⚡', label: 'Q3', desc: 'Bieżączka, maile, pranie, porządki' },
+      { q: 4, icon: '🗑️', label: 'Q4', desc: 'Zjadacze czasu (do odrzucenia)' }
+    ];
+    return `
+      <span class="q-tag-wrap">
+        <span class="q-tag q${curQ}" onclick="App.cycleQ('${taskId}')">Q${curQ}</span>
+        <div class="cal-tooltip q-guide-tooltip">
+          <div style="font-size:0.67rem; color:#94a3b8; font-weight:700; margin-bottom:4px;">Kliknij, aby zmienić ćwiartkę:</div>
+          ${rows.map(row => `
+            <div style="display:flex; gap:5px; align-items:baseline; margin-bottom:2px; ${row.q === curQ ? 'color:#ffffff; font-weight:800;' : 'color:#cbd5e1; font-weight:500;'}">
+              <span>${row.icon} <strong>${row.label}:</strong></span>
+              <span>${row.desc}</span>
+            </div>
+          `).join('')}
+        </div>
+      </span>
+    `;
+  },
+
   openMobileMenu() {
     const root = document.getElementById('modalRoot');
     if (!root) return;
@@ -215,6 +259,7 @@ const App = {
         const doneInArchive = allArchive.filter(a => a.roleId === r.id).length;
         const pctInArchive = totalArchivedCount > 0 ? Math.round((doneInArchive / totalArchivedCount) * 100) : 0;
         const gw = gYear[r.id]?.weekly || '';
+        const scopeText = this.ROLE_SCOPES[r.id] || '';
         return `
           <div class="role-card" style="border-top: 3px solid ${r.color};">
             <div class="role-card-head">
@@ -226,6 +271,7 @@ const App = {
                 <span class="role-card-count" title="Aktywne zadania do zrobienia">${rTasks.length}</span>
               </div>
             </div>
+            ${scopeText ? `<div class="role-scope-hint">${this.esc(scopeText)}</div>` : ''}
             ${gw ? `<div class="role-goal-hint">🎯 ${this.esc(gw)}</div>` : ''}
             <div class="task-list">
               ${rTasks.map(t => {
@@ -243,7 +289,7 @@ const App = {
                       ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
                     </div>
                     <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
-                      <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Zmień ćwiartkę Matrycy">Q${t.q || 2}</span>
+                      ${this.renderQTagWithTooltip(t.id, t.q || 2)}
                       <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z tego filaru, z Matrycy i z Kalendarza)">✕</button>
                     </div>
                   </div>
@@ -741,10 +787,10 @@ const App = {
   /* ---- ZAKŁADKA 2: MATRYCA EISENHOWERA ---- */
   renderMatrix() {
     const meta = [
-      { q: 1, title: '🔥 Ćwiartka I: Pilne i Ważne', sub: 'Zrób od razu (kryzysy, pilne terminy)' },
-      { q: 2, title: '💎 Ćwiartka II: Niepilne, ale Ważne', sub: 'Najważniejsza ćwiartka: rozwój, planowanie, cele ról' },
-      { q: 3, title: '⚡ Ćwiartka III: Pilne, ale Nieważne', sub: 'Bieżączka i rozproszenia do zminimalizowania' },
-      { q: 4, title: '🗑️ Ćwiartka IV: Niepilne i Nieważne', sub: 'Pożeracze czasu do odrzucenia' }
+      { q: 1, title: '🔥 Ćwiartka I: Pilne i Ważne', sub: 'Zrób od razu: kryzysy, pożary, nieprzekraczalne terminy na dziś' },
+      { q: 2, title: '💎 Ćwiartka II: Niepilne, ale Ważne', sub: 'Najważniejsze Głazy: rozwój, studia, zdrowie, planowanie, cele ról' },
+      { q: 3, title: '⚡ Ćwiartka III: Pilne, ale Nieważne', sub: 'Bieżączka i konserwacja: maile, pranie, czyszczenie, drobne porządki' },
+      { q: 4, title: '🗑️ Ćwiartka IV: Niepilne i Nieważne', sub: 'Rozpraszacze i zjadacze czasu do odrzucenia' }
     ];
     const today = this.today();
     const tasks = Store.state.tasks.filter(t => (t.year || Store.state.year) === Store.state.year);
@@ -777,7 +823,7 @@ const App = {
                   </div>
                   <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
                     <span style="font-size:0.72rem; color:var(--text-muted); cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--surface);" onclick="App.cycleRole('${t.id}')" title="Kliknij, aby zmienić rodzaj (Ciało / Umysł / Relacje / Finanse)">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
-                    <span class="q-tag q${t.q || 2}" onclick="App.cycleQ('${t.id}')" title="Kliknij, aby zmienić ćwiartkę">Q${t.q || 2}</span>
+                    ${this.renderQTagWithTooltip(t.id, t.q || 2)}
                     <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z Filaru, Matrycy i Kalendarza)">✕</button>
                   </div>
                 </div>
