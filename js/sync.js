@@ -11,12 +11,15 @@ const Sync = {
   user: null,
   unsubscribeSnapshot: null,
   isRemoteChange: false,
+  initialSyncComplete: false,
+  lastSyncedAt: null,
   saveTimer: null,
   status: 'idle', // 'idle' | 'saving' | 'synced' | 'error' | 'syncing'
 
   init() {
     if (!window.FIREBASE_CONFIG || !window.firebase) {
       console.warn('Brak konfiguracji Firebase lub biblioteki Firebase SDK.');
+      this.initialSyncComplete = true;
       this.updateHeaderUI();
       return;
     }
@@ -27,6 +30,11 @@ const Sync = {
       }
       this.auth = firebase.auth();
       this.db = firebase.firestore();
+
+      // Włącz lokalną pamięć podręczną Firestore między kartami (jeśli dostępna)
+      try {
+        this.db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+      } catch (e) {}
 
       // Obsługa powrotu z logowania przez przekierowanie (dla urządzeń mobilnych)
       this.auth.getRedirectResult().then(result => {
@@ -46,6 +54,7 @@ const Sync = {
         } else {
           try { localStorage.removeItem('kompas_auth_active'); } catch(e){}
           document.documentElement.classList.remove('is-authenticated');
+          this.initialSyncComplete = false;
         }
         this.updateHeaderUI();
         this.updateGateUI();
@@ -114,9 +123,18 @@ const Sync = {
       const initial = (name[0] || 'U').toUpperCase();
       const photo = this.user.photoURL;
 
+      const shortLabels = {
+        synced: 'Zapisano',
+        saving: 'Zapisuję...',
+        syncing: 'Synchronizacja...',
+        error: 'Offline',
+        idle: 'Chmura'
+      };
+
       container.innerHTML = `
-        <div class="user-auth-pill" onclick="Sync.openAuthModal()" title="Zalogowano jako ${name}. Kliknij, aby otworzyć stan synchronizacji i konto.">
+        <div class="user-auth-pill" onclick="Sync.openAuthModal()" title="Zalogowano jako ${name}. Kliknij, aby otworzyć stan synchronizacji, kopie zapasowe i konto.">
           <span class="sync-dot ${this.status}" id="syncStatusDot" title="Status synchronizacji"></span>
+          <span class="sync-pill-text" id="syncStatusText">${shortLabels[this.status] || 'Chmura'}</span>
           ${photo ? `<img src="${photo}" class="user-avatar-img" alt="${initial}">` : `<span class="user-avatar-initial">${initial}</span>`}
         </div>
       `;
@@ -125,6 +143,10 @@ const Sync = {
 
   setStatus(s) {
     this.status = s;
+    if (s === 'synced') {
+      const now = new Date();
+      this.lastSyncedAt = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    }
     const dot = document.getElementById('syncStatusDot');
     if (dot) {
       dot.className = `sync-dot ${s}`;
@@ -132,79 +154,157 @@ const Sync = {
         synced: 'Zsynchronizowano z chmurą 🟢',
         saving: 'Zapisywanie w chmurze... 🟡',
         syncing: 'Pobieranie zmian z chmury... 🔄',
-        error: 'Błąd połączenia z chmurą 🔴',
+        error: 'Brak połączenia (zapisano w pamięci urządzenia) 🔴',
         idle: 'Gotowe'
       };
       dot.title = titles[s] || s;
     }
 
+    const txt = document.getElementById('syncStatusText');
+    if (txt) {
+      const shortLabels = {
+        synced: 'Zapisano',
+        saving: 'Zapisuję...',
+        syncing: 'Synchronizacja...',
+        error: 'Offline',
+        idle: 'Chmura'
+      };
+      txt.textContent = shortLabels[s] || 'Chmura';
+    }
+
     const modalStatus = document.getElementById('syncModalStatusLabel');
     if (modalStatus) {
       const labels = {
-        synced: '🟢 Dane zsynchronizowane w czasie rzeczywistym',
+        synced: `🟢 Dane zsynchronizowane w czasie rzeczywistym ${this.lastSyncedAt ? '(' + this.lastSyncedAt + ')' : ''}`,
         saving: '🟡 Zapisywanie zmian w chmurze...',
-        syncing: '🔄 Pobieranie najnowszych danych...',
-        error: '🔴 Błąd zapisu do bazy Firestore',
+        syncing: '🔄 Pobieranie najnowszych danych z chmury...',
+        error: '🔴 Tryb offline — zmiany zapisane na urządzeniu, wyślą się automatycznie',
         idle: '⚪ Gotowe do synchronizacji'
       };
       modalStatus.textContent = labels[s] || s;
     }
   },
 
-  /* ---- Nasłuchiwanie bazy Firestore w czasie rzeczywistym (wzór Muraven) ---- */
+  /* ---- Nasłuchiwanie bazy Firestore w czasie rzeczywistym (wzór Muraven + ochrona przed nadpisaniem) ---- */
   listenToUserDoc() {
     if (!this.db) return;
     this.detachUserDoc();
 
     this.setStatus('syncing');
     const docRef = this.db.collection('users').doc(this.PRIMARY_DOC_ID);
+    let isFirstSnap = true;
 
     this.unsubscribeSnapshot = docRef.onSnapshot(docSnap => {
+      const first = isFirstSnap;
+      isFirstSnap = false;
       if (docSnap.exists) {
         const cloudData = docSnap.data();
         if (cloudData && Array.isArray(cloudData.tasks)) {
-          this.applyRemote(cloudData);
+          this.applyRemote(cloudData, first);
         } else {
+          this.initialSyncComplete = true;
           this.pushToCloud();
         }
       } else {
         // Pierwsze logowanie użytkownika: wyślij aktualny stan do chmury
+        this.initialSyncComplete = true;
         this.pushToCloud();
       }
     }, err => {
       console.error('Błąd Firestore onSnapshot:', err);
+      this.initialSyncComplete = true;
       this.setStatus('error');
     });
   },
 
   /**
-   * Scala dane z chmury z lokalnymi (nigdy nie nadpisuje całości).
-   * Jeśli urządzenie ma coś, czego nie ma chmura – wysyła to dalej.
+   * Wymusza pobranie najnowszego stanu prosto z serwera Firestore (np. po odblokowaniu telefonu).
    */
-  applyRemote(cloudData) {
+  async pullFromCloud() {
+    if (!this.db || !this.user) return;
     const store = (typeof Store !== 'undefined' ? Store : window.Store);
-    if (!store || !store.state) return;
+    if (!store) return;
 
-    // Zapisz lokalne zmiany (np. nieoznaczone auto-przeniesienia) zanim scalimy
-    store.stamp();
+    // Jeśli urządzenie ma niewysłane zmiany lokalne, najpierw wyślij je w transakcji (transakcja pobierze i scali chmurę)
+    if (store.hasUnsyncedChanges() && !store.state?._isSeedOnly) {
+      this.pushToCloud();
+      return;
+    }
+
+    this.setStatus('syncing');
+    const docRef = this.db.collection('users').doc(this.PRIMARY_DOC_ID);
+    try {
+      let docSnap;
+      try {
+        docSnap = await docRef.get({ source: 'server' });
+      } catch (e) {
+        docSnap = await docRef.get();
+      }
+      if (docSnap && docSnap.exists) {
+        const cloudData = docSnap.data();
+        if (cloudData && Array.isArray(cloudData.tasks)) {
+          this.applyRemote(cloudData, true);
+        }
+      }
+    } catch (err) {
+      console.warn('Błąd pullFromCloud:', err);
+      this.setStatus('error');
+    }
+  },
+
+  /**
+   * Bezpieczne odbieranie danych z chmury:
+   * - Jeśli urządzenie nie wykonywało żadnych lokalnych zmian (np. świeżo otwarty telefon po pracy na komputerze),
+   *   przyjmuje stan z chmury 1:1 bez ryzyka nadpisania chmury starym cache'em.
+   * - Jeśli urządzenie ma niewysłane zmiany offline, scala je za pomocą znaczników czasu.
+   */
+  applyRemote(cloudData, isInitialOrPull = false) {
+    const store = (typeof Store !== 'undefined' ? Store : window.Store);
+    if (!store || !store.state || !cloudData) return;
+
+    // Jeśli trwa aktywna transakcja zapisu z tego urządzenia, nie przerywaj jej pośrednim snapshotem
+    if (this.pushing && !isInitialOrPull) return;
+
     const local = store.state;
-    const merged = store.merge(local, cloudData);
-    const localChanged = store.sig(merged) !== store.sig(local);
-    const cloudBehind = store.sig(merged) !== store.sig(cloudData);
+    const hasLocalPending = store.hasUnsyncedChanges() && !local._isSeedOnly;
+
+    // Zapisz kopię bezpieczeństwa lokalnego stanu przed nałożeniem zmian z zewnątrz
+    if (!local._isSeedOnly && store.sig(local) !== store.sig(cloudData)) {
+      store.saveLocalBackup('Przed synchronizacją z drugim urządzeniem');
+    }
+
+    let nextState;
+    let shouldPushBack = false;
+
+    if (!hasLocalPending) {
+      // Urządzenie nie miało żadnych niewysłanych zmian lokalnych — chmura jest w 100% źródłem prawdy!
+      nextState = store.normalizeState(JSON.parse(JSON.stringify(cloudData)));
+      delete nextState._isSeedOnly;
+      shouldPushBack = false;
+    } else {
+      // Urządzenie ma lokalne zmiany wprowadzone np. offline — scal oba stany bez utraty danych
+      store.stamp();
+      nextState = store.merge(local, cloudData);
+      shouldPushBack = store.sig(nextState) !== store.sig(cloudData);
+    }
+
+    const localChanged = store.sig(nextState) !== store.sig(local) || !this.initialSyncComplete;
+    this.initialSyncComplete = true;
 
     if (localChanged) {
       this.isRemoteChange = true;
-      store.state = merged;
+      store.state = nextState;
       store.rebaseline();
-      store.persist(true, false);
+      store.persist(true, false, false);
       this.isRemoteChange = false;
       if (window.App && typeof window.App.renderAll === 'function') window.App.renderAll();
     }
 
-    if (cloudBehind) {
+    if (shouldPushBack) {
       this.pushToCloud();
     } else {
       this.dirty = false;
+      store.markUnsynced(false);
       this.setStatus('synced');
     }
   },
@@ -217,18 +317,23 @@ const Sync = {
     this.setStatus('idle');
   },
 
-  /* ---- Zapis do chmury: transakcja odczyt → scalenie → zapis (nic nie jest nadpisywane) ---- */
+  /* ---- Zapis do chmury: atomowa transakcja odczyt → scalenie → zapis (nic nie jest nadpisywane) ---- */
   dirty: false,
   pushing: false,
   pushAgain: false,
   pushToCloud() {
     this.dirty = true;
-    if (!this.db || !this.user || this.isRemoteChange) return;
     const store = (typeof Store !== 'undefined' ? Store : window.Store);
     if (!store || !store.state) return;
+
+    // Nigdy nie wypychaj pustego szablonu Seed przed zakończeniem pierwszego pobrania z chmury
+    if (store.state._isSeedOnly && !this.initialSyncComplete) return;
+    if (!this.db || !this.user || this.isRemoteChange) return;
     if (this.pushing) { this.pushAgain = true; return; }
+
     this.pushing = true;
     this.setStatus('saving');
+    const txGen = store.editGeneration;
 
     const docRef = this.db.collection('users').doc(this.PRIMARY_DOC_ID);
     let mergedResult = null;
@@ -236,35 +341,154 @@ const Sync = {
       const snap = await tx.get(docRef);
       const remote = snap.exists ? snap.data() : null;
       const local = JSON.parse(JSON.stringify(store.state));
-      const merged = remote && Array.isArray(remote.tasks) ? store.merge(local, remote) : local;
+      let merged;
+      if (remote && Array.isArray(remote.tasks)) {
+        if (local._isSeedOnly && !remote._isSeedOnly) {
+          merged = store.normalizeState(JSON.parse(JSON.stringify(remote)));
+        } else {
+          merged = store.merge(local, remote);
+        }
+      } else {
+        merged = local;
+      }
+      delete merged._isSeedOnly;
       tx.set(docRef, JSON.parse(JSON.stringify(merged)));
       mergedResult = merged;
     }).then(() => {
       this.pushing = false;
-      // Scal wynik z ewentualnymi zmianami, które zaszły podczas zapisu
-      if (mergedResult) this.applyRemote(JSON.parse(JSON.stringify(mergedResult)));
-      if (this.pushAgain) { this.pushAgain = false; this.pushToCloud(); }
+      this.initialSyncComplete = true;
+
+      if (store.editGeneration === txGen && !this.pushAgain) {
+        // Żadna nowa zmiana nie zaszła w trakcie transakcji — wszystko bezpiecznie zapisane!
+        store.markUnsynced(false);
+        this.dirty = false;
+        if (mergedResult) {
+          const changed = store.sig(mergedResult) !== store.sig(store.state);
+          if (changed) {
+            this.isRemoteChange = true;
+            store.state = mergedResult;
+            store.rebaseline();
+            store.persist(true, false, false);
+            this.isRemoteChange = false;
+            if (window.App && typeof window.App.renderAll === 'function') window.App.renderAll();
+          }
+        }
+        this.setStatus('synced');
+      } else {
+        // W trakcie zapisu użytkownik kliknął/wpisał kolejną rzecz — scal i od razu wyślij nową wersję!
+        if (mergedResult) {
+          this.isRemoteChange = true;
+          store.state = store.merge(store.state, mergedResult);
+          store.rebaseline();
+          store.persist(false, false, false);
+          this.isRemoteChange = false;
+        }
+        this.pushAgain = false;
+        this.pushToCloud();
+      }
     }).catch(err => {
       this.pushing = false;
       this.pushAgain = false;
       console.error('Błąd zapisu do Firestore:', err);
-      this.setStatus('error'); // dirty pozostaje true -> ponowna próba
+      this.setStatus('error'); // dirty oraz kompas_unsynced_v1 pozostają true -> automatyczna ponowna próba
     });
   },
 
-  /** Ponawia wysyłkę po powrocie sieci / do aplikacji, a także cyklicznie. */
+  /** Ponawia wysyłkę po powrocie sieci / do aplikacji, a także zabezpiecza przed zamknięciem karty w trakcie zapisu. */
   startRetryLoop() {
     if (this._retryStarted) return;
     this._retryStarted = true;
-    const retry = () => { if (this.user && this.dirty && !this.pushing) this.pushToCloud(); };
-    window.addEventListener('online', retry);
+    const store = () => (typeof Store !== 'undefined' ? Store : window.Store);
+
+    const retry = () => {
+      const s = store();
+      if (this.user && (this.dirty || (s && s.hasUnsyncedChanges())) && !this.pushing) {
+        this.pushToCloud();
+      }
+    };
+
+    window.addEventListener('online', () => {
+      const s = store();
+      if (s && s.hasUnsyncedChanges()) this.pushToCloud();
+      else this.pullFromCloud();
+    });
+
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && this.user) {
-        // wymuś ponowne zsynchronizowanie po powrocie do aplikacji
-        if (!this.unsubscribeSnapshot) this.listenToUserDoc(); else { this.dirty = true; this.pushToCloud(); }
+      const s = store();
+      if (document.visibilityState === 'hidden') {
+        if (window.App && typeof window.App.flushPendingGoalSave === 'function') {
+          window.App.flushPendingGoalSave();
+        }
+        if (this.user && s && s.hasUnsyncedChanges() && !this.pushing) {
+          this.pushToCloud();
+        }
+      } else if (document.visibilityState === 'visible' && this.user) {
+        if (!this.unsubscribeSnapshot) this.listenToUserDoc();
+        if (s && s.hasUnsyncedChanges()) {
+          this.pushToCloud();
+        } else {
+          this.pullFromCloud();
+        }
       }
     });
-    setInterval(retry, 15000);
+
+    window.addEventListener('pagehide', () => {
+      if (window.App && typeof window.App.flushPendingGoalSave === 'function') {
+        window.App.flushPendingGoalSave();
+      }
+      const s = store();
+      if (this.user && s && s.hasUnsyncedChanges() && !this.pushing) {
+        this.pushToCloud();
+      }
+    });
+
+    window.addEventListener('beforeunload', e => {
+      if (window.App && typeof window.App.flushPendingGoalSave === 'function') {
+        window.App.flushPendingGoalSave();
+      }
+      const s = store();
+      if (this.pushing || (this.user && s && s.hasUnsyncedChanges())) {
+        if (!this.pushing) this.pushToCloud();
+        e.preventDefault();
+        e.returnValue = 'Trwa zapisywanie zmian w chmurze...';
+        return e.returnValue;
+      }
+    });
+
+    setInterval(retry, 8000);
+  },
+
+  restoreLocalBackup(backupId) {
+    const store = (typeof Store !== 'undefined' ? Store : window.Store);
+    if (!store) return;
+    const list = store.getLocalBackups();
+    const bk = list.find(x => x.id === backupId);
+    if (!bk || !bk.state) return;
+    if (!confirm(`Czy na pewno chcesz przywrócić stan z kopii zapasowej z dnia ${bk.savedAt} (${bk.tasksCount} aktywnych zadań, ${bk.archiveCount} w archiwum)?`)) return;
+
+    store.saveLocalBackup('Przed przywróceniem kopii');
+    store.state = store.normalizeState(JSON.parse(JSON.stringify(bk.state)));
+    delete store.state._isSeedOnly;
+    // Nadaj świeże znaczniki czasu, aby przywrócona kopia zapisała się jako najnowsza w chmurze
+    const now = Date.now();
+    store.COLLECTIONS.forEach(col => {
+      (store.state[col] || []).forEach(it => { if (it && typeof it === 'object') it.updatedAt = now; });
+    });
+    if (!store.state.fieldStamps) store.state.fieldStamps = {};
+    Object.keys(store.state.goals || {}).forEach(yr => {
+      Object.keys(store.state.goals[yr] || {}).forEach(rId => {
+        ['weekly', 'quarterly'].forEach(h => {
+          store.state.fieldStamps[`goal:${yr}:${rId}:${h}`] = now;
+        });
+      });
+    });
+    store.rebaseline();
+    store.persist(true, true, true);
+    if (window.App) {
+      window.App.closeModal();
+      window.App.renderGoals(true);
+      window.App.renderAll();
+    }
   },
 
   /* ---- Pomocnik błędów logowania ---- */
@@ -530,35 +754,61 @@ const Sync = {
       const email = this.user.email || '';
       const photo = this.user.photoURL;
 
+      const store = (typeof Store !== 'undefined' ? Store : window.Store);
+      const backups = store && typeof store.getLocalBackups === 'function' ? store.getLocalBackups() : [];
+
       root.innerHTML = `
         <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
-          <div class="modal" style="max-width:440px;">
+          <div class="modal" style="max-width:480px;">
             <div class="modal-header">
-              <h2>Synchronizacja w Chmurze</h2>
-              <button class="icon-circle-btn" onclick="App.closeModal()">✕</button>
+              <h3 style="font-size:1.1rem; font-weight:800;">☁️ Synchronizacja & Kopie Zapasowe</h3>
+              <button class="btn" onclick="App.closeModal()">✕</button>
             </div>
 
-            <div style="display:flex; flex-direction:column; gap:16px;">
-              <div style="display:flex; align-items:center; gap:14px; padding:16px; background:var(--surface-alt); border-radius:var(--radius-md);">
-                ${photo ? `<img src="${photo}" style="width:48px; height:48px; border-radius:50%; object-fit:cover;">` : `<div style="width:48px; height:48px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.2rem;">${(name[0]||'U').toUpperCase()}</div>`}
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div style="display:flex; align-items:center; gap:14px; padding:14px; background:var(--surface-alt); border-radius:var(--radius-md); border:1px solid var(--border);">
+                ${photo ? `<img src="${photo}" style="width:44px; height:44px; border-radius:50%; object-fit:cover;">` : `<div style="width:44px; height:44px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.1rem;">${(name[0]||'U').toUpperCase()}</div>`}
                 <div style="flex:1; min-width:0;">
-                  <div style="font-weight:700; font-size:0.96rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</div>
-                  <div style="font-size:0.8rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${email}</div>
+                  <div style="font-weight:700; font-size:0.95rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</div>
+                  <div style="font-size:0.78rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${email}</div>
                 </div>
               </div>
 
-              <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md);">
-                <div style="font-size:0.85rem; font-weight:700; margin-bottom:6px;">Status połączenia:</div>
-                <div id="syncModalStatusLabel" style="font-size:0.82rem; color:var(--text-main); font-weight:600;">
-                  ${this.status === 'synced' ? '🟢 Dane zsynchronizowane w czasie rzeczywistym' : this.status === 'saving' ? '🟡 Zapisywanie zmian...' : '⚪ Połączono'}
+              <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md); border:1px solid var(--border);">
+                <div style="font-size:0.82rem; font-weight:800; margin-bottom:4px;">Status synchronizacji między urządzeniami:</div>
+                <div id="syncModalStatusLabel" style="font-size:0.83rem; color:var(--text-main); font-weight:700;">
+                  ${this.status === 'synced' ? `🟢 Dane zsynchronizowane w czasie rzeczywistym ${this.lastSyncedAt ? '(' + this.lastSyncedAt + ')' : ''}` : this.status === 'saving' ? '🟡 Zapisywanie zmian...' : '⚪ Połączono'}
                 </div>
-                <p style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">
-                  Każda zmiana na komputerze jest natychmiast widoczna na telefonie i odwrotnie.
+                <p style="font-size:0.76rem; color:var(--text-muted); margin-top:6px;">
+                  Telefon i komputer korzystają z transakcyjnego scalania danych — jedno urządzenie nigdy nie nadpisuje postępów z drugiego.
                 </p>
+                <div style="margin-top:10px; display:flex; gap:8px;">
+                  <button type="button" class="btn btn-primary" style="flex:1; justify-content:center; padding:8px 12px;" onclick="Sync.pullFromCloud()">
+                    🔄 Synchronizuj teraz z chmurą
+                  </button>
+                </div>
               </div>
 
-              <div style="display:flex; justify-content:flex-end;">
-                <button class="header-action-btn" style="color:var(--crimson);" onclick="Sync.logout()">
+              <div style="padding:14px; background:var(--surface-alt); border-radius:var(--radius-md); border:1px solid var(--border);">
+                <div style="font-size:0.82rem; font-weight:800; margin-bottom:6px;">🛡️ Ostatnie kopie zapasowe na tym urządzeniu:</div>
+                ${backups.length ? `
+                  <div style="display:flex; flex-direction:column; gap:6px; max-height:170px; overflow-y:auto;">
+                    ${backups.map(bk => `
+                      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 10px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:0.76rem;">
+                        <div>
+                          <div style="font-weight:700;">🕒 ${bk.savedAt}</div>
+                          <div style="color:var(--text-muted); font-size:0.71rem;">Zadania: ${bk.tasksCount} · Archiwum: ${bk.archiveCount}</div>
+                        </div>
+                        <button type="button" class="btn" style="padding:4px 9px; font-size:0.72rem;" onclick="Sync.restoreLocalBackup('${bk.id}')">↩ Przywróć</button>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : `<div style="font-size:0.76rem; color:var(--text-muted);">Kopie zapasowe tworzą się automatycznie przy zmianach na tym urządzeniu.</div>`}
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <button type="button" class="btn" onclick="App.exportJSON()">💾 Pobierz plik JSON</button>
+                <button type="button" class="btn" style="color:var(--crimson);" onclick="Sync.logout()">
                   Wyloguj się
                 </button>
               </div>

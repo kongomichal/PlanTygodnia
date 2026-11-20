@@ -24,6 +24,15 @@ const App = {
 
     Store.subscribe(() => this.renderAll());
     this.renderWelcome();
+
+    // Na komputerze pokaż ekran 7 Nawyków raz na sesję; na telefonie od razu przejdź do zadań
+    const isMobile = window.innerWidth <= 768;
+    let seenToday = false;
+    try { seenToday = sessionStorage.getItem('kompas_welcome_seen') === '1'; } catch (e) {}
+    if (!isMobile && !seenToday) {
+      this.openWelcome();
+    }
+
     this.renderAll();
   },
 
@@ -32,7 +41,7 @@ const App = {
   },
 
   save() {
-    Store.persist();
+    Store.persist(true, true, true);
   },
 
   esc(s) {
@@ -55,12 +64,80 @@ const App = {
     }
   },
   openWelcome() { document.getElementById('welcomeOverlay').classList.remove('hidden'); },
-  closeWelcome() { document.getElementById('welcomeOverlay').classList.add('hidden'); },
+  closeWelcome() {
+    try { sessionStorage.setItem('kompas_welcome_seen', '1'); } catch (e) {}
+    document.getElementById('welcomeOverlay').classList.add('hidden');
+  },
+
+  mobileQuarterlyGoalsOpen: false,
+  toggleMobileQuarterlyGoals() {
+    this.mobileQuarterlyGoalsOpen = !this.mobileQuarterlyGoalsOpen;
+    const stripEl = document.getElementById('goalsStripItems');
+    const btnEl = document.getElementById('mobileGoalsToggleBtn');
+    if (stripEl) stripEl.classList.toggle('mobile-open', this.mobileQuarterlyGoalsOpen);
+    if (btnEl) {
+      btnEl.textContent = this.mobileQuarterlyGoalsOpen
+        ? '📊 Ukryj cele kwartalne (4 Nogi Stołu) ▴'
+        : '📊 Pokaż cele kwartalne (4 Nogi Stołu) ▾';
+    }
+  },
+
+  openMobileMenu() {
+    const root = document.getElementById('modalRoot');
+    if (!root) return;
+    const syncStatusText = (window.Sync && window.Sync.status === 'synced')
+      ? '🟢 Wszystkie zmiany zapisane w chmurze'
+      : (window.Sync && window.Sync.status === 'saving')
+        ? '🟡 Trwa zapisywanie w chmurze...'
+        : '☁️ Sprawdź synchronizację i kopie zapasowe';
+
+    root.innerHTML = `
+      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
+        <div class="modal" style="max-width:440px; padding:20px;">
+          <div class="modal-header">
+            <h3 style="font-size:1.05rem; font-weight:800;">⚙️ Menu & Narzędzia</h3>
+            <button class="btn" onclick="App.closeModal()">✕</button>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <button type="button" class="mobile-menu-item" onclick="App.closeModal(); App.switchTab('saw');">
+              <span>🪚 <strong>Ostrzenie Piły</strong> (Rutyny i nawyki cykliczne)</span>
+              <span>→</span>
+            </button>
+            <button type="button" class="mobile-menu-item" onclick="App.closeModal(); App.switchTab('mind');">
+              <span>💭 <strong>Myśli, Cytaty & Afirmacje</strong></span>
+              <span>→</span>
+            </button>
+            <button type="button" class="mobile-menu-item" onclick="App.closeModal(); App.switchTab('archive');">
+              <span>🗄️ <strong>Archiwum wykonanych zadań</strong></span>
+              <span>→</span>
+            </button>
+            <button type="button" class="mobile-menu-item" onclick="App.closeModal(); App.openWelcome();">
+              <span>📜 <strong>7 Nawyków i Moje Zasady</strong></span>
+              <span>→</span>
+            </button>
+            <button type="button" class="mobile-menu-item" onclick="App.closeModal(); if(window.Sync) Sync.openAuthModal();">
+              <span>${syncStatusText}</span>
+              <span>→</span>
+            </button>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
+              <button type="button" class="btn" style="justify-content:center; padding:11px;" onclick="App.toggleTheme(); App.closeModal();">
+                🌙 Zmień motyw
+              </button>
+              <button type="button" class="btn" style="justify-content:center; padding:11px;" onclick="App.exportJSON(); App.closeModal();">
+                💾 Pobierz JSON
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
 
   /* ---- ZAKŁADKI ---- */
   switchTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('.tab-section').forEach(s => { s.style.display = (s.id === 'view_' + tab) ? 'block' : 'none'; });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
   setYear(y) {
@@ -188,6 +265,17 @@ const App = {
     Store.state.tasks = (Store.state.tasks || []).filter(x => x.id !== id);
     // 2. Jeśli zadanie pochodziło z Kalendarza, usuń je również z Kalendarza
     Store.state.reminders = (Store.state.reminders || []).filter(r => r.activatedTaskId !== id && ('t_cal_' + r.id) !== id);
+    // 3. Jeśli zadanie pochodziło z Ostrzenia Piły, oznacz ten dzień jako odrzucony, aby nie pojawiło się ponownie z drugiego urządzenia
+    if (t && t.sawId) {
+      const sawItem = (Store.state.saw || []).find(s => s.id === t.sawId);
+      if (sawItem) {
+        const dStr = t.sawDate || t.scheduledDate || this.today();
+        if (!Array.isArray(sawItem.dismissedDays)) sawItem.dismissedDays = [];
+        if (!sawItem.dismissedDays.includes(dStr)) sawItem.dismissedDays.push(dStr);
+        if (!Array.isArray(sawItem.spawnedDates)) sawItem.spawnedDates = [];
+        if (!sawItem.spawnedDates.includes(dStr)) sawItem.spawnedDates.push(dStr);
+      }
+    }
     this.save();
     this.renderAll();
   },
@@ -261,14 +349,16 @@ const App = {
   processDueReminders() {
     const today = this.today();
     let changed = false;
+    let spawnedNewTask = false;
 
     // 1. Przypomnienia z Kalendarza (od dnia kiedy powinny być — nie znikają aż do odklikania)
     (Store.state.reminders || []).forEach(r => {
       if (!r || !r.date || r.done) return;
       if (r.date <= today && !r.activatedTaskId) {
         const newTaskId = 't_cal_' + r.id;
+        const alreadyDeleted = Boolean(Store.state.deleted && Store.state.deleted['tasks:' + newTaskId]);
         const exists = Store.state.tasks.some(t => t.id === newTaskId);
-        if (!exists) {
+        if (!exists && !alreadyDeleted) {
           Store.state.tasks.push({
             id: newTaskId,
             title: r.title,
@@ -280,6 +370,7 @@ const App = {
             year: parseInt(r.date.slice(0, 4), 10) || Store.state.year,
             createdAt: Date.now()
           });
+          spawnedNewTask = true;
         }
         r.activatedTaskId = newTaskId;
         changed = true;
@@ -292,6 +383,7 @@ const App = {
       if (!s.startDate || s.startDate > today) s.startDate = today;
       if (!Array.isArray(s.spawnedDates)) s.spawnedDates = [];
       if (!Array.isArray(s.doneDays)) s.doneDays = [];
+      if (!Array.isArray(s.dismissedDays)) s.dismissedDays = [];
       const act = Array.isArray(s.activeDays) ? s.activeDays : [0, 1, 2, 3, 4, 5, 6];
 
       // Sprawdzamy każdy dzień od startDate (maks. 45 dni wstecz) aż do dzisiaj
@@ -304,9 +396,10 @@ const App = {
           const taskId = `t_saw_${s.id}_${cur}`;
           const alreadySpawned = s.spawnedDates.includes(cur);
           const alreadyDone = s.doneDays.includes(cur);
+          const alreadyDismissed = s.dismissedDays.includes(cur) || Boolean(Store.state.deleted && Store.state.deleted['tasks:' + taskId]);
           const existsOnList = Store.state.tasks.some(t => t.id === taskId);
 
-          if (!alreadySpawned && !alreadyDone && !existsOnList) {
+          if (!alreadySpawned && !alreadyDone && !alreadyDismissed && !existsOnList) {
             Store.state.tasks.push({
               id: taskId,
               title: s.title,
@@ -320,8 +413,9 @@ const App = {
               createdAt: Date.now()
             });
             s.spawnedDates.push(cur);
+            spawnedNewTask = true;
             changed = true;
-          } else if (!alreadySpawned && (alreadyDone || existsOnList)) {
+          } else if (!alreadySpawned && (alreadyDone || alreadyDismissed || existsOnList)) {
             s.spawnedDates.push(cur);
             changed = true;
           }
@@ -341,7 +435,8 @@ const App = {
     });
 
     if (changed) {
-      this.save();
+      const canSyncNow = !window.Sync || window.Sync.initialSyncComplete;
+      Store.persist(false, Boolean(canSyncNow && spawnedNewTask), false);
     }
   },
 
@@ -371,8 +466,11 @@ const App = {
       const rems = Store.state.reminders.filter(r => r.date === dStr);
 
       html += `
-        <div class="cal-cell ${isCur ? '' : 'other'} ${dStr === today ? 'today' : ''}" onclick="App.openCalendarModal('${dStr}')">
-          <div class="cal-num">${d.getDate()}</div>
+        <div class="cal-cell ${isCur ? '' : 'other'} ${dStr === today ? 'today' : ''} ${rems.length ? 'has-rems' : ''}" onclick="App.openCalendarModal('${dStr}')">
+          <div class="cal-num-row">
+            <span class="cal-num">${d.getDate()}</span>
+            ${rems.length ? `<span class="cal-mobile-badge">${rems.length}</span>` : ''}
+          </div>
           ${rems.slice(0, 3).map(r => {
             const role = Store.state.roles.find(x => x.id === r.roleId);
             const borderColor = role ? role.color : 'var(--accent)';
@@ -389,12 +487,47 @@ const App = {
               </div>
             `;
           }).join('')}
-          ${rems.length > 3 ? `<div style="font-size:0.66rem; color:var(--accent); font-weight:700; padding-left:2px;">+${rems.length - 3} więcej...</div>` : ''}
+          ${rems.length > 3 ? `<div class="cal-more-label" style="font-size:0.66rem; color:var(--accent); font-weight:700; padding-left:2px;">+${rems.length - 3} więcej...</div>` : ''}
         </div>
       `;
     }
     const gridEl = document.getElementById('calGrid');
     if (gridEl) gridEl.innerHTML = html;
+
+    // Czytelna lista przypomnień z wybranego miesiąca (szczególnie pomocna na telefonie)
+    const mobListEl = document.getElementById('calMobileRemindersList');
+    if (mobListEl) {
+      const monthPrefix = `${this.calYear}-${String(this.calMonth + 1).padStart(2, '0')}`;
+      const monthRems = (Store.state.reminders || [])
+        .filter(r => r && r.date && r.date.startsWith(monthPrefix))
+        .sort((a, b) => (a.date > b.date ? 1 : -1));
+      if (monthRems.length) {
+        mobListEl.innerHTML = `
+          <div style="font-size:0.78rem; font-weight:800; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;">
+            📌 Zaplanowane przypomnienia w tym miesiącu (${monthRems.length}):
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            ${monthRems.map(r => {
+              const role = Store.state.roles.find(x => x.id === r.roleId);
+              return `
+                <div class="task-row" style="border-left: 3px solid ${role ? role.color : 'var(--accent)'}; ${r.done ? 'opacity:0.6; text-decoration:line-through;' : ''}" onclick="App.openCalendarModal('${r.date}')">
+                  <div class="task-row-left" style="flex-wrap:wrap;">
+                    <span style="font-size:0.74rem; font-weight:800; color:var(--accent); background:var(--accent-light); padding:2px 7px; border-radius:999px;">📅 ${this.esc(r.date)}</span>
+                    <span style="font-weight:600;">${this.esc(r.title)}</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                    <span style="font-size:0.75rem;">${role ? role.emoji : ''}</span>
+                    <span class="q-tag q${r.q || 2}">Q${r.q || 2}</span>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } else {
+        mobListEl.innerHTML = '';
+      }
+    }
   },
 
   openCalendarModal(dateStr) {
@@ -941,11 +1074,25 @@ const App = {
     if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
     Store.state.fieldStamps[`goal:${y}:${roleId}:${horizon}`] = Date.now();
 
+    // Natychmiastowy (0ms) zapis do pamięci urządzenia (localStorage) + oznaczenie zmiany jako oczekującej na wysyłkę
+    Store.persist(false, false, true);
     this.renderPlan();
+
     clearTimeout(this._goalSaveTimer);
     this._goalSaveTimer = setTimeout(() => {
-      Store.persist(false, true);
-    }, 400);
+      this._goalSaveTimer = null;
+      if (window.Sync && typeof window.Sync.pushToCloud === 'function') {
+        window.Sync.pushToCloud();
+      }
+    }, 250);
+  },
+
+  flushPendingGoalSave() {
+    if (this._goalSaveTimer) {
+      clearTimeout(this._goalSaveTimer);
+      this._goalSaveTimer = null;
+      Store.persist(false, true, true);
+    }
   },
 
   archiveGoal(roleId, horizon) {
@@ -1310,7 +1457,11 @@ const App = {
   },
 
   renderAll() {
-    if (!this._processingReminders) {
+    let authActive = false;
+    try { authActive = localStorage.getItem('kompas_auth_active') === '1'; } catch (e) {}
+    const waitingForFirstCloudPull = authActive && window.Sync && !window.Sync.initialSyncComplete;
+
+    if (!this._processingReminders && !waitingForFirstCloudPull) {
       this._processingReminders = true;
       this.processDueReminders();
       this._processingReminders = false;

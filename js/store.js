@@ -2,8 +2,53 @@
 
 const Store = {
   KEY: 'kompas_v2_clean',
+  UNSYNCED_KEY: 'kompas_unsynced_v1',
+  BACKUPS_KEY: 'kompas_backups_v1',
   state: null,
   subs: new Set(),
+  editGeneration: 0,
+
+  hasUnsyncedChanges() {
+    try { return localStorage.getItem(this.UNSYNCED_KEY) === '1'; } catch (e) { return false; }
+  },
+
+  markUnsynced(flag) {
+    try {
+      if (flag) localStorage.setItem(this.UNSYNCED_KEY, '1');
+      else localStorage.setItem(this.UNSYNCED_KEY, '0');
+    } catch (e) {}
+  },
+
+  saveLocalBackup(reason = 'Zapis automatyczny') {
+    if (!this.state || this.state._isSeedOnly) return;
+    try {
+      const raw = localStorage.getItem(this.BACKUPS_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      const curSig = this.sig(this.state);
+      if (list.length > 0 && list[0].sig === curSig) return;
+
+      const now = new Date();
+      const stamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+      list.unshift({
+        id: 'bk_' + Date.now(),
+        savedAt: stamp,
+        reason,
+        sig: curSig,
+        tasksCount: (this.state.tasks || []).length,
+        archiveCount: (this.state.archive || []).length,
+        state: JSON.parse(JSON.stringify(this.state))
+      });
+      while (list.length > 8) list.pop();
+      localStorage.setItem(this.BACKUPS_KEY, JSON.stringify(list));
+    } catch (e) {}
+  },
+
+  getLocalBackups() {
+    try {
+      const raw = localStorage.getItem(this.BACKUPS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  },
 
   init() {
     try {
@@ -13,6 +58,7 @@ const Store = {
 
     if (!this.state || !Array.isArray(this.state.roles) || this.state.roles.length !== 4) {
       this.state = Seed.build();
+      this.markUnsynced(false);
     } else {
       this.normalizeState(this.state);
     }
@@ -50,15 +96,15 @@ const Store = {
     if (!Array.isArray(s.later)) s.later = [];
     if (!Array.isArray(s.reminders)) s.reminders = [];
     if (!Array.isArray(s.saw)) s.saw = def.saw;
-    // Jeśli przed wprowadzeniem potwierdzenia usunięto domyślny Spacer lub Dziennik — przywróć je
+    // Jeśli przed wprowadzeniem potwierdzenia usunięto domyślny Spacer lub Dziennik — przywróć je z niskim znacznikiem czasu (1), aby nie nadpisywały chmury
     if (!s.restoredDefaultSawV135) {
       if (!s.saw.some(x => /spacer/i.test(x.title))) {
         delete s.deleted['saw:s1'];
-        s.saw.unshift({ id: 's1', title: '🚶‍♂️ Wyjście na spacer', roleId: 'r1', q: 2, activeDays: [0, 1, 2, 3, 4, 5, 6], doneDays: [], startDate: todayStr, spawnedDates: [], createdAt: Date.now(), updatedAt: Date.now() });
+        s.saw.unshift({ id: 's1', title: '🚶‍♂️ Wyjście na spacer', roleId: 'r1', q: 2, activeDays: [0, 1, 2, 3, 4, 5, 6], doneDays: [], dismissedDays: [], startDate: todayStr, spawnedDates: [], createdAt: 1, updatedAt: 1 });
       }
       if (!s.saw.some(x => /dziennik/i.test(x.title))) {
         delete s.deleted['saw:s2'];
-        s.saw.splice(1, 0, { id: 's2', title: '📓 Pisanie dziennika', roleId: 'r2', q: 2, activeDays: [0, 1, 2, 3, 4, 5, 6], doneDays: [], startDate: todayStr, spawnedDates: [], createdAt: Date.now(), updatedAt: Date.now() });
+        s.saw.splice(1, 0, { id: 's2', title: '📓 Pisanie dziennika', roleId: 'r2', q: 2, activeDays: [0, 1, 2, 3, 4, 5, 6], doneDays: [], dismissedDays: [], startDate: todayStr, spawnedDates: [], createdAt: 1, updatedAt: 1 });
       }
       s.restoredDefaultSawV135 = true;
     }
@@ -67,6 +113,7 @@ const Store = {
       if (!item.startDate) item.startDate = todayStr;
       if (!Array.isArray(item.spawnedDates)) item.spawnedDates = [];
       if (!Array.isArray(item.doneDays)) item.doneDays = [];
+      if (!Array.isArray(item.dismissedDays)) item.dismissedDays = [];
       if (!item.roleId || !s.roles.some(r => r.id === item.roleId)) {
         const d = String(item.dim || '').toLowerCase();
         if (d.includes('umysł') || d.includes('studia') || d.includes('duch') || /dziennik|planowanie/i.test(item.title)) item.roleId = 'r2';
@@ -226,17 +273,37 @@ const Store = {
       if (!it || typeof it !== 'object' || !it.id) return;
       const cur = map.get(it.id);
       if (!cur) {
-        map.set(it.id, it);
+        map.set(it.id, { ...it });
         return;
       }
       const sa = this._stampOf(cur);
       const sb = this._stampOf(it);
-      const win = (sb > sa || (sb === sa && JSON.stringify(it) > JSON.stringify(cur))) ? it : cur;
+      const win = { ...((sb > sa || (sb === sa && JSON.stringify(it) > JSON.stringify(cur))) ? it : cur) };
+
+      // Dla Ostrzenia Piły zawsze łączymy (unia) wykonane dni, wygenerowane daty oraz odrzucone dni
+      if (col === 'saw') {
+        win.doneDays = [...new Set([...(cur.doneDays || []), ...(it.doneDays || [])])];
+        win.spawnedDates = [...new Set([...(cur.spawnedDates || []), ...(it.spawnedDates || [])])];
+        win.dismissedDays = [...new Set([...(cur.dismissedDays || []), ...(it.dismissedDays || [])])];
+      }
+
+      // Dla przypomnień kalendarza: jeśli na którymkolwiek urządzeniu zostało odhaczone jako wykonane, pozostaje wykonane
+      if (col === 'reminders') {
+        win.done = Boolean(cur.done || it.done);
+        win.activatedTaskId = win.activatedTaskId || cur.activatedTaskId || it.activatedTaskId || null;
+      }
+
       map.set(it.id, win);
     });
+
     return [...map.values()].filter(it => {
       const ts = tombs[col + ':' + it.id];
-      return !(ts && ts >= this._stampOf(it));
+      if (!ts) return true;
+      // Dla deterministycznych zadań cyklicznych / kalendarzowych każdy ślad usunięcia (lub odkliknięcia) blokuje ich ponowne pojawienie się
+      if (col === 'tasks' && (String(it.id).startsWith('t_saw_') || String(it.id).startsWith('t_cal_'))) {
+        return false;
+      }
+      return !(ts >= this._stampOf(it));
     });
   },
 
@@ -245,10 +312,23 @@ const Store = {
     if (!a) return b;
     const ca = JSON.parse(JSON.stringify(a));
     const cb = JSON.parse(JSON.stringify(b));
+
+    // Świeży szablon (Seed) nigdy nie może nadpisać prawdziwych danych z drugiego urządzenia
+    if (ca._isSeedOnly && !cb._isSeedOnly) {
+      delete cb._isSeedOnly;
+      return this.normalizeState(cb);
+    }
+    if (cb._isSeedOnly && !ca._isSeedOnly) {
+      delete ca._isSeedOnly;
+      return this.normalizeState(ca);
+    }
+
     this.normalizeState(ca);
     this.normalizeState(cb);
 
     const out = { ...cb, ...ca };
+    delete out._isSeedOnly;
+
     const limit = Date.now() - 90 * 864e5;
     const tombs = {};
     [cb.deleted, ca.deleted].forEach(d => Object.keys(d || {}).forEach(k => {
@@ -261,12 +341,34 @@ const Store = {
       out[col] = this._mergeList(col, ca[col], cb[col], tombs);
     });
 
+    // Spójność między kolekcjami: zadanie odhaczone w Ostrzeniu Piły lub Kalendarzu nie może wisieć na aktywnej liście
+    const sawMap = new Map((out.saw || []).map(s => [s.id, s]));
+    const remMap = new Map((out.reminders || []).map(r => [r.id, r]));
+    out.tasks = (out.tasks || []).filter(t => {
+      if (t.sawId) {
+        const sItem = sawMap.get(t.sawId);
+        if (!sItem) return false;
+        const dStr = t.sawDate || t.scheduledDate;
+        if (dStr && ((sItem.doneDays || []).includes(dStr) || (sItem.dismissedDays || []).includes(dStr))) {
+          return false;
+        }
+      }
+      if (String(t.id).startsWith('t_cal_')) {
+        const remId = String(t.id).slice(6);
+        const rItem = remMap.get(remId);
+        if (!rItem || rItem.done) return false;
+      }
+      return true;
+    });
+
     const fa = ca.fieldStamps || {};
     const fb = cb.fieldStamps || {};
     out.fieldStamps = { ...fb, ...fa };
     Object.keys(fb).forEach(k => {
       if ((fb[k] || 0) > (fa[k] || 0)) out.fieldStamps[k] = fb[k];
     });
+
+    const isSeedGoal = val => (typeof Seed !== 'undefined' && Seed.isDefaultGoalText && Seed.isDefaultGoalText(val));
 
     out.goals = {};
     const allYears = new Set([...Object.keys(ca.goals || {}), ...Object.keys(cb.goals || {})]);
@@ -283,9 +385,16 @@ const Store = {
           const tb = fb[stampKey] || 0;
           const va = ga[rId]?.[h] ?? '';
           const vb = gb[rId]?.[h] ?? '';
-          if (tb > ta) out.goals[yr][rId][h] = vb;
-          else if (ta > tb) out.goals[yr][rId][h] = va;
-          else out.goals[yr][rId][h] = va.length >= vb.length ? va : vb;
+          if (tb > ta) {
+            out.goals[yr][rId][h] = vb;
+          } else if (ta > tb) {
+            out.goals[yr][rId][h] = va;
+          } else {
+            // Jeśli żadna strona nie ma nowszego stempla: własny tekst użytkownika zawsze wygrywa nad domyślnym tekstem z Seed
+            if (isSeedGoal(va) && !isSeedGoal(vb) && vb !== '') out.goals[yr][rId][h] = vb;
+            else if (isSeedGoal(vb) && !isSeedGoal(va) && va !== '') out.goals[yr][rId][h] = va;
+            else out.goals[yr][rId][h] = (vb !== '' ? vb : va);
+          }
         });
       });
     });
@@ -298,6 +407,7 @@ const Store = {
     if (!s) return '';
     const c = JSON.parse(JSON.stringify(s));
     this.normalizeState(c);
+    delete c._isSeedOnly;
     delete c.updatedAt;
     delete c.createdAt;
     delete c.fieldStamps;
@@ -317,7 +427,12 @@ const Store = {
     return JSON.stringify(norm(c));
   },
 
-  persist(emit = true, syncCloud = true) {
+  persist(emit = true, syncCloud = true, isUserEdit = true) {
+    if (isUserEdit && this.state) {
+      delete this.state._isSeedOnly;
+      this.editGeneration = (this.editGeneration || 0) + 1;
+      this.markUnsynced(true);
+    }
     this.stamp();
     this.state.updatedAt = Date.now();
     try { localStorage.setItem(this.KEY, JSON.stringify(this.state)); } catch (e) {}
