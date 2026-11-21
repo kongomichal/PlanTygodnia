@@ -386,6 +386,7 @@ const App = {
                     </div>
                     <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
                       ${this.renderQTagWithTooltip(t.id, t.q || 2)}
+                      <button type="button" class="btn" style="padding:2px 6px; font-size:0.74rem; line-height:1;" onclick="App.openRescheduleModal('${t.id}', 'task')" title="Zmień datę zadania (przełóż na inny dzień)">📅</button>
                       <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z tego filaru, z Matrycy i z Kalendarza)">✕</button>
                     </div>
                   </div>
@@ -400,6 +401,151 @@ const App = {
         `;
       }).join('');
     }
+  },
+
+  openRescheduleModal(id, kind = 'task') {
+    const root = document.getElementById('modalRoot');
+    if (!root) return;
+    const today = this.today();
+    const item = kind === 'reminder'
+      ? (Store.state.reminders || []).find(r => r.id === id)
+      : (Store.state.tasks || []).find(t => t.id === id);
+    if (!item) return;
+
+    const currentDate = (kind === 'reminder' ? item.date : (item.scheduledDate || today)) || today;
+    const tomorrow = D.addDays(today, 1);
+    const in3Days = D.addDays(today, 3);
+    const nextWeek = D.addDays(today, 7);
+    const in2Weeks = D.addDays(today, 14);
+    const nextMonth = this.addMonthsISO(today, 1);
+
+    root.innerHTML = `
+      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
+        <div class="modal" style="max-width:460px;">
+          <div class="modal-header">
+            <div>
+              <h3 style="font-size:1.05rem; font-weight:800;">📅 Zmień datę zadania</h3>
+              <p style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">
+                <strong>${this.esc(item.title)}</strong>
+              </p>
+            </div>
+            <button type="button" class="btn" onclick="App.closeModal()">✕</button>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+              <div style="font-size:0.72rem; font-weight:700; color:var(--text-muted); margin-bottom:6px;">Szybki wybór terminu:</div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                <button type="button" class="btn" onclick="App.applyReschedule('${id}', '${kind}', '${tomorrow}')">☀️ Jutro (${tomorrow.slice(5)})</button>
+                <button type="button" class="btn" onclick="App.applyReschedule('${id}', '${kind}', '${in3Days}')">📆 Za 3 dni (${in3Days.slice(5)})</button>
+                <button type="button" class="btn" onclick="App.applyReschedule('${id}', '${kind}', '${nextWeek}')">🗓️ Za tydzień (${nextWeek.slice(5)})</button>
+                <button type="button" class="btn" onclick="App.applyReschedule('${id}', '${kind}', '${in2Weeks}')">🔄 Za 2 tyg. (${in2Weeks.slice(5)})</button>
+                <button type="button" class="btn" onclick="App.applyReschedule('${id}', '${kind}', '${nextMonth}')">📅 Za miesiąc (${nextMonth.slice(5)})</button>
+              </div>
+            </div>
+
+            <form onsubmit="event.preventDefault(); App.applyReschedule('${id}', '${kind}', this.newDate.value);" style="display:flex; flex-direction:column; gap:10px; padding-top:10px; border-top:1px solid var(--border);">
+              <div>
+                <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Lub wybierz dokładną nową datę:</label>
+                <input type="date" name="newDate" class="input-clean" style="font-weight:700;" value="${this.esc(currentDate)}" required>
+              </div>
+              <p style="font-size:0.73rem; color:var(--text-muted); margin:0;">
+                Jeśli wybierzesz datę w przyszłości, zadanie zniknie z dzisiejszej listy, zapisze się w Kalendarzu i wróci automatycznie w wybranym dniu.
+              </p>
+              <button type="submit" class="btn btn-primary" style="justify-content:center; padding:10px;">
+                ✓ Zapisz nową datę
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  applyReschedule(id, kind, newDate) {
+    if (!newDate) return;
+    const today = this.today();
+    const newYear = parseInt(newDate.slice(0, 4), 10) || Store.state.year;
+
+    if (kind === 'reminder') {
+      const rem = (Store.state.reminders || []).find(r => r.id === id);
+      if (!rem) return;
+      rem.date = newDate;
+      if (newDate > today) {
+        if (rem.activatedTaskId) {
+          Store.state.tasks = (Store.state.tasks || []).filter(t => t.id !== rem.activatedTaskId);
+          rem.activatedTaskId = null;
+        }
+        rem.done = false;
+      } else {
+        const linked = (Store.state.tasks || []).find(t => t.id === rem.activatedTaskId || t.id === ('t_cal_' + rem.id));
+        if (linked) {
+          linked.scheduledDate = newDate;
+          linked.fromCalendarDate = newDate;
+          linked.delayDays = Math.max(0, D.diff(today, newDate));
+          linked.year = newYear;
+        }
+      }
+      this.processDueReminders();
+      this.save();
+      this.closeModal();
+      this.renderAll();
+      return;
+    }
+
+    // kind === 'task'
+    const t = (Store.state.tasks || []).find(x => x.id === id);
+    if (!t) return;
+    const linkedRem = (Store.state.reminders || []).find(r => r.activatedTaskId === id || ('t_cal_' + r.id) === id);
+
+    if (newDate > today) {
+      // Przeniesienie na przyszły termin: usuwamy z bieżącej listy i zapisujemy w Kalendarzu na nowy dzień
+      Store.state.tasks = (Store.state.tasks || []).filter(x => x.id !== id);
+      if (t.sawId) {
+        const sawItem = (Store.state.saw || []).find(s => s.id === t.sawId);
+        if (sawItem) {
+          const dStr = t.sawDate || t.scheduledDate || today;
+          if (!Array.isArray(sawItem.dismissedDays)) sawItem.dismissedDays = [];
+          if (!sawItem.dismissedDays.includes(dStr)) sawItem.dismissedDays.push(dStr);
+          if (!Array.isArray(sawItem.spawnedDates)) sawItem.spawnedDates = [];
+          if (!sawItem.spawnedDates.includes(dStr)) sawItem.spawnedDates.push(dStr);
+        }
+      }
+      if (linkedRem) {
+        linkedRem.date = newDate;
+        linkedRem.title = t.title;
+        linkedRem.note = t.note || '';
+        linkedRem.roleId = t.roleId;
+        linkedRem.q = t.q || 2;
+        linkedRem.activatedTaskId = null;
+        linkedRem.done = false;
+      } else {
+        Store.state.reminders.push({
+          id: 'c_' + Date.now(),
+          date: newDate,
+          title: t.title,
+          note: t.note || '',
+          roleId: t.roleId || Store.state.roles[0].id,
+          q: Number(t.q) || 2,
+          activatedTaskId: null,
+          done: false,
+          createdAt: Date.now()
+        });
+      }
+    } else {
+      // Data dzisiejsza lub wcześniejsza — zostaje na liście z nową datą
+      t.scheduledDate = newDate;
+      t.delayDays = Math.max(0, D.diff(today, newDate));
+      t.year = newYear;
+      if (linkedRem) {
+        linkedRem.date = newDate;
+        t.fromCalendarDate = newDate;
+      }
+    }
+
+    this.save();
+    this.closeModal();
+    this.renderAll();
   },
 
   deleteActiveTask(id) {
@@ -837,6 +983,7 @@ const App = {
                     <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                       <span style="font-size:0.72rem; color:var(--text-muted);">${role ? this.esc(role.name) : ''}</span>
                       <span class="q-tag q${r.q || 2}">Q${r.q || 2}</span>
+                      <button type="button" class="btn" style="padding:2px 6px;" onclick="App.openRescheduleModal('${r.id}', 'reminder')" title="Zmień datę przypomnienia">📅</button>
                       <button class="btn" style="padding:2px 6px;" onclick="App.deleteReminder('${r.id}', '${dateStr}')">✕</button>
                     </div>
                   </div>
@@ -967,6 +1114,7 @@ const App = {
                   <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
                     <span style="font-size:0.72rem; color:var(--text-muted); cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--surface);" onclick="App.cycleRole('${t.id}')" title="Kliknij, aby zmienić rodzaj (Ciało / Umysł / Relacje / Finanse)">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
                     ${this.renderQTagWithTooltip(t.id, t.q || 2)}
+                    <button type="button" class="btn" style="padding:2px 6px; font-size:0.74rem; line-height:1;" onclick="App.openRescheduleModal('${t.id}', 'task')" title="Zmień datę zadania (przełóż na inny dzień)">📅</button>
                     <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z Filaru, Matrycy i Kalendarza)">✕</button>
                   </div>
                 </div>
