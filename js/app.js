@@ -1228,9 +1228,52 @@ const App = {
     return act.slice().sort((a,b) => a - b).map(i => days[i]).join(', ');
   },
 
+  _sawEditTimer: null,
+
   toggleEditSaw(id) {
+    if (this._sawEditTimer) {
+      clearTimeout(this._sawEditTimer);
+      this._sawEditTimer = null;
+      Store.persist(false, true, true);
+    }
     this.editingSawId = (this.editingSawId === id) ? null : id;
-    this.renderSaw();
+    this.renderAll();
+  },
+
+  updateSawTitle(id, val) {
+    if (this.editingSawId !== id) return;
+    const s = Store.state.saw.find(x => x.id === id);
+    if (!s) return;
+    s.title = val;
+    (Store.state.tasks || []).forEach(t => { if (t.sawId === id) t.title = val; });
+    Store.persist(false, false, true);
+    this.renderPlan();
+    this.renderMatrix();
+    clearTimeout(this._sawEditTimer);
+    this._sawEditTimer = setTimeout(() => {
+      this._sawEditTimer = null;
+      if (window.Sync && typeof window.Sync.pushToCloud === 'function') {
+        window.Sync.pushToCloud();
+      }
+    }, 300);
+  },
+
+  updateSawNote(id, val) {
+    if (this.editingSawId !== id) return;
+    const s = Store.state.saw.find(x => x.id === id);
+    if (!s) return;
+    s.note = val;
+    (Store.state.tasks || []).forEach(t => { if (t.sawId === id) t.note = val; });
+    Store.persist(false, false, true);
+    this.renderPlan();
+    this.renderMatrix();
+    clearTimeout(this._sawEditTimer);
+    this._sawEditTimer = setTimeout(() => {
+      this._sawEditTimer = null;
+      if (window.Sync && typeof window.Sync.pushToCloud === 'function') {
+        window.Sync.pushToCloud();
+      }
+    }, 300);
   },
 
   refreshSawSpawnedTasks(s) {
@@ -1357,8 +1400,14 @@ const App = {
             return `
               <tr style="${isEditing ? 'background:var(--accent-light);' : ''}">
                 <td>
-                  <strong>${this.esc(s.title)}</strong>
-                  <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                  ${isEditing ? `
+                    <input type="text" class="input-clean" style="font-weight:700; padding:6px 9px; margin-bottom:5px;" value="${this.esc(s.title)}" oninput="App.updateSawTitle('${s.id}', this.value)" placeholder="Nazwa zadania...">
+                    <input type="text" class="input-clean" style="font-size:0.75rem; padding:4px 8px; color:var(--text-muted);" value="${this.esc(s.note || '')}" oninput="App.updateSawNote('${s.id}', this.value)" placeholder="Notatka (opcjonalnie)...">
+                  ` : `
+                    <strong>${this.esc(s.title)}</strong>
+                    ${s.note ? `<div style="font-size:0.74rem; color:var(--text-muted); margin-top:2px; white-space:pre-wrap;">${this.esc(s.note)}</div>` : ''}
+                  `}
+                  <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:5px;">
                     <span style="font-size:0.7rem; color:var(--text-muted); background:var(--surface-alt); border:1px solid var(--border); padding:1px 7px; border-radius:999px;">
                       📅 Start: <strong>${this.esc(startDate)}</strong>
                     </span>
