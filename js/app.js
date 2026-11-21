@@ -1985,12 +1985,12 @@ const App = {
   },
 
   /* ---- SZUFLADA „NA PÓŹNIEJ” Z FOLDERAMI ---- */
-  activeLaterFolderId: 'all',
+  activeLaterFolderId: 'general',
 
   toggleLater() { document.getElementById('laterDrawer').classList.toggle('open'); },
 
   selectLaterFolder(folderId) {
-    this.activeLaterFolderId = folderId || 'all';
+    this.activeLaterFolderId = folderId || 'general';
     this.renderLater();
   },
 
@@ -2012,12 +2012,12 @@ const App = {
     if (ev) ev.stopPropagation();
     const f = (Store.state.laterFolders || []).find(x => x.id === id);
     const label = f ? `„${f.name}”` : 'ten folder';
-    if (!confirm(`Czy na pewno chcesz usunąć folder ${label}? Pomysły ze środka pozostaną w zakładce „Wszystkie”.`)) return;
+    if (!confirm(`Czy na pewno chcesz usunąć folder ${label}? Pomysły ze środka zostaną przeniesione do folderu „Ogólne”.`)) return;
     Store.state.laterFolders = (Store.state.laterFolders || []).filter(x => x.id !== id);
     (Store.state.later || []).forEach(l => {
       if (l.folderId === id) l.folderId = null;
     });
-    if (this.activeLaterFolderId === id) this.activeLaterFolderId = 'all';
+    if (this.activeLaterFolderId === id) this.activeLaterFolderId = 'general';
     this.save();
     this.renderLater();
   },
@@ -2025,7 +2025,7 @@ const App = {
   setLaterItemFolder(laterId, folderId) {
     const item = (Store.state.later || []).find(x => x.id === laterId);
     if (!item) return;
-    item.folderId = folderId || null;
+    item.folderId = (!folderId || folderId === 'general') ? null : folderId;
     this.save();
     this.renderLater();
   },
@@ -2033,25 +2033,28 @@ const App = {
   renderLater() {
     const allItems = Store.state.later || [];
     const folders = Store.state.laterFolders || [];
+    const folderIds = new Set(folders.map(f => f.id));
     const cnt = document.getElementById('laterCount');
     if (cnt) cnt.textContent = allItems.length;
 
-    // Jeśli aktywny folder już nie istnieje, wróć do „Wszystkie”
-    if (this.activeLaterFolderId !== 'all' && !folders.some(f => f.id === this.activeLaterFolderId)) {
-      this.activeLaterFolderId = 'all';
+    // Jeśli aktywny folder już nie istnieje, wróć do „Ogólne”
+    if (this.activeLaterFolderId !== 'general' && !folderIds.has(this.activeLaterFolderId)) {
+      this.activeLaterFolderId = 'general';
     }
 
-    // Siatka folderów — identyczny rozmiar i symetryczny układ 2 kolumn + dymek dla długich nazw
+    const generalItems = allItems.filter(l => !l.folderId || !folderIds.has(l.folderId));
+
+    // Siatka folderów — identyczny rozmiar, symetryczny układ 2 kolumn, ZERO dublowania między folderami
     const foldersEl = document.getElementById('laterFoldersGrid');
     if (foldersEl) {
-      const allTile = `
-        <div class="later-folder-card ${this.activeLaterFolderId === 'all' ? 'active' : ''}" onclick="App.selectLaterFolder('all')">
-          <span class="later-folder-icon">📥</span>
-          <span class="later-folder-name">Wszystkie</span>
-          <span class="later-folder-count">${allItems.length}</span>
+      const generalTile = `
+        <div class="later-folder-card ${this.activeLaterFolderId === 'general' ? 'active' : ''}" onclick="App.selectLaterFolder('general')">
+          <span class="later-folder-icon">📁</span>
+          <span class="later-folder-name">Ogólne</span>
+          <span class="later-folder-count">${generalItems.length}</span>
           <div class="cal-tooltip">
-            <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">Folder główny</div>
-            <div style="font-weight:600; color:#ffffff;">📥 Wszystkie pomysły (${allItems.length})</div>
+            <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">📁 Folder (${generalItems.length} ${generalItems.length === 1 ? 'pomysł' : 'pomysłów'})</div>
+            <div style="font-weight:600; color:#ffffff;">Ogólne</div>
           </div>
         </div>
       `;
@@ -2071,21 +2074,21 @@ const App = {
           </div>
         `;
       }).join('');
-      foldersEl.innerHTML = allTile + customTiles;
+      foldersEl.innerHTML = generalTile + customTiles;
     }
 
     // Dopasuj placeholder pola dodawania do aktualnie wybranego folderu
     const inp = document.getElementById('laterInput');
     if (inp) {
       const actFolder = folders.find(f => f.id === this.activeLaterFolderId);
-      inp.placeholder = actFolder ? `+ Pomysł do „${actFolder.name}”...` : '+ Wpisz pomysł na później...';
+      inp.placeholder = actFolder ? `+ Pomysł do „${actFolder.name}”...` : '+ Pomysł do „Ogólne”...';
     }
 
     const listEl = document.getElementById('laterList');
     if (!listEl) return;
 
-    const visibleItems = this.activeLaterFolderId === 'all'
-      ? allItems
+    const visibleItems = this.activeLaterFolderId === 'general'
+      ? generalItems
       : allItems.filter(l => l.folderId === this.activeLaterFolderId);
 
     if (!visibleItems.length) {
@@ -2093,40 +2096,36 @@ const App = {
       return;
     }
 
-    listEl.innerHTML = visibleItems.map(l => {
-      const itemFolder = folders.find(f => f.id === l.folderId);
-      return `
-        <div class="task-row" style="flex-direction:column; align-items:stretch; gap:6px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
-            <div style="display:flex; flex-direction:column; gap:3px; min-width:0; flex:1;">
-              <strong style="word-break:break-word;">💡 ${this.esc(l.title)}</strong>
-              ${itemFolder && this.activeLaterFolderId === 'all' ? `<span style="font-size:0.68rem; color:var(--accent); font-weight:700;">📁 ${this.esc(itemFolder.name)}</span>` : ''}
-            </div>
-            <button class="btn" style="padding:1px 6px; flex-shrink:0;" onclick="App.removeLater('${l.id}')">✕</button>
+    listEl.innerHTML = visibleItems.map(l => `
+      <div class="task-row" style="flex-direction:column; align-items:stretch; gap:6px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
+          <div style="display:flex; flex-direction:column; gap:3px; min-width:0; flex:1;">
+            <strong style="word-break:break-word;">💡 ${this.esc(l.title)}</strong>
           </div>
-          ${folders.length ? `
-            <div style="display:flex; align-items:center; gap:6px;">
-              <span style="font-size:0.68rem; color:var(--text-muted); font-weight:600;">Folder:</span>
-              <select class="input-clean" style="padding:3px 6px; font-size:0.72rem; flex:1;" onchange="App.setLaterItemFolder('${l.id}', this.value)">
-                <option value="" ${!l.folderId ? 'selected' : ''}>📥 Bez folderu (Ogólne)</option>
-                ${folders.map(f => `<option value="${f.id}" ${l.folderId === f.id ? 'selected' : ''}>📁 ${this.esc(f.name)}</option>`).join('')}
-              </select>
-            </div>
-          ` : ''}
-          <div style="display:flex; gap:4px; flex-wrap:wrap;">
-            ${Store.state.roles.map(r => `
-              <button class="btn" style="font-size:0.7rem; padding:2px 6px;" onclick="App.moveLaterToRole('${l.id}','${r.id}')">→ ${r.emoji} ${this.esc(r.name)}</button>
-            `).join('')}
-          </div>
+          <button class="btn" style="padding:1px 6px; flex-shrink:0;" onclick="App.removeLater('${l.id}')">✕</button>
         </div>
-      `;
-    }).join('');
+        ${folders.length ? `
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:0.68rem; color:var(--text-muted); font-weight:600;">Folder:</span>
+            <select class="input-clean" style="padding:3px 6px; font-size:0.72rem; flex:1;" onchange="App.setLaterItemFolder('${l.id}', this.value)">
+              <option value="general" ${!l.folderId || !folderIds.has(l.folderId) ? 'selected' : ''}>📁 Ogólne</option>
+              ${folders.map(f => `<option value="${f.id}" ${l.folderId === f.id ? 'selected' : ''}>📁 ${this.esc(f.name)}</option>`).join('')}
+            </select>
+          </div>
+        ` : ''}
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          ${Store.state.roles.map(r => `
+            <button class="btn" style="font-size:0.7rem; padding:2px 6px;" onclick="App.moveLaterToRole('${l.id}','${r.id}')">→ ${r.emoji} ${this.esc(r.name)}</button>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
   },
 
   addLater() {
     const inp = document.getElementById('laterInput');
     if (!inp.value.trim()) return;
-    const folderId = this.activeLaterFolderId === 'all' ? null : this.activeLaterFolderId;
+    const folderId = this.activeLaterFolderId === 'general' ? null : this.activeLaterFolderId;
     Store.state.later.unshift({
       id: 'l_' + Date.now(),
       title: inp.value.trim(),
