@@ -570,7 +570,7 @@ const App = {
       }
     });
 
-    // 2. Zadania z Ostrzenia Piły (obsługuje dni tygodnia Pn-Nd oraz dłuższe cykle: co 2 tyg., co miesiąc, co 3 mies., co pół roku, co rok + wyprzedzenie leadDays + datę startu)
+    // 2. Zadania z Ostrzenia Piły (nigdy nie dubluje się — nie dodaje nowego przypomnienia, dopóki poprzednie nie zostanie odklikane)
     (Store.state.saw || []).forEach(s => {
       if (!s || typeof s !== 'object') return;
       if (!s.startDate) s.startDate = today;
@@ -580,41 +580,70 @@ const App = {
       if (!Array.isArray(s.doneDays)) s.doneDays = [];
       if (!Array.isArray(s.dismissedDays)) s.dismissedDays = [];
 
+      // Jeśli dla tego nawyku istnieje już więcej niż 1 aktywne (nieodklikane) zadanie — zostaw tylko najstarsze opóźnione
+      const activeForSaw = (Store.state.tasks || [])
+        .filter(t => t.sawId === s.id)
+        .sort((a, b) => String(a.scheduledDate || '').localeCompare(String(b.scheduledDate || '')));
+
+      if (activeForSaw.length > 1) {
+        const keepId = activeForSaw[0].id;
+        const dropTasks = activeForSaw.slice(1);
+        const dropIds = new Set(dropTasks.map(t => t.id));
+        Store.state.tasks = Store.state.tasks.filter(t => !dropIds.has(t.id));
+        dropTasks.forEach(dt => {
+          if (dt.sawDate) {
+            s.spawnedDates = s.spawnedDates.filter(d => d !== dt.sawDate);
+          }
+        });
+        changed = true;
+      }
+
+      // Dopóki istnieje stare nieodklikane zadanie tego nawyku — NIE wprowadzaj nowego przypomnienia
+      const hasActiveUnfinished = (Store.state.tasks || []).some(t => t.sawId === s.id);
+      if (hasActiveUnfinished) return;
+
       const horizonDate = D.addDays(today, leadDays);
       const minStart = s.freq === 'weekdays' ? D.addDays(today, -45) : D.addDays(today, -370);
       const dueDates = this.getSawOccurrencesInRange(s, minStart, horizonDate);
 
-      dueDates.forEach(cur => {
+      // Wybierz wyłącznie NAJNOWSZY należny termin (nie nadrabiaj hurtowo pominiętych dni z przeszłości)
+      const pendingDates = dueDates.filter(cur => {
         const taskId = `t_saw_${s.id}_${cur}`;
         const alreadySpawned = s.spawnedDates.includes(cur);
         const alreadyDone = s.doneDays.includes(cur);
         const alreadyDismissed = s.dismissedDays.includes(cur) || Boolean(Store.state.deleted && Store.state.deleted['tasks:' + taskId]);
-        const existsOnList = Store.state.tasks.some(t => t.id === taskId);
+        return !alreadySpawned && !alreadyDone && !alreadyDismissed;
+      });
 
-        if (!alreadySpawned && !alreadyDone && !alreadyDismissed && !existsOnList) {
+      if (pendingDates.length > 0) {
+        const latestCur = pendingDates[pendingDates.length - 1];
+        // Oznacz ewentualne starsze pominięte terminy jako przetworzone, żeby nie tworzyły zaległych duplikatów
+        pendingDates.slice(0, -1).forEach(oldCur => {
+          if (!s.spawnedDates.includes(oldCur)) s.spawnedDates.push(oldCur);
+        });
+
+        const taskId = `t_saw_${s.id}_${latestCur}`;
+        if (!Store.state.tasks.some(t => t.id === taskId)) {
           Store.state.tasks.push({
             id: taskId,
             title: s.title,
             note: s.note || '',
             roleId: s.roleId || 'r1',
             q: Number(s.q) || 2,
-            scheduledDate: cur,
+            scheduledDate: latestCur,
             sawId: s.id,
-            sawDate: cur,
+            sawDate: latestCur,
             sawFreq: s.freq,
             leadDays,
-            delayDays: Math.max(0, D.diff(today, cur)),
-            year: parseInt(cur.slice(0, 4), 10) || Store.state.year,
+            delayDays: Math.max(0, D.diff(today, latestCur)),
+            year: parseInt(latestCur.slice(0, 4), 10) || Store.state.year,
             createdAt: Date.now()
           });
-          s.spawnedDates.push(cur);
           spawnedNewTask = true;
-          changed = true;
-        } else if (!alreadySpawned && (alreadyDone || alreadyDismissed || existsOnList)) {
-          s.spawnedDates.push(cur);
-          changed = true;
         }
-      });
+        if (!s.spawnedDates.includes(latestCur)) s.spawnedDates.push(latestCur);
+        changed = true;
+      }
     });
 
     // 3. Aktualizacja pola delayDays na wszystkich aktywnych zadaniach
