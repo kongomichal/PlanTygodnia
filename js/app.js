@@ -377,6 +377,7 @@ const App = {
                     <div class="task-main-col">
                       <div class="task-title-line">
                         <span class="task-title-main">${this.esc(t.title)}</span>
+                        ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
                         ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
                         ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
                         ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
@@ -730,6 +731,7 @@ const App = {
             q: Number(r.q) || 2,
             scheduledDate: r.date,
             fromCalendarDate: r.date,
+            isGoalSubtask: Boolean(r.isGoalSubtask),
             delayDays: Math.max(0, D.diff(today, r.date)),
             year: parseInt(r.date.slice(0, 4), 10) || Store.state.year,
             createdAt: Date.now()
@@ -1129,6 +1131,7 @@ const App = {
                   <div class="task-main-col">
                     <div class="task-title-line">
                       <span class="task-title-main">${this.esc(t.title)}</span>
+                      ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
                       ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
                       ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
                       ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
@@ -1698,11 +1701,13 @@ const App = {
         const val = gYear[rId]?.[h] || '';
         if (inp.value !== val) inp.value = val;
       });
+      this.renderGoalSubtasks();
       this.renderGoalsArchive();
       return;
     }
 
     this._renderedGoalsYear = y;
+    const today = this.today();
 
     const smartPlaceholders = {
       r1: {
@@ -1739,13 +1744,27 @@ const App = {
             return `
               <tr>
                 <td><strong>${r.emoji} ${this.esc(r.name)}</strong></td>
-                <td>
+                <td style="vertical-align:top;">
                   <div style="display:flex; gap:6px; align-items:center;">
                     <input type="text" class="input-clean goal-edit-input" data-goal-role="${r.id}" data-goal-horizon="weekly" value="${this.esc(g.weekly || '')}" placeholder="${this.esc(ph.weekly)}" oninput="App.saveGoal('${r.id}','weekly',this.value)">
                     <button type="button" class="btn" style="padding:6px 10px; font-size:0.74rem; color:var(--emerald); border-color:var(--emerald-border); background:var(--emerald-light); flex-shrink:0;" onclick="App.archiveGoal('${r.id}','weekly')" title="Oznacz cel tygodniowy jako zrealizowany i przenieś do Archiwum Celów">✓ Zrobione</button>
                   </div>
+                  <div class="goal-subtasks-box">
+                    <div id="goalSubtasksList_${r.id}" class="goal-subtasks-list"></div>
+                    <form class="goal-subtask-form" onsubmit="event.preventDefault(); App.addGoalSubtask('${r.id}', this);">
+                      <input type="text" name="title" class="input-clean" placeholder="+ Podzadanie do celu..." required style="flex:1; min-width:120px; padding:5px 8px; font-size:0.75rem;">
+                      <input type="date" name="date" class="input-clean" value="${today}" required style="width:auto; padding:4px 6px; font-size:0.73rem; font-weight:600;" title="Zaplanuj dzień realizacji">
+                      <select name="q" class="input-clean" style="width:auto; padding:4px 5px; font-size:0.73rem; font-weight:700;" title="Ćwiartka Matrycy">
+                        <option value="2" selected>Q2</option>
+                        <option value="1">Q1</option>
+                        <option value="3">Q3</option>
+                        <option value="4">Q4</option>
+                      </select>
+                      <button type="submit" class="btn btn-primary" style="padding:5px 9px; font-size:0.75rem;" title="Dodaj podzadanie (pojawi się w Roli, Matrycy i Kalendarzu)">+</button>
+                    </form>
+                  </div>
                 </td>
-                <td>
+                <td style="vertical-align:top;">
                   <div style="display:flex; gap:6px; align-items:center;">
                     <input type="text" class="input-clean goal-edit-input" data-goal-role="${r.id}" data-goal-horizon="quarterly" value="${this.esc(g.quarterly || '')}" placeholder="${this.esc(ph.quarterly)}" oninput="App.saveGoal('${r.id}','quarterly',this.value)">
                     <button type="button" class="btn" style="padding:6px 10px; font-size:0.74rem; color:var(--emerald); border-color:var(--emerald-border); background:var(--emerald-light); flex-shrink:0;" onclick="App.archiveGoal('${r.id}','quarterly')" title="Oznacz cel kwartalny jako zrealizowany i przenieś do Archiwum Celów">✓ Zrobione</button>
@@ -1758,7 +1777,114 @@ const App = {
       </table>
     `;
 
+    this.renderGoalSubtasks();
     this.renderGoalsArchive();
+  },
+
+  addGoalSubtask(roleId, form) {
+    const title = form.title.value.trim();
+    if (!title) return;
+    const today = this.today();
+    const targetDate = (form.date && form.date.value) ? form.date.value : today;
+    const q = parseInt(form.q?.value, 10) || 2;
+    const targetYear = parseInt(targetDate.slice(0, 4), 10) || Store.state.year;
+
+    if (targetDate <= today) {
+      Store.state.tasks.push({
+        id: 't_goal_' + Date.now(),
+        title,
+        roleId,
+        q,
+        scheduledDate: targetDate,
+        isGoalSubtask: true,
+        delayDays: Math.max(0, D.diff(today, targetDate)),
+        year: targetYear,
+        createdAt: Date.now()
+      });
+    } else {
+      Store.state.reminders.push({
+        id: 'c_goal_' + Date.now(),
+        date: targetDate,
+        title,
+        roleId,
+        q,
+        isGoalSubtask: true,
+        activatedTaskId: null,
+        done: false,
+        createdAt: Date.now()
+      });
+    }
+
+    form.title.value = '';
+    this.save();
+    this.renderAll();
+  },
+
+  deleteGoalSubtaskReminder(remId) {
+    const rem = (Store.state.reminders || []).find(r => r.id === remId);
+    const label = rem ? `„${rem.title}”` : 'to podzadanie';
+    if (!confirm(`Czy na pewno chcesz usunąć zaplanowane podzadanie ${label}?`)) return;
+    if (rem && rem.activatedTaskId) {
+      Store.state.tasks = (Store.state.tasks || []).filter(t => t.id !== rem.activatedTaskId);
+    }
+    Store.state.reminders = (Store.state.reminders || []).filter(r => r.id !== remId);
+    this.save();
+    this.renderAll();
+  },
+
+  renderGoalSubtasks() {
+    const today = this.today();
+    (Store.state.roles || []).forEach(r => {
+      const box = document.getElementById(`goalSubtasksList_${r.id}`);
+      if (!box) return;
+
+      const activeSubs = (Store.state.tasks || [])
+        .filter(t => t.roleId === r.id && t.isGoalSubtask)
+        .map(t => ({
+          kind: 'task',
+          id: t.id,
+          title: t.title,
+          date: t.scheduledDate || today,
+          q: t.q || 2,
+          delay: Math.max(0, D.diff(today, t.scheduledDate || today))
+        }));
+
+      const plannedSubs = (Store.state.reminders || [])
+        .filter(rem => rem.roleId === r.id && rem.isGoalSubtask && !rem.done && !rem.activatedTaskId)
+        .map(rem => ({
+          kind: 'reminder',
+          id: rem.id,
+          title: rem.title,
+          date: rem.date || today,
+          q: rem.q || 2,
+          delay: 0
+        }));
+
+      const all = [...activeSubs, ...plannedSubs].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+      if (!all.length) {
+        box.innerHTML = '';
+        return;
+      }
+
+      box.innerHTML = all.map(item => `
+        <div class="goal-subtask-row">
+          <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0; flex-wrap:wrap;">
+            ${item.kind === 'task'
+              ? `<button type="button" class="check-circle" style="width:15px; height:15px;" onclick="App.doneTask('${item.id}')" title="Odhacz podzadanie jako wykonane (trafi do Archiwum)">✓</button>`
+              : `<span style="font-size:0.75rem;" title="Zaplanowane na przyszły dzień (wskoczy automatycznie w wybranym dniu)">🗓️</span>`}
+            <span style="font-size:0.77rem; font-weight:600; word-break:break-word;">${this.esc(item.title)}</span>
+            <span style="font-size:0.66rem; font-weight:700; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px;">📅 ${this.esc(item.date.slice(5))}</span>
+            ${item.delay > 0 ? `<span style="font-size:0.65rem; font-weight:800; color:var(--crimson); background:var(--crimson-light); padding:1px 6px; border-radius:999px;">⏳ ${item.delay}d</span>` : ''}
+          </div>
+          <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+            <span class="q-tag q${item.q}" style="font-size:0.62rem; padding:1px 5px;" ${item.kind === 'task' ? `onclick="App.cycleQ('${item.id}')"` : ''}>Q${item.q}</span>
+            <button type="button" class="btn" style="padding:1px 5px; font-size:0.68rem;" onclick="App.openRescheduleModal('${item.id}', '${item.kind}')" title="Zmień dzień realizacji">📅</button>
+            <button type="button" class="btn" style="padding:1px 5px; font-size:0.68rem;" onclick="${item.kind === 'task' ? `App.deleteActiveTask('${item.id}')` : `App.deleteGoalSubtaskReminder('${item.id}')`}" title="Usuń podzadanie">✕</button>
+          </div>
+        </div>
+      `).join('');
+    });
   },
 
   _goalSaveTimer: null,

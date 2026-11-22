@@ -730,6 +730,37 @@ button { cursor: pointer; }
   border-color: var(--emerald);
 }
 
+/* PODZADANIA POD CELEM TYGODNIOWYM (ZAKŁADKA CELE) */
+.goal-subtasks-box {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.goal-subtasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.goal-subtask-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.goal-subtask-form {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
 /* BOCZNY PANEL „NA PÓŹNIEJ” */
 .drawer {
   position: fixed;
