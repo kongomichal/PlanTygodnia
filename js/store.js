@@ -362,7 +362,7 @@ const Store = {
         }
       }
       if (String(t.id).startsWith('t_cal_')) {
-        const remId = String(t.id).slice(6);
+        const remId = t.remId || String(t.id).slice(6).replace(/_\d{4}-\d{2}-\d{2}$/, '');
         const rItem = remMap.get(remId);
         if (!rItem || rItem.done) return false;
       }

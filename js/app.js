@@ -471,19 +471,27 @@ const App = {
       const rem = (Store.state.reminders || []).find(r => r.id === id);
       if (!rem) return;
       rem.date = newDate;
+      // Usuń ewentualny stary ślad usunięcia dla tej daty, aby zadanie bez problemu pojawiło się w nowym terminie
+      if (Store.state.deleted) {
+        delete Store.state.deleted['tasks:t_cal_' + rem.id];
+        delete Store.state.deleted['tasks:t_cal_' + rem.id + '_' + newDate];
+      }
       if (newDate > today) {
         if (rem.activatedTaskId) {
-          Store.state.tasks = (Store.state.tasks || []).filter(t => t.id !== rem.activatedTaskId);
+          Store.state.tasks = (Store.state.tasks || []).filter(t => t.id !== rem.activatedTaskId && t.remId !== rem.id);
           rem.activatedTaskId = null;
         }
         rem.done = false;
       } else {
-        const linked = (Store.state.tasks || []).find(t => t.id === rem.activatedTaskId || t.id === ('t_cal_' + rem.id));
+        const linked = (Store.state.tasks || []).find(t => t.id === rem.activatedTaskId || t.remId === rem.id || t.id === ('t_cal_' + rem.id));
         if (linked) {
           linked.scheduledDate = newDate;
           linked.fromCalendarDate = newDate;
           linked.delayDays = Math.max(0, D.diff(today, newDate));
           linked.year = newYear;
+        } else {
+          rem.activatedTaskId = null;
+          rem.done = false;
         }
       }
       this.processDueReminders();
@@ -496,7 +504,7 @@ const App = {
     // kind === 'task'
     const t = (Store.state.tasks || []).find(x => x.id === id);
     if (!t) return;
-    const linkedRem = (Store.state.reminders || []).find(r => r.activatedTaskId === id || ('t_cal_' + r.id) === id);
+    const linkedRem = (Store.state.reminders || []).find(r => r.activatedTaskId === id || (t.remId && r.id === t.remId) || ('t_cal_' + r.id) === id);
 
     if (newDate > today) {
       // Przeniesienie na przyszły termin: usuwamy z bieżącej listy i zapisujemy w Kalendarzu na nowy dzień
@@ -519,6 +527,10 @@ const App = {
         linkedRem.q = t.q || 2;
         linkedRem.activatedTaskId = null;
         linkedRem.done = false;
+        if (Store.state.deleted) {
+          delete Store.state.deleted['tasks:t_cal_' + linkedRem.id];
+          delete Store.state.deleted['tasks:t_cal_' + linkedRem.id + '_' + newDate];
+        }
       } else {
         Store.state.reminders.push({
           id: 'c_' + Date.now(),
@@ -555,7 +567,7 @@ const App = {
     // 1. Usuń zadanie z aktywnej listy (znika z Filaru i z Matrycy Eisenhowera)
     Store.state.tasks = (Store.state.tasks || []).filter(x => x.id !== id);
     // 2. Jeśli zadanie pochodziło z Kalendarza, usuń je również z Kalendarza
-    Store.state.reminders = (Store.state.reminders || []).filter(r => r.activatedTaskId !== id && ('t_cal_' + r.id) !== id);
+    Store.state.reminders = (Store.state.reminders || []).filter(r => r.activatedTaskId !== id && (!t || t.remId !== r.id) && ('t_cal_' + r.id) !== id);
     // 3. Jeśli zadanie pochodziło z Ostrzenia Piły, oznacz ten dzień jako odrzucony, aby nie pojawiło się ponownie z drugiego urządzenia
     if (t && t.sawId) {
       const sawItem = (Store.state.saw || []).find(s => s.id === t.sawId);
@@ -605,7 +617,7 @@ const App = {
     const today = this.today();
 
     // Oznacz powiązane przypomnienie w kalendarzu jako wykonane
-    const rem = (Store.state.reminders || []).find(r => r.activatedTaskId === id);
+    const rem = (Store.state.reminders || []).find(r => r.activatedTaskId === id || (t.remId && r.id === t.remId) || ('t_cal_' + r.id) === id);
     if (rem) rem.done = true;
 
     // Jeśli zadanie pochodziło z Ostrzenia Piły, oznacz ten dzień w doneDays
@@ -692,13 +704,26 @@ const App = {
     // 1. Przypomnienia z Kalendarza (od dnia kiedy powinny być — nie znikają aż do odklikania)
     (Store.state.reminders || []).forEach(r => {
       if (!r || !r.date || r.done) return;
-      if (r.date <= today && !r.activatedTaskId) {
-        const newTaskId = 't_cal_' + r.id;
-        const alreadyDeleted = Boolean(Store.state.deleted && Store.state.deleted['tasks:' + newTaskId]);
-        const exists = Store.state.tasks.some(t => t.id === newTaskId);
-        if (!exists && !alreadyDeleted) {
+      if (r.date <= today) {
+        const expectedTaskId = `t_cal_${r.id}_${r.date}`;
+        const existingTask = Store.state.tasks.find(t =>
+          t.id === r.activatedTaskId ||
+          t.id === expectedTaskId ||
+          t.remId === r.id ||
+          t.id === ('t_cal_' + r.id)
+        );
+        if (existingTask) {
+          if (r.activatedTaskId !== existingTask.id) {
+            r.activatedTaskId = existingTask.id;
+            changed = true;
+          }
+          return;
+        }
+        const alreadyDeleted = Boolean(Store.state.deleted && Store.state.deleted['tasks:' + expectedTaskId]);
+        if (!alreadyDeleted) {
           Store.state.tasks.push({
-            id: newTaskId,
+            id: expectedTaskId,
+            remId: r.id,
             title: r.title,
             note: r.note || '',
             roleId: r.roleId || Store.state.roles[0].id,
@@ -709,10 +734,10 @@ const App = {
             year: parseInt(r.date.slice(0, 4), 10) || Store.state.year,
             createdAt: Date.now()
           });
+          r.activatedTaskId = expectedTaskId;
           spawnedNewTask = true;
+          changed = true;
         }
-        r.activatedTaskId = newTaskId;
-        changed = true;
       }
     });
 
