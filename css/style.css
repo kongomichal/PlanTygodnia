@@ -730,7 +730,38 @@ button { cursor: pointer; }
   border-color: var(--emerald);
 }
 
-/* PODZADANIA POD CELEM TYGODNIOWYM (ZAKŁADKA CELE) */
+/* TRWAŁE CELE Z PRZYCISKIEM EDYCJI + PODZADANIA (ZAKŁADKA CELE) */
+.goal-locked-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.goal-locked-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.38;
+  word-break: break-word;
+}
+.goal-locked-empty {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+.goal-edit-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px;
+  background: var(--accent-light);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
 .goal-subtasks-box {
   margin-top: 8px;
   padding-top: 8px;

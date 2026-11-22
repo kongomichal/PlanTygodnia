@@ -161,14 +161,16 @@ const Store = {
       }
     });
 
-    // Ujednolicenie kluczy celów dla każdego aktywnego roku i roli (tylko weekly i quarterly)
+    // Ujednolicenie kluczy celów dla każdego aktywnego roku i roli (weekly, quarterly + opcjonalne notatki)
     Object.keys(s.goals).forEach(yr => {
       if (!s.goals[yr] || typeof s.goals[yr] !== 'object') s.goals[yr] = {};
       s.roles.forEach(r => {
         const cur = s.goals[yr][r.id] || {};
         s.goals[yr][r.id] = {
           weekly: String(cur.weekly || ''),
-          quarterly: String(cur.quarterly || '')
+          quarterly: String(cur.quarterly || ''),
+          weeklyNote: String(cur.weeklyNote || ''),
+          quarterlyNote: String(cur.quarterlyNote || '')
         };
       });
     });
@@ -387,7 +389,7 @@ const Store = {
       const roleIds = new Set([...Object.keys(ga), ...Object.keys(gb)]);
       roleIds.forEach(rId => {
         out.goals[yr][rId] = {};
-        ['weekly', 'quarterly'].forEach(h => {
+        ['weekly', 'quarterly', 'weeklyNote', 'quarterlyNote'].forEach(h => {
           const stampKey = `goal:${yr}:${rId}:${h}`;
           const ta = fa[stampKey] || 0;
           const tb = fb[stampKey] || 0;

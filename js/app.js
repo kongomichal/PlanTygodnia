@@ -1681,34 +1681,52 @@ const App = {
     this.renderAll();
   },
 
-  /* ---- ZAKŁADKA 4: CELE (TYGODNIOWE & KWARTALNE - SMART + ARCHIWUM CELÓW) ---- */
+  /* ---- ZAKŁADKA 4: CELE (TRWAŁE CELE Z PRZYCISKIEM EDYCJI + NOTATKI + PODZADANIA) ---- */
   _renderedGoalsYear: null,
+  editingGoalKey: null,         // np. 'r1:weekly' lub 'r1:quarterly'
+  editingGoalSubtaskKey: null,  // np. 'task:t_goal_...' lub 'reminder:c_goal_...'
 
-  renderGoals(forceRebuild = false) {
+  startEditGoal(roleId, horizon) {
+    this.editingGoalKey = `${roleId}:${horizon}`;
+    this.renderGoalFields();
+    setTimeout(() => {
+      const inp = document.getElementById(`goalEditInput_${roleId}_${horizon}`);
+      if (inp) {
+        inp.focus();
+        inp.setSelectionRange(inp.value.length, inp.value.length);
+      }
+    }, 0);
+  },
+
+  cancelEditGoal() {
+    this.editingGoalKey = null;
+    this.renderGoalFields();
+  },
+
+  commitEditGoal(roleId, horizon) {
+    const inp = document.getElementById(`goalEditInput_${roleId}_${horizon}`);
+    const noteInp = document.getElementById(`goalEditNote_${roleId}_${horizon}`);
+    const val = inp ? inp.value.trim() : '';
+    const noteVal = noteInp ? noteInp.value.trim() : '';
     const y = Store.state.year;
-    const curQ = Math.floor(new Date().getMonth() / 3) + 1;
+    if (!Store.state.goals[y]) Store.state.goals[y] = {};
+    if (!Store.state.goals[y][roleId]) Store.state.goals[y][roleId] = {};
+    Store.state.goals[y][roleId][horizon] = val;
+    Store.state.goals[y][roleId][horizon + 'Note'] = noteVal;
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    const now = Date.now();
+    Store.state.fieldStamps[`goal:${y}:${roleId}:${horizon}`] = now;
+    Store.state.fieldStamps[`goal:${y}:${roleId}:${horizon}Note`] = now;
+
+    this.editingGoalKey = null;
+    this.save();
+    this.renderPlan();
+    this.renderGoalFields();
+  },
+
+  renderGoalFields() {
+    const y = Store.state.year;
     const gYear = Store.state.goals[y] || {};
-    const el = document.getElementById('goalsTableContainer');
-    if (!el) return;
-
-    const existingTable = document.getElementById('goalsInputsTable');
-    if (!forceRebuild && existingTable && this._renderedGoalsYear === y) {
-      // Tabela już istnieje w DOM — aktualizujemy tylko wartości nieaktywnych pól bez przebudowywania HTML!
-      existingTable.querySelectorAll('input[data-goal-role]').forEach(inp => {
-        if (inp === document.activeElement) return;
-        const rId = inp.getAttribute('data-goal-role');
-        const h = inp.getAttribute('data-goal-horizon');
-        const val = gYear[rId]?.[h] || '';
-        if (inp.value !== val) inp.value = val;
-      });
-      this.renderGoalSubtasks();
-      this.renderGoalsArchive();
-      return;
-    }
-
-    this._renderedGoalsYear = y;
-    const today = this.today();
-
     const smartPlaceholders = {
       r1: {
         weekly: 'np. 7 spacerów po min. 30 min (ok. 3 km) do niedzieli',
@@ -1728,57 +1746,163 @@ const App = {
       }
     };
 
+    (Store.state.roles || []).forEach(r => {
+      const g = gYear[r.id] || { weekly: '', quarterly: '', weeklyNote: '', quarterlyNote: '' };
+      const ph = smartPlaceholders[r.id] || { weekly: 'Wpisz konkretny cel tygodniowy...', quarterly: 'Wpisz mierzalny cel kwartalny...' };
+
+      ['weekly', 'quarterly'].forEach(horizon => {
+        const slot = document.getElementById(`goalField_${r.id}_${horizon}`);
+        if (!slot) return;
+        const isEditing = this.editingGoalKey === `${r.id}:${horizon}`;
+        const val = g[horizon] || '';
+        const note = g[horizon + 'Note'] || '';
+
+        if (isEditing) {
+          slot.innerHTML = `
+            <form onsubmit="event.preventDefault(); App.commitEditGoal('${r.id}','${horizon}');" class="goal-edit-box">
+              <input type="text" id="goalEditInput_${r.id}_${horizon}" class="input-clean" style="font-weight:700;" value="${this.esc(val)}" placeholder="${this.esc(ph[horizon])}" onkeydown="if(event.key==='Escape') App.cancelEditGoal()">
+              <textarea id="goalEditNote_${r.id}_${horizon}" class="input-clean" rows="2" style="resize:vertical; font-size:0.75rem; color:var(--text-muted);" placeholder="Notatka do celu (opcjonalnie)...">${this.esc(note)}</textarea>
+              <div style="display:flex; gap:6px; justify-content:flex-end;">
+                <button type="button" class="btn" style="padding:4px 10px; font-size:0.74rem;" onclick="App.cancelEditGoal()">Anuluj</button>
+                <button type="submit" class="btn btn-primary" style="padding:4px 12px; font-size:0.74rem;">✓ Zapisz cel</button>
+              </div>
+            </form>
+          `;
+        } else {
+          slot.innerHTML = `
+            <div class="goal-locked-card">
+              <div style="flex:1; min-width:0;">
+                ${val
+                  ? `<div class="goal-locked-title">${this.esc(val)}</div>`
+                  : `<div class="goal-locked-empty">Brak ustalonego celu — kliknij ✏️ Edytuj</div>`}
+                ${note ? `<div class="task-note-text" style="margin-top:3px; cursor:pointer;" onclick="App.startEditGoal('${r.id}','${horizon}')" title="Kliknij, aby edytować cel i notatkę">${this.esc(note)}</div>` : ''}
+              </div>
+              <div style="display:flex; gap:5px; align-items:center; flex-shrink:0;">
+                <button type="button" class="btn" style="padding:5px 9px; font-size:0.73rem;" onclick="App.startEditGoal('${r.id}','${horizon}')" title="Edytuj treść celu i notatkę">✏️ Edytuj</button>
+                <button type="button" class="btn" style="padding:5px 9px; font-size:0.73rem; color:var(--emerald); border-color:var(--emerald-border); background:var(--emerald-light);" onclick="App.archiveGoal('${r.id}','${horizon}')" title="Oznacz cel jako zrealizowany i przenieś do Archiwum Celów">✓ Zrobione</button>
+              </div>
+            </div>
+          `;
+        }
+      });
+    });
+  },
+
+  renderGoals(forceRebuild = false) {
+    const y = Store.state.year;
+    const curQ = Math.floor(new Date().getMonth() / 3) + 1;
+    const el = document.getElementById('goalsTableContainer');
+    if (!el) return;
+
+    const existingTable = document.getElementById('goalsInputsTable');
+    if (!forceRebuild && existingTable && this._renderedGoalsYear === y) {
+      if (!this.editingGoalKey) this.renderGoalFields();
+      if (!this.editingGoalSubtaskKey) this.renderGoalSubtasks();
+      this.renderGoalsArchive();
+      return;
+    }
+
+    this._renderedGoalsYear = y;
+    const today = this.today();
+
     el.innerHTML = `
       <table class="clean-table" id="goalsInputsTable">
         <thead>
           <tr>
-            <th style="width:18%;">Rola (Noga Stołu)</th>
-            <th style="width:41%;">⚡ Cel Tygodniowy — konkretny, policzalny krok (widoczny w rubryczce Roli)</th>
-            <th style="width:41%;">📊 Cel Kwartalny Q${curQ} (${y}) — mierzalny wynik SMART (widoczny w kafelku na górze)</th>
+            <th style="width:16%;">Rola (Noga Stołu)</th>
+            <th style="width:45%;">⚡ Cel Tygodniowy & Podzadania (trwały cel — zmiana przez ✏️ Edytuj)</th>
+            <th style="width:39%;">📊 Cel Kwartalny Q${curQ} (${y}) — mierzalny wynik SMART</th>
           </tr>
         </thead>
         <tbody>
-          ${Store.state.roles.map(r => {
-            const g = gYear[r.id] || { weekly: '', quarterly: '' };
-            const ph = smartPlaceholders[r.id] || { weekly: 'Ile? Co dokładnie? Do końca tygodnia...', quarterly: 'Ile? Co dokładnie? Do końca kwartału...' };
-            return `
-              <tr>
-                <td><strong>${r.emoji} ${this.esc(r.name)}</strong></td>
-                <td style="vertical-align:top;">
-                  <div style="display:flex; gap:6px; align-items:center;">
-                    <input type="text" class="input-clean goal-edit-input" data-goal-role="${r.id}" data-goal-horizon="weekly" value="${this.esc(g.weekly || '')}" placeholder="${this.esc(ph.weekly)}" oninput="App.saveGoal('${r.id}','weekly',this.value)">
-                    <button type="button" class="btn" style="padding:6px 10px; font-size:0.74rem; color:var(--emerald); border-color:var(--emerald-border); background:var(--emerald-light); flex-shrink:0;" onclick="App.archiveGoal('${r.id}','weekly')" title="Oznacz cel tygodniowy jako zrealizowany i przenieś do Archiwum Celów">✓ Zrobione</button>
-                  </div>
-                  <div class="goal-subtasks-box">
-                    <div id="goalSubtasksList_${r.id}" class="goal-subtasks-list"></div>
-                    <form class="goal-subtask-form" onsubmit="event.preventDefault(); App.addGoalSubtask('${r.id}', this);">
-                      <input type="text" name="title" class="input-clean" placeholder="+ Podzadanie do celu..." required style="flex:1; min-width:120px; padding:5px 8px; font-size:0.75rem;">
-                      <input type="date" name="date" class="input-clean" value="${today}" required style="width:auto; padding:4px 6px; font-size:0.73rem; font-weight:600;" title="Zaplanuj dzień realizacji">
-                      <select name="q" class="input-clean" style="width:auto; padding:4px 5px; font-size:0.73rem; font-weight:700;" title="Ćwiartka Matrycy">
-                        <option value="2" selected>Q2</option>
-                        <option value="1">Q1</option>
-                        <option value="3">Q3</option>
-                        <option value="4">Q4</option>
-                      </select>
-                      <button type="submit" class="btn btn-primary" style="padding:5px 9px; font-size:0.75rem;" title="Dodaj podzadanie (pojawi się w Roli, Matrycy i Kalendarzu)">+</button>
-                    </form>
-                  </div>
-                </td>
-                <td style="vertical-align:top;">
-                  <div style="display:flex; gap:6px; align-items:center;">
-                    <input type="text" class="input-clean goal-edit-input" data-goal-role="${r.id}" data-goal-horizon="quarterly" value="${this.esc(g.quarterly || '')}" placeholder="${this.esc(ph.quarterly)}" oninput="App.saveGoal('${r.id}','quarterly',this.value)">
-                    <button type="button" class="btn" style="padding:6px 10px; font-size:0.74rem; color:var(--emerald); border-color:var(--emerald-border); background:var(--emerald-light); flex-shrink:0;" onclick="App.archiveGoal('${r.id}','quarterly')" title="Oznacz cel kwartalny jako zrealizowany i przenieś do Archiwum Celów">✓ Zrobione</button>
-                  </div>
-                </td>
-              </tr>
-            `;
-          }).join('')}
+          ${Store.state.roles.map(r => `
+            <tr>
+              <td style="vertical-align:top;"><strong>${r.emoji} ${this.esc(r.name)}</strong></td>
+              <td style="vertical-align:top;">
+                <div id="goalField_${r.id}_weekly"></div>
+                <div class="goal-subtasks-box">
+                  <div id="goalSubtasksList_${r.id}" class="goal-subtasks-list"></div>
+                  <form class="goal-subtask-form" onsubmit="event.preventDefault(); App.addGoalSubtask('${r.id}', this);">
+                    <input type="text" name="title" class="input-clean" placeholder="+ Podzadanie do celu..." required style="flex:1; min-width:120px; padding:5px 8px; font-size:0.75rem;">
+                    <input type="date" name="date" class="input-clean" value="${today}" required style="width:auto; padding:4px 6px; font-size:0.73rem; font-weight:600;" title="Zaplanuj dzień realizacji">
+                    <select name="q" class="input-clean" style="width:auto; padding:4px 5px; font-size:0.73rem; font-weight:700;" title="Ćwiartka Matrycy">
+                      <option value="2" selected>Q2</option>
+                      <option value="1">Q1</option>
+                      <option value="3">Q3</option>
+                      <option value="4">Q4</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary" style="padding:5px 9px; font-size:0.75rem;" title="Dodaj podzadanie (pojawi się w Roli, Matrycy i Kalendarzu)">+</button>
+                  </form>
+                </div>
+              </td>
+              <td style="vertical-align:top;">
+                <div id="goalField_${r.id}_quarterly"></div>
+              </td>
+            </tr>
+          `).join('')}
         </tbody>
       </table>
     `;
 
+    this.renderGoalFields();
     this.renderGoalSubtasks();
     this.renderGoalsArchive();
+  },
+
+  startEditGoalSubtask(kind, id) {
+    this.editingGoalSubtaskKey = `${kind}:${id}`;
+    this.renderGoalSubtasks();
+    setTimeout(() => {
+      const inp = document.getElementById(`subEditTitle_${kind}_${id}`);
+      if (inp) {
+        inp.focus();
+        inp.setSelectionRange(inp.value.length, inp.value.length);
+      }
+    }, 0);
+  },
+
+  cancelEditGoalSubtask() {
+    this.editingGoalSubtaskKey = null;
+    this.renderGoalSubtasks();
+  },
+
+  saveEditGoalSubtask(kind, id) {
+    const titleEl = document.getElementById(`subEditTitle_${kind}_${id}`);
+    const noteEl = document.getElementById(`subEditNote_${kind}_${id}`);
+    const newTitle = titleEl ? titleEl.value.trim() : '';
+    const newNote = noteEl ? noteEl.value.trim() : '';
+    if (!newTitle) {
+      alert('Nazwa podzadania nie może być pusta.');
+      return;
+    }
+
+    if (kind === 'task') {
+      const t = (Store.state.tasks || []).find(x => x.id === id);
+      if (t) {
+        t.title = newTitle;
+        t.note = newNote;
+        const linkedRem = (Store.state.reminders || []).find(r => r.activatedTaskId === id || (t.remId && r.id === t.remId));
+        if (linkedRem) {
+          linkedRem.title = newTitle;
+          linkedRem.note = newNote;
+        }
+      }
+    } else {
+      const rem = (Store.state.reminders || []).find(r => r.id === id);
+      if (rem) {
+        rem.title = newTitle;
+        rem.note = newNote;
+        const linkedTask = (Store.state.tasks || []).find(t => t.id === rem.activatedTaskId || t.remId === rem.id);
+        if (linkedTask) {
+          linkedTask.title = newTitle;
+          linkedTask.note = newNote;
+        }
+      }
+    }
+
+    this.editingGoalSubtaskKey = null;
+    this.save();
+    this.renderAll();
   },
 
   addGoalSubtask(roleId, form) {
@@ -1793,6 +1917,7 @@ const App = {
       Store.state.tasks.push({
         id: 't_goal_' + Date.now(),
         title,
+        note: '',
         roleId,
         q,
         scheduledDate: targetDate,
@@ -1806,6 +1931,7 @@ const App = {
         id: 'c_goal_' + Date.now(),
         date: targetDate,
         title,
+        note: '',
         roleId,
         q,
         isGoalSubtask: true,
@@ -1844,6 +1970,7 @@ const App = {
           kind: 'task',
           id: t.id,
           title: t.title,
+          note: t.note || '',
           date: t.scheduledDate || today,
           q: t.q || 2,
           delay: Math.max(0, D.diff(today, t.scheduledDate || today))
@@ -1855,6 +1982,7 @@ const App = {
           kind: 'reminder',
           id: rem.id,
           title: rem.title,
+          note: rem.note || '',
           date: rem.date || today,
           q: rem.q || 2,
           delay: 0
@@ -1867,23 +1995,46 @@ const App = {
         return;
       }
 
-      box.innerHTML = all.map(item => `
-        <div class="goal-subtask-row">
-          <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0; flex-wrap:wrap;">
-            ${item.kind === 'task'
-              ? `<button type="button" class="check-circle" style="width:15px; height:15px;" onclick="App.doneTask('${item.id}')" title="Odhacz podzadanie jako wykonane (trafi do Archiwum)">✓</button>`
-              : `<span style="font-size:0.75rem;" title="Zaplanowane na przyszły dzień (wskoczy automatycznie w wybranym dniu)">🗓️</span>`}
-            <span style="font-size:0.77rem; font-weight:600; word-break:break-word;">${this.esc(item.title)}</span>
-            <span style="font-size:0.66rem; font-weight:700; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px;">📅 ${this.esc(item.date.slice(5))}</span>
-            ${item.delay > 0 ? `<span style="font-size:0.65rem; font-weight:800; color:var(--crimson); background:var(--crimson-light); padding:1px 6px; border-radius:999px;">⏳ ${item.delay}d</span>` : ''}
+      box.innerHTML = all.map(item => {
+        const isEditing = this.editingGoalSubtaskKey === `${item.kind}:${item.id}`;
+        if (isEditing) {
+          return `
+            <form class="goal-edit-box" onsubmit="event.preventDefault(); App.saveEditGoalSubtask('${item.kind}','${item.id}');">
+              <input type="text" id="subEditTitle_${item.kind}_${item.id}" class="input-clean" style="font-weight:700; font-size:0.78rem; padding:5px 8px;" value="${this.esc(item.title)}" required onkeydown="if(event.key==='Escape') App.cancelEditGoalSubtask()">
+              <textarea id="subEditNote_${item.kind}_${item.id}" class="input-clean" rows="2" style="resize:vertical; font-size:0.74rem; color:var(--text-muted);" placeholder="Notatka pod podzadaniem (opcjonalnie)...">${this.esc(item.note || '')}</textarea>
+              <div style="display:flex; gap:6px; justify-content:flex-end;">
+                <button type="button" class="btn" style="padding:3px 9px; font-size:0.72rem;" onclick="App.cancelEditGoalSubtask()">Anuluj</button>
+                <button type="submit" class="btn btn-primary" style="padding:3px 10px; font-size:0.72rem;">✓ Zapisz</button>
+              </div>
+            </form>
+          `;
+        }
+        return `
+          <div class="goal-subtask-row task-row-macos">
+            <div style="display:flex; align-items:flex-start; gap:6px; flex:1; min-width:0;">
+              ${item.kind === 'task'
+                ? `<button type="button" class="check-circle" style="width:15px; height:15px; margin-top:2px;" onclick="App.doneTask('${item.id}')" title="Odhacz podzadanie jako wykonane (trafi do Archiwum)">✓</button>`
+                : `<span style="font-size:0.75rem; margin-top:1px;" title="Zaplanowane na przyszły dzień (wskoczy automatycznie w wybranym dniu)">🗓️</span>`}
+              <div class="task-main-col">
+                <div class="task-title-line">
+                  <span style="font-size:0.78rem; font-weight:600; word-break:break-word;">${this.esc(item.title)}</span>
+                  <span style="font-size:0.66rem; font-weight:700; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px;">📅 ${this.esc(item.date.slice(5))}</span>
+                  ${item.delay > 0 ? `<span style="font-size:0.65rem; font-weight:800; color:var(--crimson); background:var(--crimson-light); padding:1px 6px; border-radius:999px;">⏳ ${item.delay}d</span>` : ''}
+                </div>
+                ${item.note.trim()
+                  ? `<div class="task-note-text" onclick="App.startEditGoalSubtask('${item.kind}','${item.id}')" title="Kliknij, aby edytować notatkę">${this.esc(item.note)}</div>`
+                  : `<div class="task-note-add-hint" onclick="App.startEditGoalSubtask('${item.kind}','${item.id}')">+ Dodaj notatkę...</div>`}
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+              <span class="q-tag q${item.q}" style="font-size:0.62rem; padding:1px 5px;" ${item.kind === 'task' ? `onclick="App.cycleQ('${item.id}')"` : ''}>Q${item.q}</span>
+              <button type="button" class="btn" style="padding:1px 5px; font-size:0.68rem;" onclick="App.startEditGoalSubtask('${item.kind}','${item.id}')" title="Edytuj podzadanie i notatkę">✏️</button>
+              <button type="button" class="btn" style="padding:1px 5px; font-size:0.68rem;" onclick="App.openRescheduleModal('${item.id}', '${item.kind}')" title="Zmień dzień realizacji">📅</button>
+              <button type="button" class="btn" style="padding:1px 5px; font-size:0.68rem;" onclick="${item.kind === 'task' ? `App.deleteActiveTask('${item.id}')` : `App.deleteGoalSubtaskReminder('${item.id}')`}" title="Usuń podzadanie">✕</button>
+            </div>
           </div>
-          <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-            <span class="q-tag q${item.q}" style="font-size:0.62rem; padding:1px 5px;" ${item.kind === 'task' ? `onclick="App.cycleQ('${item.id}')"` : ''}>Q${item.q}</span>
-            <button type="button" class="btn" style="padding:1px 5px; font-size:0.68rem;" onclick="App.openRescheduleModal('${item.id}', '${item.kind}')" title="Zmień dzień realizacji">📅</button>
-            <button type="button" class="btn" style="padding:1px 5px; font-size:0.68rem;" onclick="${item.kind === 'task' ? `App.deleteActiveTask('${item.id}')` : `App.deleteGoalSubtaskReminder('${item.id}')`}" title="Usuń podzadanie">✕</button>
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     });
   },
 
@@ -1926,6 +2077,9 @@ const App = {
       return;
     }
 
+    const noteKey = horizon + 'Note';
+    const noteText = (Store.state.goals?.[y]?.[roleId]?.[noteKey] || '').trim();
+
     if (!Array.isArray(Store.state.goalsArchive)) Store.state.goalsArchive = [];
     const now = new Date();
     const stamp = `${this.today()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -1933,6 +2087,7 @@ const App = {
     Store.state.goalsArchive.unshift({
       id: 'ga_' + Date.now(),
       title: text,
+      note: noteText,
       roleId,
       horizon, // 'weekly' | 'quarterly'
       periodLabel: horizon === 'quarterly' ? `Kwartał Q${curQ} (${y})` : `Tydzień (${this.today()})`,
@@ -1941,15 +2096,20 @@ const App = {
       createdAt: Date.now()
     });
 
-    // Wyczyść zrealizowany cel z bieżącego pola
+    // Wyczyść zrealizowany cel i jego notatkę z bieżącego pola
     Store.state.goals[y][roleId][horizon] = '';
+    Store.state.goals[y][roleId][noteKey] = '';
     if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
-    Store.state.fieldStamps[`goal:${y}:${roleId}:${horizon}`] = Date.now();
+    const ts = Date.now();
+    Store.state.fieldStamps[`goal:${y}:${roleId}:${horizon}`] = ts;
+    Store.state.fieldStamps[`goal:${y}:${roleId}:${noteKey}`] = ts;
 
-    const inp = document.querySelector(`#goalsInputsTable input[data-goal-role="${roleId}"][data-goal-horizon="${horizon}"]`);
-    if (inp) inp.value = '';
+    if (this.editingGoalKey === `${roleId}:${horizon}`) {
+      this.editingGoalKey = null;
+    }
 
     this.save();
+    this.renderGoalFields();
     this.renderPlan();
     this.renderGoalsArchive();
   },
