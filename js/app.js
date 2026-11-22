@@ -302,32 +302,10 @@ const App = {
     document.querySelectorAll('.yearLabel').forEach(el => { el.textContent = Store.state.year; });
   },
 
-  /* ---- WIDOK 1: PLAN TYGODNIA (4 KAFELKI CELÓW KWARTALNYCH + 4 RUBRYCZKI RÓL + KALENDARZ) ---- */
+  /* ---- WIDOK 1: PLAN TYGODNIA (4 RUBRYCZKI RÓL + KALENDARZ) ---- */
   renderPlan() {
     const y = Store.state.year;
     const gYear = Store.state.goals[y] || {};
-    const curQ = Math.floor(new Date().getMonth() / 3) + 1;
-
-    // 4 równe kafelki Celów Kwartalnych w jednym rzędzie na górze (z ucinaniem tekstu i dymkiem po najechaniu)
-    const stripEl = document.getElementById('goalsStripItems');
-    if (stripEl) {
-      stripEl.innerHTML = Store.state.roles.map(r => {
-        const gq = gYear[r.id]?.quarterly || 'Kliknij, aby ustalić mierzalny cel kwartalny...';
-        return `
-          <div class="q-goal-tile" style="border-left: 4px solid ${r.color};" onclick="App.switchTab('goals')">
-            <div class="q-goal-tile-head">
-              <span>${r.emoji} ${this.esc(r.name)} · KWARTAŁ Q${curQ}</span>
-              <span style="color:var(--accent);">Edytuj →</span>
-            </div>
-            <div class="q-goal-tile-text">${this.esc(gq)}</div>
-            <div class="cal-tooltip">
-              <div style="font-size:0.68rem; color:#94a3b8; font-weight:700; margin-bottom:2px;">📊 Cel Kwartalny (Q${curQ} ${y}) · ${r.emoji} ${this.esc(r.name)}</div>
-              <div style="font-weight:600; color:#ffffff;">${this.esc(gq)}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
 
     // 4 estetyczne rubryczki Ról (z licznikiem wykonanych zadań z Archiwum + udziałem % oraz licznikiem dni opóźnienia)
     const today = this.today();
