@@ -514,8 +514,8 @@ button { cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 9px 16px;
-  margin-top: -12px;
-  margin-bottom: 24px;
+  margin-top: 0;
+  margin-bottom: 18px;
   box-shadow: var(--shadow-sm);
   font-size: 0.75rem;
   color: var(--text-muted);
