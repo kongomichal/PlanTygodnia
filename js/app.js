@@ -764,13 +764,24 @@ const App = {
     const rem = (Store.state.reminders || []).find(r => r.activatedTaskId === id || (t.remId && r.id === t.remId) || ('t_cal_' + r.id) === id);
     if (rem) rem.done = true;
 
-    // Jeśli zadanie pochodziło z Ostrzenia Piły, oznacz ten dzień w doneDays
+    // Jeśli zadanie pochodziło z Ostrzenia Piły, oznacz termin zadania ORAZ dzisiejszy dzień jako wykonane,
+    // aby po odklikaniu opóźnionej czynności nie wyskoczyła od razu kolejna na ten sam dzień (dopiero od kolejnego terminu / jutra)
     if (t.sawId) {
       const sawItem = (Store.state.saw || []).find(s => s.id === t.sawId);
       if (sawItem) {
         if (!Array.isArray(sawItem.doneDays)) sawItem.doneDays = [];
+        if (!Array.isArray(sawItem.spawnedDates)) sawItem.spawnedDates = [];
         const targetDay = t.sawDate || today;
         if (!sawItem.doneDays.includes(targetDay)) sawItem.doneDays.push(targetDay);
+        if (!sawItem.spawnedDates.includes(targetDay)) sawItem.spawnedDates.push(targetDay);
+        if (!sawItem.doneDays.includes(today)) sawItem.doneDays.push(today);
+        if (!sawItem.spawnedDates.includes(today)) sawItem.spawnedDates.push(today);
+        if (targetDay < today) {
+          const skippedDates = this.getSawOccurrencesInRange(sawItem, targetDay, today);
+          skippedDates.forEach(dStr => {
+            if (!sawItem.spawnedDates.includes(dStr)) sawItem.spawnedDates.push(dStr);
+          });
+        }
       }
     }
 
@@ -917,6 +928,10 @@ const App = {
       // Dopóki istnieje stare nieodklikane zadanie tego nawyku — NIE wprowadzaj nowego przypomnienia
       const hasActiveUnfinished = (Store.state.tasks || []).some(t => t.sawId === s.id);
       if (hasActiveUnfinished) return;
+
+      // Jeśli ten nawyk został już dziś odklikany (w tym przy nadrabianiu zaległego terminu),
+      // nie generuj kolejnej powtórki tego samego dnia — pojawi się dopiero od następnego dnia/terminu
+      if (s.doneDays.includes(today)) return;
 
       const horizonDate = D.addDays(today, leadDays);
       const minStart = s.freq === 'weekdays' ? D.addDays(today, -45) : D.addDays(today, -370);
