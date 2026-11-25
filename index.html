@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pl" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -11,22 +12,23 @@
   <meta name="application-name" content="Plan Tygodnia">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#f4f6fb" id="metaThemeColor">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=15.3">
-  <link rel="icon" type="image/svg+xml" href="icon.svg?v=15.3">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=15.3">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=15.3">
-  <link rel="manifest" href="manifest.webmanifest?v=15.3">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=15.4">
+  <link rel="icon" type="image/svg+xml" href="icon.svg?v=15.4">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=15.4">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=15.4">
+  <link rel="manifest" href="manifest.webmanifest?v=15.4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="css/style.css?v=15.3">
+  <link rel="stylesheet" href="css/style.css?v=15.4">
 
   <script>
-    (function() {
-      const APP_VERSION = '15.3';
+    (function () {
+      const APP_VERSION = '15.4';
       try {
         const url = new URL(window.location.href);
         if (url.searchParams.get('v') !== APP_VERSION) {
@@ -34,7 +36,7 @@
           window.location.replace(url.toString());
           return;
         }
-      } catch (e) {}
+      } catch (e) { }
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(regs => {
@@ -54,12 +56,18 @@
       if (localStorage.getItem('kompas_auth_active') === '1') {
         document.documentElement.classList.add('is-authenticated');
       }
-    } catch(e) {}
+    } catch (e) { }
   </script>
 
   <style>
-    html.is-authenticated #screenAuth { display: none !important; }
-    html.is-authenticated #screenApp { display: flex !important; }
+    html.is-authenticated #screenAuth {
+      display: none !important;
+    }
+
+    html.is-authenticated #screenApp {
+      display: flex !important;
+    }
+
     #screenAuth {
       position: fixed;
       inset: 0;
@@ -74,6 +82,7 @@
       z-index: 999999;
       overflow-y: auto;
     }
+
     .auth-portal-card {
       margin: auto;
       width: 100%;
@@ -85,6 +94,7 @@
       box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8);
       text-align: center;
     }
+
     .auth-portal-brand {
       display: flex;
       align-items: center;
@@ -92,16 +102,19 @@
       gap: 12px;
       margin-bottom: 10px;
     }
+
     .auth-portal-title {
       font-size: 1.6rem;
       font-weight: 800;
       color: #ffffff;
     }
+
     .auth-portal-subtitle {
       font-size: 0.86rem;
       color: #94a3b8;
       margin: 0 0 24px 0;
     }
+
     .btn-portal-google {
       display: flex;
       align-items: center;
@@ -117,29 +130,35 @@
       font-weight: 700;
       cursor: pointer;
     }
+
     .auth-portal-divider {
       display: flex;
       align-items: center;
       gap: 12px;
       margin: 20px 0;
     }
-    .auth-portal-divider::before, .auth-portal-divider::after {
+
+    .auth-portal-divider::before,
+    .auth-portal-divider::after {
       content: '';
       flex: 1;
       height: 1px;
       background: rgba(255, 255, 255, 0.12);
     }
+
     .auth-portal-divider span {
       font-size: 0.74rem;
       color: #64748b;
       text-transform: uppercase;
       font-weight: 700;
     }
+
     .auth-portal-form {
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
+
     .portal-input {
       width: 100%;
       padding: 12px 16px;
@@ -149,7 +168,12 @@
       color: #ffffff;
       font-size: 16px;
     }
-    .portal-btn-row { display: flex; gap: 10px; }
+
+    .portal-btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
     .btn-portal-submit {
       flex: 1;
       padding: 12px 16px;
@@ -159,6 +183,7 @@
       color: #ffffff;
       font-weight: 700;
     }
+
     .btn-portal-register {
       flex: 1;
       padding: 12px 16px;
@@ -168,6 +193,7 @@
       color: #e2e8f0;
       font-weight: 600;
     }
+
     .auth-portal-footer {
       display: inline-flex;
       align-items: center;
@@ -176,6 +202,7 @@
       color: #64748b;
       margin-top: 20px;
     }
+
     .auth-error-box {
       background: rgba(239, 68, 68, 0.16);
       border: 1px solid rgba(239, 68, 68, 0.45);
@@ -186,16 +213,20 @@
       margin-bottom: 18px;
       text-align: left;
     }
-    #screenApp { display: none; }
+
+    #screenApp {
+      display: none;
+    }
   </style>
 </head>
+
 <body>
 
   <!-- 1. BRAMKA LOGOWANIA FIREBASE -->
   <div id="screenAuth">
     <div class="auth-portal-card">
       <div class="auth-portal-brand">
-        <img src="icon.svg?v=15.3" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
+        <img src="icon.svg?v=15.4" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
         <h1 class="auth-portal-title">Plan Tygodnia</h1>
       </div>
       <p class="auth-portal-subtitle">
@@ -206,10 +237,14 @@
 
       <button class="btn-portal-google" id="btnPortalGoogle" onclick="handleAuthAction('google')">
         <svg width="20" height="20" viewBox="0 0 18 18">
-          <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
-          <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
-          <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
-          <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+          <path fill="#4285F4"
+            d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z" />
+          <path fill="#34A853"
+            d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" />
+          <path fill="#FBBC05"
+            d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" />
+          <path fill="#EA4335"
+            d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z" />
         </svg>
         <span id="btnPortalGoogleText">Kontynuuj przez Google</span>
       </button>
@@ -217,11 +252,15 @@
       <div class="auth-portal-divider"><span>lub adres e-mail</span></div>
 
       <div class="auth-portal-form">
-        <input type="email" id="authPortalEmail" placeholder="Twój adres e-mail" class="portal-input" autocomplete="username">
-        <input type="password" id="authPortalPass" placeholder="Hasło (min. 6 znaków)" class="portal-input" autocomplete="current-password" onkeydown="if(event.key==='Enter') handleAuthAction('login');">
+        <input type="email" id="authPortalEmail" placeholder="Twój adres e-mail" class="portal-input"
+          autocomplete="username">
+        <input type="password" id="authPortalPass" placeholder="Hasło (min. 6 znaków)" class="portal-input"
+          autocomplete="current-password" onkeydown="if(event.key==='Enter') handleAuthAction('login');">
         <div class="portal-btn-row">
-          <button type="button" class="btn-portal-submit" id="btnPortalEmailSubmit" onclick="handleAuthAction('login')">Zaloguj się</button>
-          <button type="button" class="btn-portal-register" id="btnPortalEmailRegister" onclick="handleAuthAction('register')">Zarejestruj</button>
+          <button type="button" class="btn-portal-submit" id="btnPortalEmailSubmit"
+            onclick="handleAuthAction('login')">Zaloguj się</button>
+          <button type="button" class="btn-portal-register" id="btnPortalEmailRegister"
+            onclick="handleAuthAction('register')">Zarejestruj</button>
         </div>
       </div>
 
@@ -247,32 +286,44 @@
         </div>
 
         <!-- Afirmacja przewodnia -->
-        <div style="background:var(--emerald-light); border:1px solid var(--emerald-border); padding:12px 16px; border-radius:var(--radius-md);">
-          <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; color:var(--emerald);">✨ Afirmacja na dziś</div>
+        <div
+          style="background:var(--emerald-light); border:1px solid var(--emerald-border); padding:12px 16px; border-radius:var(--radius-md);">
+          <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; color:var(--emerald);">✨ Afirmacja na
+            dziś</div>
           <div id="welcomeAffirmation" style="font-weight:700; font-size:0.92rem; margin-top:2px;"></div>
         </div>
 
         <!-- 7 Nawyków Coveya -->
         <div class="habits-simple-grid">
-          <div class="habit-simple-item"><strong>1. Bądź proaktywny</strong><br><span style="color:var(--text-muted);">Skupiam się na tym, na co mam wpływ.</span></div>
-          <div class="habit-simple-item"><strong>2. Zaczynaj z wizją końca</strong><br><span style="color:var(--text-muted);">Działam w zgodzie z moimi Rolami i Celami.</span></div>
-          <div class="habit-simple-item"><strong>3. Rób najpierw to, co najważniejsze</strong><br><span style="color:var(--text-muted);">Najpierw Głazy (Ćwiartka II), potem reszta.</span></div>
-          <div class="habit-simple-item"><strong>4. Myśl Wygrana-Wygrana</strong><br><span style="color:var(--text-muted);">Szukam rozwiązań korzystnych dla obu stron.</span></div>
-          <div class="habit-simple-item"><strong>5. Najpierw zrozum, potem bądź zrozumiany</strong><br><span style="color:var(--text-muted);">Uważnie słucham zanim odpowiem.</span></div>
-          <div class="habit-simple-item"><strong>6. Synergia</strong><br><span style="color:var(--text-muted);">Współpraca daje więcej niż działanie samemu.</span></div>
+          <div class="habit-simple-item"><strong>1. Bądź proaktywny</strong><br><span
+              style="color:var(--text-muted);">Skupiam się na tym, na co mam wpływ.</span></div>
+          <div class="habit-simple-item"><strong>2. Zaczynaj z wizją końca</strong><br><span
+              style="color:var(--text-muted);">Działam w zgodzie z moimi Rolami i Celami.</span></div>
+          <div class="habit-simple-item"><strong>3. Rób najpierw to, co najważniejsze</strong><br><span
+              style="color:var(--text-muted);">Najpierw Głazy (Ćwiartka II), potem reszta.</span></div>
+          <div class="habit-simple-item"><strong>4. Myśl Wygrana-Wygrana</strong><br><span
+              style="color:var(--text-muted);">Szukam rozwiązań korzystnych dla obu stron.</span></div>
+          <div class="habit-simple-item"><strong>5. Najpierw zrozum, potem bądź zrozumiany</strong><br><span
+              style="color:var(--text-muted);">Uważnie słucham zanim odpowiem.</span></div>
+          <div class="habit-simple-item"><strong>6. Synergia</strong><br><span
+              style="color:var(--text-muted);">Współpraca daje więcej niż działanie samemu.</span></div>
           <div class="habit-simple-item" style="grid-column:1 / -1; border-left-color:var(--emerald);">
-            <strong>7. Ostrzenie Piły (Odnowa)</strong> — Codziennie dbam o Ciało (spacer, ruch), Umysł (dziennik, nauka), Ducha i Relacje.
+            <strong>7. Ostrzenie Piły (Odnowa)</strong> — Codziennie dbam o Ciało (spacer, ruch), Umysł (dziennik,
+            nauka), Ducha i Relacje.
           </div>
         </div>
 
         <!-- Moje zasady -->
-        <div style="background:var(--surface-alt); padding:14px 16px; border-radius:var(--radius-md); border:1px solid var(--border);">
+        <div
+          style="background:var(--surface-alt); padding:14px 16px; border-radius:var(--radius-md); border:1px solid var(--border);">
           <div style="font-size:0.78rem; font-weight:800; margin-bottom:6px;">📜 Moje osobiste zasady:</div>
-          <ul id="welcomeRulesList" style="padding-left:18px; font-size:0.83rem; display:flex; flex-direction:column; gap:4px;"></ul>
+          <ul id="welcomeRulesList"
+            style="padding-left:18px; font-size:0.83rem; display:flex; flex-direction:column; gap:4px;"></ul>
         </div>
 
         <div style="display:flex; justify-content:flex-end;">
-          <button type="button" class="btn btn-primary" style="padding:10px 22px; font-size:0.9rem;" onclick="App.closeWelcome()">
+          <button type="button" class="btn btn-primary" style="padding:10px 22px; font-size:0.9rem;"
+            onclick="App.closeWelcome()">
             Przeczytałem — Przejdź do planu tygodnia →
           </button>
         </div>
@@ -290,20 +341,29 @@
       </div>
 
       <nav class="nav-tabs">
-        <button class="tab-btn active" data-tab="plan" onclick="App.switchTab('plan')">📅 <span class="tab-label-full">Plan Tygodnia</span><span class="tab-label-mobile">Zadania</span></button>
-        <button class="tab-btn" data-tab="matrix" onclick="App.switchTab('matrix')">🧭 <span class="tab-label-full">Matryca Eisenhowera</span><span class="tab-label-mobile">Matryca</span></button>
-        <button class="tab-btn desktop-only-tab" data-tab="saw" onclick="App.switchTab('saw')">🪚 Ostrzenie Piły</button>
+        <button class="tab-btn active" data-tab="plan" onclick="App.switchTab('plan')">📅 <span
+            class="tab-label-full">Plan Tygodnia</span><span class="tab-label-mobile">Zadania</span></button>
+        <button class="tab-btn" data-tab="matrix" onclick="App.switchTab('matrix')">🧭 <span
+            class="tab-label-full">Matryca Eisenhowera</span><span class="tab-label-mobile">Matryca</span></button>
+        <button class="tab-btn desktop-only-tab" data-tab="saw" onclick="App.switchTab('saw')">🪚 Ostrzenie
+          Piły</button>
         <button class="tab-btn" data-tab="goals" onclick="App.switchTab('goals')">🎯 Cele</button>
-        <button class="tab-btn desktop-only-tab" data-tab="mind" onclick="App.switchTab('mind')">💭 Myśli & Afirmacje</button>
-        <button class="tab-btn desktop-only-tab" data-tab="archive" onclick="App.switchTab('archive')">🗄️ Archiwum</button>
+        <button class="tab-btn desktop-only-tab" data-tab="mind" onclick="App.switchTab('mind')">💭 Myśli &
+          Afirmacje</button>
+        <button class="tab-btn desktop-only-tab" data-tab="archive" onclick="App.switchTab('archive')">🗄️
+          Archiwum</button>
       </nav>
 
       <div class="header-right">
-        <button class="btn desktop-only-btn" onclick="App.openWelcome()" title="Pokaż 7 Nawyków i Moje Zasady">📜 Zasady</button>
-        <button class="btn btn-later" onclick="App.toggleLater()">📥 <span class="desktop-only-inline">Na później </span>(<span id="laterCount">0</span>)</button>
-        <button class="btn desktop-only-btn" onclick="App.exportJSON()" title="Zapisz wszystko do pliku JSON">💾 JSON</button>
+        <button class="btn desktop-only-btn" onclick="App.openWelcome()" title="Pokaż 7 Nawyków i Moje Zasady">📜
+          Zasady</button>
+        <button class="btn btn-later" onclick="App.toggleLater()">📥 <span class="desktop-only-inline">Na później
+          </span>(<span id="laterCount">0</span>)</button>
+        <button class="btn desktop-only-btn" onclick="App.exportJSON()" title="Zapisz wszystko do pliku JSON">💾
+          JSON</button>
         <button class="btn desktop-only-btn" onclick="App.toggleTheme()" id="btnThemeToggle">🌙</button>
-        <button class="btn mobile-only-btn" onclick="App.openMobileMenu()" title="Więcej opcji: Ostrzenie Piły, Afirmacje, Archiwum, Ustawienia">⚙️ Więcej</button>
+        <button class="btn mobile-only-btn" onclick="App.openMobileMenu()"
+          title="Więcej opcji: Ostrzenie Piły, Afirmacje, Archiwum, Ustawienia">⚙️ Więcej</button>
       </div>
     </header>
 
@@ -314,7 +374,8 @@
       <section id="view_plan" class="tab-section">
 
         <!-- Zwięzła ściągawka Q1–Q4 nad filarami (na komputerze 1 cienka linia, na telefonie rozwijana) -->
-        <button type="button" class="mobile-q-legend-toggle" id="mobileQLegendToggleBtn" onclick="App.toggleMobileQLegend()">
+        <button type="button" class="mobile-q-legend-toggle" id="mobileQLegendToggleBtn"
+          onclick="App.toggleMobileQLegend()">
           ❓ Kiedy Q1 / Q2 / Q3 / Q4? ▾
         </button>
         <div class="q-legend-bar" id="qLegendBar">
@@ -332,7 +393,8 @@
           <div class="section-head">
             <div>
               <h2>📅 Kalendarz przypomnień</h2>
-              <span style="font-size:0.78rem; color:var(--text-muted);">Kliknij w dowolny dzień, aby wpisać przypomnienie</span>
+              <span style="font-size:0.78rem; color:var(--text-muted);">Kliknij w dowolny dzień, aby wpisać
+                przypomnienie</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <button class="btn" onclick="App.changeMonth(-1)">◀</button>
@@ -341,7 +403,13 @@
             </div>
           </div>
           <div class="cal-weekdays">
-            <div>Pon</div><div>Wt</div><div>Śr</div><div>Czw</div><div>Pt</div><div>Sob</div><div>Nd</div>
+            <div>Pon</div>
+            <div>Wt</div>
+            <div>Śr</div>
+            <div>Czw</div>
+            <div>Pt</div>
+            <div>Sob</div>
+            <div>Nd</div>
           </div>
           <div class="cal-grid" id="calGrid"></div>
           <div id="calMobileRemindersList" class="cal-mobile-list"></div>
@@ -354,7 +422,8 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
           <div>
             <h2 style="font-size:1.2rem; font-weight:800;">🧭 Matryca Eisenhowera</h2>
-            <p style="font-size:0.82rem; color:var(--text-muted);">Wszystkie Twoje zadania z tego tygodnia podzielone na 4 ćwiartki priorytetów</p>
+            <p style="font-size:0.82rem; color:var(--text-muted);">Wszystkie Twoje zadania z tego tygodnia podzielone na
+              4 ćwiartki priorytetów</p>
           </div>
         </div>
         <div class="matrix-2x2" id="matrixGrid"></div>
@@ -362,12 +431,14 @@
 
       <!-- ==================== ZAKŁADKA 3: OSTRZENIE PIŁY ==================== -->
       <section id="view_saw" class="tab-section" style="display:none;">
-        <button type="button" class="btn mobile-back-btn" onclick="App.switchTab('plan')">← Wróć do zadań (4 Role)</button>
+        <button type="button" class="btn mobile-back-btn" onclick="App.switchTab('plan')">← Wróć do zadań (4
+          Role)</button>
         <div class="section-box">
           <div class="section-head">
             <div>
               <h2>🪚 Ostrzenie Piły</h2>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Cykliczne nawyki i zadania, które w wybranym dniu automatycznie wyświetlają się na głównej liście wybranej Roli</p>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Cykliczne nawyki i zadania, które w wybranym dniu
+                automatycznie wyświetlają się na głównej liście wybranej Roli</p>
             </div>
             <button class="btn btn-primary" onclick="App.openAddSawModal()">+ Dodaj nawyk / cykl</button>
           </div>
@@ -381,7 +452,9 @@
           <div class="section-head">
             <div>
               <h2>🎯 Cele Tygodniowe & Kwartalne (SMART) — Rok <span class="yearLabel">2026</span></h2>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Cel musi być określony, mierzalny i ograniczony w czasie (Ile? Co dokładnie? Do kiedy?). Kliknij „✓ Zrealizowany” obok celu, aby przenieść go do Archiwum Celów poniżej.</p>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Cel musi być określony, mierzalny i ograniczony w
+                czasie (Ile? Co dokładnie? Do kiedy?). Kliknij „✓ Zrealizowany” obok celu, aby przenieść go do Archiwum
+                Celów poniżej.</p>
             </div>
           </div>
           <div id="goalsTableContainer" style="overflow-x:auto;"></div>
@@ -392,10 +465,12 @@
           <div class="section-head">
             <div>
               <h2>🏆 Archiwum Zrealizowanych Celów — Rok <span class="yearLabel">2026</span></h2>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Spis wszystkich osiągniętych i zarchiwizowanych celów z podziałem na Cele Tygodniowe, Cele Kwartalne oraz Role</p>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Spis wszystkich osiągniętych i zarchiwizowanych
+                celów z podziałem na Cele Tygodniowe, Cele Kwartalne oraz Role</p>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
-              <select id="goalsArchiveRoleFilter" class="input-clean" style="width:auto; font-weight:600;" onchange="App.renderGoalsArchive()">
+              <select id="goalsArchiveRoleFilter" class="input-clean" style="width:auto; font-weight:600;"
+                onchange="App.renderGoalsArchive()">
                 <option value="all">Wszystkie role (4 Nogi Stołu)</option>
               </select>
             </div>
@@ -406,13 +481,15 @@
 
       <!-- ==================== ZAKŁADKA 5: MYŚLI, CYTATY & AFIRMACJE ==================== -->
       <section id="view_mind" class="tab-section" style="display:none;">
-        <button type="button" class="btn mobile-back-btn" onclick="App.switchTab('plan')">← Wróć do zadań (4 Role)</button>
+        <button type="button" class="btn mobile-back-btn" onclick="App.switchTab('plan')">← Wróć do zadań (4
+          Role)</button>
         <div class="matrix-2x2">
           <div class="section-box">
             <div class="section-head">
               <h2>✨ Afirmacje</h2>
             </div>
-            <form onsubmit="event.preventDefault(); App.addAffirmation();" style="display:flex; gap:8px; margin-bottom:14px;">
+            <form onsubmit="event.preventDefault(); App.addAffirmation();"
+              style="display:flex; gap:8px; margin-bottom:14px;">
               <input type="text" id="affInput" class="input-clean" placeholder="+ Wpisz nową afirmację...">
               <button type="submit" class="btn btn-primary">Dodaj</button>
             </form>
@@ -434,12 +511,14 @@
 
       <!-- ==================== ZAKŁADKA 6: ARCHIWUM WYKONANYCH ZADAŃ ==================== -->
       <section id="view_archive" class="tab-section" style="display:none;">
-        <button type="button" class="btn mobile-back-btn" onclick="App.switchTab('plan')">← Wróć do zadań (4 Role)</button>
+        <button type="button" class="btn mobile-back-btn" onclick="App.switchTab('plan')">← Wróć do zadań (4
+          Role)</button>
         <div class="section-box">
           <div class="section-head">
             <div>
               <h2>🗄️ Archiwum Wykonanych Zadań — Rok <span class="yearLabel">2026</span></h2>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Data wykonania to dokładny moment odkliknięcia zadania</p>
+              <p style="font-size:0.8rem; color:var(--text-muted);">Data wykonania to dokładny moment odkliknięcia
+                zadania</p>
             </div>
             <label class="btn" style="cursor:pointer;">
               📂 Wczytaj plik JSON
@@ -454,7 +533,8 @@
 
     <!-- BOCZNA SZUFLADA „NA PÓŹNIEJ” -->
     <aside id="laterDrawer" class="drawer">
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;">
+      <div
+        style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:12px;">
         <div>
           <h3 style="font-size:0.95rem; font-weight:800;">📥 Na później</h3>
           <span style="font-size:0.75rem; color:var(--text-muted);">Pomysły do przeprocesowania</span>
@@ -464,7 +544,8 @@
 
       <!-- Foldery pomysłów (identyczny rozmiar, układ symetryczny + dymek dla długich nazw) -->
       <div class="later-folders-section">
-        <form onsubmit="event.preventDefault(); App.addLaterFolder();" style="display:flex; gap:6px; margin-bottom:8px;">
+        <form onsubmit="event.preventDefault(); App.addLaterFolder();"
+          style="display:flex; gap:6px; margin-bottom:8px;">
           <input type="text" id="laterFolderInput" class="input-clean" placeholder="+ Nowy folder (nazwa)...">
           <button type="submit" class="btn" title="Utwórz nowy folder">📁+</button>
         </form>
@@ -486,17 +567,17 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=15.3"></script>
+  <script src="js/firebase-config.js?v=15.4"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=15.3"></script>
-  <script src="js/seed.js?v=15.3"></script>
-  <script src="js/sync.js?v=15.3"></script>
-  <script src="js/store.js?v=15.3"></script>
-  <script src="js/app.js?v=15.3"></script>
+  <script src="js/utils.js?v=15.4"></script>
+  <script src="js/seed.js?v=15.4"></script>
+  <script src="js/sync.js?v=15.4"></script>
+  <script src="js/store.js?v=15.4"></script>
+  <script src="js/app.js?v=15.4"></script>
 
   <script>
-    window.handleAuthAction = async function(type) {
+    window.handleAuthAction = async function (type) {
       const errorBox = document.getElementById('authErrorBox');
       const emailEl = document.getElementById('authPortalEmail');
       const passEl = document.getElementById('authPortalPass');
@@ -514,7 +595,7 @@
       if (!window.firebase || !firebase.apps || !firebase.apps.length) {
         try {
           if (window.FIREBASE_CONFIG) firebase.initializeApp(window.FIREBASE_CONFIG);
-        } catch(e) {
+        } catch (e) {
           showError('Błąd konfiguracji Firebase: ' + e.message);
           return;
         }
@@ -523,7 +604,7 @@
       const auth = firebase.auth();
 
       function setAuthSuccess() {
-        try { localStorage.setItem('kompas_auth_active', '1'); } catch(e){}
+        try { localStorage.setItem('kompas_auth_active', '1'); } catch (e) { }
         document.documentElement.classList.add('is-authenticated');
         document.getElementById('screenAuth').style.display = 'none';
         document.getElementById('screenApp').style.display = 'flex';
@@ -582,4 +663,5 @@
     };
   </script>
 </body>
+
 </html>

@@ -102,8 +102,168 @@ const App = {
     r4: 'Klienci · faktury · finanse · projekty'
   },
 
+  editingTaskId: null,
+  editingCalendarRemId: null,
   editingNoteTaskId: null,
   _noteSaveTimer: null,
+
+  _isInteractiveTarget(ev) {
+    if (!ev || !ev.target || typeof ev.target.closest !== 'function') return false;
+    return Boolean(ev.target.closest('button, input, textarea, select, a, label, .q-tag-wrap, .q-tag, .task-note-text, .task-note-add-hint'));
+  },
+
+  startEditTask(taskId, ev) {
+    if (ev && this._isInteractiveTarget(ev)) return;
+    const t = (Store.state.tasks || []).find(x => x.id === taskId);
+    if (!t || t.sawId) return; // Przypomnienia z Ostrzenia Piły edytuje się wyłącznie w zakładce Ostrzenie Piły
+    if (ev) ev.preventDefault();
+    this.editingNoteTaskId = null;
+    this.editingTaskId = taskId;
+    this.renderPlan();
+    this.renderMatrix();
+    setTimeout(() => {
+      const inp = document.querySelector(`input[data-edit-task="${taskId}"]`);
+      if (inp) {
+        inp.focus();
+        inp.setSelectionRange(inp.value.length, inp.value.length);
+      }
+    }, 0);
+  },
+
+  cancelEditTask() {
+    if (!this.editingTaskId) return;
+    this.editingTaskId = null;
+    this.renderPlan();
+    this.renderMatrix();
+  },
+
+  saveEditTask(taskId, form) {
+    const t = (Store.state.tasks || []).find(x => x.id === taskId);
+    if (!t || t.sawId) {
+      this.editingTaskId = null;
+      this.renderAll();
+      return;
+    }
+    const newTitle = form.title ? form.title.value.trim() : '';
+    if (!newTitle) {
+      alert('Treść przypomnienia nie może być pusta.');
+      return;
+    }
+    const newNote = form.note ? form.note.value.trim() : (t.note || '');
+    const newRoleId = (form.roleId && form.roleId.value) ? form.roleId.value : t.roleId;
+    const newQ = (form.q && form.q.value) ? (parseInt(form.q.value, 10) || 2) : (t.q || 2);
+
+    t.title = newTitle;
+    t.note = newNote;
+    t.roleId = newRoleId;
+    t.q = newQ;
+
+    // Zsynchronizuj zmiany również z powiązanym przypomnieniem w Kalendarzu (jeśli istnieje)
+    const linkedRem = (Store.state.reminders || []).find(r =>
+      r.activatedTaskId === taskId ||
+      (t.remId && r.id === t.remId) ||
+      ('t_cal_' + r.id) === taskId ||
+      ('t_cal_' + r.id + '_' + r.date) === taskId
+    );
+    if (linkedRem) {
+      linkedRem.title = newTitle;
+      linkedRem.note = newNote;
+      linkedRem.roleId = newRoleId;
+      linkedRem.q = newQ;
+    }
+
+    this.editingTaskId = null;
+    this.save();
+    this.renderAll();
+  },
+
+  renderInlineTaskEditor(t) {
+    return `
+      <form class="goal-edit-box" style="width:100%;" onsubmit="event.preventDefault(); App.saveEditTask('${t.id}', this);">
+        <input type="text" name="title" data-edit-task="${t.id}" class="input-clean" style="font-weight:700; font-size:0.84rem; padding:6px 9px;" value="${this.esc(t.title)}" placeholder="Treść przypomnienia / zadania..." required onkeydown="if(event.key==='Escape'){event.preventDefault(); App.cancelEditTask();}">
+        <textarea name="note" class="input-clean" rows="2" style="resize:vertical; font-size:0.75rem; color:var(--text-muted);" placeholder="Notatka pod przypomnieniem (opcjonalnie)..." onkeydown="if(event.key==='Escape'){event.preventDefault(); App.cancelEditTask();} if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault(); this.form.requestSubmit();}">${this.esc(t.note || '')}</textarea>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:space-between;">
+          <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
+            <select name="roleId" class="input-clean" style="width:auto; padding:4px 7px; font-size:0.72rem; font-weight:600;" title="Filar / Rola">
+              ${Store.state.roles.map(role => `<option value="${role.id}" ${role.id === t.roleId ? 'selected' : ''}>${role.emoji} ${this.esc(role.name)}</option>`).join('')}
+            </select>
+            <select name="q" class="input-clean" style="width:auto; padding:4px 7px; font-size:0.72rem; font-weight:700;" title="Ćwiartka priorytetu">
+              <option value="1" ${(Number(t.q) || 2) === 1 ? 'selected' : ''}>🔥 Q1</option>
+              <option value="2" ${(Number(t.q) || 2) === 2 ? 'selected' : ''}>💎 Q2</option>
+              <option value="3" ${(Number(t.q) || 2) === 3 ? 'selected' : ''}>⚡ Q3</option>
+              <option value="4" ${(Number(t.q) || 2) === 4 ? 'selected' : ''}>🗑️ Q4</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:5px;">
+            <button type="button" class="btn" style="padding:4px 9px; font-size:0.73rem;" onclick="App.cancelEditTask()">Anuluj</button>
+            <button type="submit" class="btn btn-primary" style="padding:4px 11px; font-size:0.73rem;">✓ Zapisz</button>
+          </div>
+        </div>
+      </form>
+    `;
+  },
+
+  startEditCalendarReminder(remId, dateStr, ev) {
+    if (ev && this._isInteractiveTarget(ev)) return;
+    const rem = (Store.state.reminders || []).find(r => r.id === remId);
+    if (!rem) return;
+    if (ev) ev.preventDefault();
+    this.editingCalendarRemId = remId;
+    this.openCalendarModal(dateStr);
+    setTimeout(() => {
+      const inp = document.querySelector(`input[data-edit-cal-rem="${remId}"]`);
+      if (inp) {
+        inp.focus();
+        inp.setSelectionRange(inp.value.length, inp.value.length);
+      }
+    }, 0);
+  },
+
+  cancelEditCalendarReminder(dateStr) {
+    this.editingCalendarRemId = null;
+    this.openCalendarModal(dateStr);
+  },
+
+  saveEditCalendarReminder(remId, dateStr, form) {
+    const rem = (Store.state.reminders || []).find(r => r.id === remId);
+    if (!rem) {
+      this.editingCalendarRemId = null;
+      this.openCalendarModal(dateStr);
+      return;
+    }
+    const newTitle = form.title ? form.title.value.trim() : '';
+    if (!newTitle) {
+      alert('Treść przypomnienia nie może być pusta.');
+      return;
+    }
+    const newNote = form.note ? form.note.value.trim() : '';
+    const newRoleId = (form.roleId && form.roleId.value) ? form.roleId.value : rem.roleId;
+    const newQ = (form.q && form.q.value) ? (parseInt(form.q.value, 10) || 2) : (rem.q || 2);
+
+    rem.title = newTitle;
+    rem.note = newNote;
+    rem.roleId = newRoleId;
+    rem.q = newQ;
+
+    // Zsynchronizuj z powiązanym aktywnym zadaniem, jeśli przypomnienie już wskoczyło na listę
+    const linkedTask = (Store.state.tasks || []).find(t =>
+      t.id === rem.activatedTaskId ||
+      t.remId === rem.id ||
+      t.id === ('t_cal_' + rem.id) ||
+      t.id === ('t_cal_' + rem.id + '_' + rem.date)
+    );
+    if (linkedTask) {
+      linkedTask.title = newTitle;
+      linkedTask.note = newNote;
+      linkedTask.roleId = newRoleId;
+      linkedTask.q = newQ;
+    }
+
+    this.editingCalendarRemId = null;
+    this.save();
+    this.renderAll();
+    this.openCalendarModal(dateStr);
+  },
 
   startEditTaskNote(taskId) {
     this.editingNoteTaskId = taskId;
@@ -123,7 +283,7 @@ const App = {
     if (!t) return;
     t.note = val;
     // Zsynchronizuj notatkę również z powiązanym przypomnieniem w Kalendarzu
-    const rem = (Store.state.reminders || []).find(r => r.activatedTaskId === taskId || ('t_cal_' + r.id) === taskId);
+    const rem = (Store.state.reminders || []).find(r => r.activatedTaskId === taskId || (t.remId && r.id === t.remId) || ('t_cal_' + r.id) === taskId);
     if (rem) rem.note = val;
 
     Store.persist(false, false, true);
@@ -154,7 +314,7 @@ const App = {
     if (!rem) return;
     rem.note = val;
     // Jeśli przypomnienie już wskoczyło na aktywną listę zadań, zaktualizuj notatkę także tam
-    const task = (Store.state.tasks || []).find(t => t.id === rem.activatedTaskId || t.id === ('t_cal_' + rem.id));
+    const task = (Store.state.tasks || []).find(t => t.id === rem.activatedTaskId || t.remId === rem.id || t.id === ('t_cal_' + rem.id));
     if (task) task.note = val;
 
     Store.persist(false, false, true);
@@ -346,15 +506,20 @@ const App = {
             ${gw ? `<div class="role-goal-hint">🎯 ${this.esc(gw)}</div>` : ''}
             <div class="task-list">
               ${rTasks.map(t => {
+                if (!t.sawId && this.editingTaskId === t.id) {
+                  return `<div class="task-row task-row-macos">${this.renderInlineTaskEditor(t)}</div>`;
+                }
                 const rawDiff = D.diff(today, t.scheduledDate || today);
                 const delay = Math.max(0, rawDiff);
                 const daysUntil = rawDiff < 0 ? Math.abs(rawDiff) : 0;
+                const dblAttr = !t.sawId ? `ondblclick="App.startEditTask('${t.id}', event)"` : '';
+                const dblTitle = !t.sawId ? `title="Kliknij dwukrotnie, aby edytować przypomnienie"` : '';
                 return `
-                  <div class="task-row task-row-macos" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
+                  <div class="task-row task-row-macos ${!t.sawId ? 'task-row-editable' : ''}" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}" ${dblAttr}>
                     <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
                     <div class="task-main-col">
                       <div class="task-title-line">
-                        <span class="task-title-main">${this.esc(t.title)}</span>
+                        <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title)}</span>
                         ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
                         ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
                         ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
@@ -976,11 +1141,38 @@ const App = {
             ${(rems.length || sawRems.length) ? `
               ${rems.map(r => {
                 const role = Store.state.roles.find(x => x.id === r.roleId);
+                if (this.editingCalendarRemId === r.id) {
+                  return `
+                    <div class="task-row task-row-macos">
+                      <form class="goal-edit-box" style="width:100%;" onsubmit="event.preventDefault(); App.saveEditCalendarReminder('${r.id}', '${dateStr}', this);">
+                        <input type="text" name="title" data-edit-cal-rem="${r.id}" class="input-clean" style="font-weight:700; font-size:0.84rem; padding:6px 9px;" value="${this.esc(r.title)}" placeholder="Treść przypomnienia..." required onkeydown="if(event.key==='Escape'){event.preventDefault(); App.cancelEditCalendarReminder('${dateStr}');}">
+                        <textarea name="note" class="input-clean" rows="2" style="resize:vertical; font-size:0.75rem; color:var(--text-muted);" placeholder="Notatka pod przypomnieniem (opcjonalnie)..." onkeydown="if(event.key==='Escape'){event.preventDefault(); App.cancelEditCalendarReminder('${dateStr}');} if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault(); this.form.requestSubmit();}">${this.esc(r.note || '')}</textarea>
+                        <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:space-between;">
+                          <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
+                            <select name="roleId" class="input-clean" style="width:auto; padding:4px 7px; font-size:0.72rem; font-weight:600;">
+                              ${Store.state.roles.map(rl => `<option value="${rl.id}" ${rl.id === r.roleId ? 'selected' : ''}>${rl.emoji} ${this.esc(rl.name)}</option>`).join('')}
+                            </select>
+                            <select name="q" class="input-clean" style="width:auto; padding:4px 7px; font-size:0.72rem; font-weight:700;">
+                              <option value="1" ${(Number(r.q) || 2) === 1 ? 'selected' : ''}>🔥 Q1</option>
+                              <option value="2" ${(Number(r.q) || 2) === 2 ? 'selected' : ''}>💎 Q2</option>
+                              <option value="3" ${(Number(r.q) || 2) === 3 ? 'selected' : ''}>⚡ Q3</option>
+                              <option value="4" ${(Number(r.q) || 2) === 4 ? 'selected' : ''}>🗑️ Q4</option>
+                            </select>
+                          </div>
+                          <div style="display:flex; gap:5px;">
+                            <button type="button" class="btn" style="padding:4px 9px; font-size:0.73rem;" onclick="App.cancelEditCalendarReminder('${dateStr}')">Anuluj</button>
+                            <button type="submit" class="btn btn-primary" style="padding:4px 11px; font-size:0.73rem;">✓ Zapisz</button>
+                          </div>
+                        </div>
+                      </form>
+                    </div>
+                  `;
+                }
                 return `
-                  <div class="task-row task-row-macos">
+                  <div class="task-row task-row-macos task-row-editable" ondblclick="App.startEditCalendarReminder('${r.id}', '${dateStr}', event)">
                     <div class="task-main-col">
                       <div class="task-title-line">
-                        <span class="task-title-main">${role ? role.emoji : '🔔'} ${this.esc(r.title)}</span>
+                        <span class="task-title-main task-editable-title" title="Kliknij dwukrotnie, aby edytować przypomnienie">${role ? role.emoji : '🔔'} ${this.esc(r.title)}</span>
                       </div>
                       <textarea class="task-note-inline-input" rows="1" placeholder="+ Dodaj notatkę..."
                         oninput="App.updateReminderNote('${r.id}', this.value)">${this.esc(r.note || '')}</textarea>
@@ -1099,16 +1291,21 @@ const App = {
           </div>
           <div class="task-list" style="flex:1;">
             ${list.length ? list.map(t => {
+              if (!t.sawId && this.editingTaskId === t.id) {
+                return `<div class="task-row task-row-macos">${this.renderInlineTaskEditor(t)}</div>`;
+              }
               const r = Store.state.roles.find(x => x.id === t.roleId);
               const rawDiff = D.diff(today, t.scheduledDate || today);
               const delay = Math.max(0, rawDiff);
               const daysUntil = rawDiff < 0 ? Math.abs(rawDiff) : 0;
+              const dblAttr = !t.sawId ? `ondblclick="App.startEditTask('${t.id}', event)"` : '';
+              const dblTitle = !t.sawId ? `title="Kliknij dwukrotnie, aby edytować przypomnienie"` : '';
               return `
-                <div class="task-row task-row-macos" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}">
+                <div class="task-row task-row-macos ${!t.sawId ? 'task-row-editable' : ''}" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}" ${dblAttr}>
                   <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
                   <div class="task-main-col">
                     <div class="task-title-line">
-                      <span class="task-title-main">${this.esc(t.title)}</span>
+                      <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title)}</span>
                       ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
                       ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
                       ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
@@ -1988,14 +2185,14 @@ const App = {
           `;
         }
         return `
-          <div class="goal-subtask-row task-row-macos">
+          <div class="goal-subtask-row task-row-macos task-row-editable" ondblclick="if(!App._isInteractiveTarget(event)) App.startEditGoalSubtask('${item.kind}','${item.id}')">
             <div style="display:flex; align-items:flex-start; gap:6px; flex:1; min-width:0;">
               ${item.kind === 'task'
                 ? `<button type="button" class="check-circle" style="width:15px; height:15px; margin-top:2px;" onclick="App.doneTask('${item.id}')" title="Odhacz podzadanie jako wykonane (trafi do Archiwum)">✓</button>`
                 : `<span style="font-size:0.75rem; margin-top:1px;" title="Zaplanowane na przyszły dzień (wskoczy automatycznie w wybranym dniu)">🗓️</span>`}
               <div class="task-main-col">
                 <div class="task-title-line">
-                  <span style="font-size:0.78rem; font-weight:600; word-break:break-word;">${this.esc(item.title)}</span>
+                  <span class="task-editable-title" style="font-size:0.78rem; font-weight:600; word-break:break-word;" title="Kliknij dwukrotnie, aby edytować podzadanie">${this.esc(item.title)}</span>
                   <span style="font-size:0.66rem; font-weight:700; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px;">📅 ${this.esc(item.date.slice(5))}</span>
                   ${item.delay > 0 ? `<span style="font-size:0.65rem; font-weight:800; color:var(--crimson); background:var(--crimson-light); padding:1px 6px; border-radius:999px;">⏳ ${item.delay}d</span>` : ''}
                 </div>
@@ -2570,6 +2767,7 @@ const App = {
 
   showToast(msg) {},
   closeModal() {
+    this.editingCalendarRemId = null;
     const root = document.getElementById('modalRoot');
     if (root) root.innerHTML = '';
   },

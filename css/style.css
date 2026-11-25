@@ -375,6 +375,14 @@ button { cursor: pointer; }
   line-height: 1.35;
   word-break: break-word;
 }
+.task-editable-title {
+  cursor: text;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+.task-editable-title:hover {
+  color: var(--accent);
+}
 .task-note-text {
   font-size: 0.74rem;
   font-weight: 400;
