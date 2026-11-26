@@ -52,7 +52,6 @@ const Seed = {
         2026: JSON.parse(JSON.stringify(this.DEFAULT_GOALS))
       },
       quickNote: '',
-      quickNotePos: 'below',
       tasks: [],
       later: [],
       laterFolders: [],

@@ -2833,21 +2833,9 @@ const App = {
   },
 
   renderQuickPad() {
-    const card = document.getElementById('quickPadCard');
     const editor = document.getElementById('quickPadEditor');
-    const posBtn = document.getElementById('quickPadPosBtn');
     const clearBtn = document.getElementById('quickPadClearBtn');
-    if (!card || !editor) return;
-
-    const pos = Store.state.quickNotePos === 'above' ? 'above' : 'below';
-    const targetSlot = document.getElementById(pos === 'above' ? 'quickPadSlotAbove' : 'quickPadSlotBelow');
-    if (targetSlot && card.parentElement !== targetSlot) {
-      targetSlot.appendChild(card);
-    }
-
-    if (posBtn) {
-      posBtn.textContent = pos === 'above' ? '⬇️ Pod filary' : '⬆️ Nad filary';
-    }
+    if (!editor) return;
 
     const savedHtml = this.sanitizeQuickNoteHtml(Store.state.quickNote || '');
     if (document.activeElement !== editor) {
@@ -2941,14 +2929,6 @@ const App = {
     let isBold = false;
     try { isBold = Boolean(document.queryCommandState('bold')); } catch (e) {}
     boldBtn.classList.toggle('active', isBold);
-  },
-
-  toggleQuickPadPos() {
-    Store.state.quickNotePos = Store.state.quickNotePos === 'above' ? 'below' : 'above';
-    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
-    Store.state.fieldStamps['quickNotePos'] = Date.now();
-    this.save();
-    this.renderQuickPad();
   },
 
   clearQuickPad() {
