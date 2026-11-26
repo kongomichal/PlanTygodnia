@@ -537,6 +537,111 @@ button { cursor: pointer; }
 .mobile-q-legend-toggle {
   display: none;
 }
+
+/* ---- SZYBKI NOTATNIK (BRUDNOPIS W WIDOKU GŁÓWNYM) ---- */
+.quick-notepad-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--amber);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.quick-notepad-card:focus-within {
+  border-color: var(--accent);
+  border-left-color: var(--amber);
+  box-shadow: var(--shadow-md);
+}
+.quick-notepad-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+}
+.quick-notepad-title-wrap {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.quick-notepad-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+.quick-notepad-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.quick-notepad-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.quick-pad-bold-btn {
+  padding: 4px 11px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border-color: var(--border-strong, var(--border));
+}
+.quick-pad-bold-btn strong {
+  font-weight: 900;
+  font-size: 0.84rem;
+}
+.quick-pad-bold-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+.quick-pad-tool-btn {
+  padding: 4px 9px;
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+.quick-notepad-editor {
+  position: relative;
+  min-height: 78px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  border: 1px solid transparent;
+  color: var(--text-main);
+  font-size: 0.87rem;
+  line-height: 1.55;
+  outline: none;
+  word-break: break-word;
+  cursor: text;
+}
+.quick-notepad-editor:focus {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.quick-notepad-editor b,
+.quick-notepad-editor strong {
+  font-weight: 800;
+  color: var(--text-main);
+}
+.quick-notepad-editor.is-empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  right: 10px;
+  color: var(--text-dim);
+  font-size: 0.83rem;
+  font-weight: 400;
+  pointer-events: none;
+}
 .q-tag.q1 { background: var(--crimson-light); color: var(--crimson); }
 .q-tag.q2 { background: var(--emerald-light); color: var(--emerald); }
 .q-tag.q3 { background: var(--amber-light); color: var(--amber); }
@@ -1185,6 +1290,13 @@ button { cursor: pointer; }
   .input-clean {
     font-size: 16px !important; /* Zapobiega przybliżaniu ekranu na iPhone (iOS Safari) */
     padding: 10px 12px;
+  }
+  .quick-notepad-sub {
+    display: none;
+  }
+  .quick-notepad-editor {
+    font-size: 16px;
+    min-height: 84px;
   }
   .quick-add-row .btn-primary {
     padding: 10px 16px;

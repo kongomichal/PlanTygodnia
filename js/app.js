@@ -23,6 +23,11 @@ const App = {
     }
 
     Store.subscribe(() => this.renderAll());
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement && document.activeElement.id === 'quickPadEditor') {
+        this.updateQuickPadToolbarState();
+      }
+    });
     this.renderWelcome();
 
     // Na komputerze pokaż ekran 7 Nawyków raz na sesję; na telefonie od razu przejdź do zadań
@@ -2787,6 +2792,180 @@ const App = {
     if (root) root.innerHTML = '';
   },
 
+  /* ---- SZYBKI NOTATNIK (BRUDNOPIS W GŁÓWNYM WIDOKU Z POGRUBIANIEM) ---- */
+  _quickPadSaveTimer: null,
+
+  sanitizeQuickNoteHtml(rawHtml) {
+    const str = String(rawHtml || '');
+    if (!str.trim()) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = str;
+    if (!(tmp.textContent || '').trim()) return '';
+
+    const cleanNode = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return this.esc(node.nodeValue || '');
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return '';
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'br') return '<br>';
+      let inner = '';
+      node.childNodes.forEach(ch => { inner += cleanNode(ch); });
+      if (tag === 'b' || tag === 'strong') {
+        return inner ? `<b>${inner}</b>` : '';
+      }
+      if (tag === 'span') {
+        const fw = (node.style && node.style.fontWeight) ? String(node.style.fontWeight) : '';
+        if (fw === 'bold' || parseInt(fw, 10) >= 600) {
+          return inner ? `<b>${inner}</b>` : '';
+        }
+        return inner;
+      }
+      if (tag === 'div' || tag === 'p' || tag === 'li') {
+        return `<div>${inner || '<br>'}</div>`;
+      }
+      return inner;
+    };
+
+    let out = '';
+    tmp.childNodes.forEach(ch => { out += cleanNode(ch); });
+    return out;
+  },
+
+  renderQuickPad() {
+    const card = document.getElementById('quickPadCard');
+    const editor = document.getElementById('quickPadEditor');
+    const posBtn = document.getElementById('quickPadPosBtn');
+    const clearBtn = document.getElementById('quickPadClearBtn');
+    if (!card || !editor) return;
+
+    const pos = Store.state.quickNotePos === 'above' ? 'above' : 'below';
+    const targetSlot = document.getElementById(pos === 'above' ? 'quickPadSlotAbove' : 'quickPadSlotBelow');
+    if (targetSlot && card.parentElement !== targetSlot) {
+      targetSlot.appendChild(card);
+    }
+
+    if (posBtn) {
+      posBtn.textContent = pos === 'above' ? '⬇️ Pod filary' : '⬆️ Nad filary';
+    }
+
+    const savedHtml = this.sanitizeQuickNoteHtml(Store.state.quickNote || '');
+    if (document.activeElement !== editor) {
+      if (editor.innerHTML !== savedHtml) {
+        editor.innerHTML = savedHtml;
+      }
+    }
+    const hasText = Boolean((editor.textContent || '').trim());
+    editor.classList.toggle('is-empty', !hasText);
+    if (clearBtn) {
+      clearBtn.style.display = hasText ? '' : 'none';
+    }
+  },
+
+  onQuickPadInput() {
+    const editor = document.getElementById('quickPadEditor');
+    const clearBtn = document.getElementById('quickPadClearBtn');
+    if (!editor) return;
+
+    const hasText = Boolean((editor.textContent || '').trim());
+    editor.classList.toggle('is-empty', !hasText);
+    if (clearBtn) {
+      clearBtn.style.display = hasText ? '' : 'none';
+    }
+
+    const cleanHtml = hasText ? this.sanitizeQuickNoteHtml(editor.innerHTML) : '';
+    Store.state.quickNote = cleanHtml;
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps['quickNote'] = Date.now();
+
+    Store.persist(false, false, true);
+    clearTimeout(this._quickPadSaveTimer);
+    this._quickPadSaveTimer = setTimeout(() => {
+      this._quickPadSaveTimer = null;
+      if (window.Sync && typeof window.Sync.pushToCloud === 'function') {
+        window.Sync.pushToCloud();
+      }
+    }, 350);
+  },
+
+  onQuickPadBlur() {
+    const editor = document.getElementById('quickPadEditor');
+    const boldBtn = document.getElementById('quickPadBoldBtn');
+    if (boldBtn) boldBtn.classList.remove('active');
+    if (editor && !(editor.textContent || '').trim()) {
+      editor.innerHTML = '';
+      editor.classList.add('is-empty');
+    }
+    if (this._quickPadSaveTimer) {
+      clearTimeout(this._quickPadSaveTimer);
+      this._quickPadSaveTimer = null;
+      Store.persist(false, true, true);
+    }
+  },
+
+  onQuickPadPaste(ev) {
+    if (!ev) return;
+    ev.preventDefault();
+    const text = ((ev.clipboardData || window.clipboardData)?.getData('text/plain')) || '';
+    if (text) {
+      document.execCommand('insertText', false, text);
+    }
+  },
+
+  toggleQuickPadBold() {
+    const editor = document.getElementById('quickPadEditor');
+    if (!editor) return;
+    if (document.activeElement !== editor) {
+      editor.focus();
+    }
+    try { document.execCommand('styleWithCSS', false, false); } catch (e) {}
+    document.execCommand('bold', false, null);
+    this.updateQuickPadToolbarState();
+    this.onQuickPadInput();
+  },
+
+  insertQuickPadBullet() {
+    const editor = document.getElementById('quickPadEditor');
+    if (!editor) return;
+    if (document.activeElement !== editor) {
+      editor.focus();
+    }
+    const hasSome = Boolean((editor.textContent || '').trim());
+    document.execCommand('insertText', false, hasSome ? '\n• ' : '• ');
+    this.onQuickPadInput();
+  },
+
+  updateQuickPadToolbarState() {
+    const boldBtn = document.getElementById('quickPadBoldBtn');
+    if (!boldBtn) return;
+    let isBold = false;
+    try { isBold = Boolean(document.queryCommandState('bold')); } catch (e) {}
+    boldBtn.classList.toggle('active', isBold);
+  },
+
+  toggleQuickPadPos() {
+    Store.state.quickNotePos = Store.state.quickNotePos === 'above' ? 'below' : 'above';
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps['quickNotePos'] = Date.now();
+    this.save();
+    this.renderQuickPad();
+  },
+
+  clearQuickPad() {
+    const editor = document.getElementById('quickPadEditor');
+    if (editor && !(editor.textContent || '').trim()) return;
+    if (!confirm('Czy na pewno chcesz wyczyścić całą zawartość Szybkiego Notatnika?')) return;
+    Store.state.quickNote = '';
+    if (!Store.state.fieldStamps) Store.state.fieldStamps = {};
+    Store.state.fieldStamps['quickNote'] = Date.now();
+    if (editor) {
+      editor.innerHTML = '';
+      editor.classList.add('is-empty');
+    }
+    this.save();
+    this.renderQuickPad();
+  },
+
   renderAll() {
     let authActive = false;
     try { authActive = localStorage.getItem('kompas_auth_active') === '1'; } catch (e) {}
@@ -2800,6 +2979,7 @@ const App = {
     this.renderYearSelect();
     this.renderIcon();
     this.renderPlan();
+    this.renderQuickPad();
     this.renderCalendar();
     this.renderMatrix();
     this.renderSaw();

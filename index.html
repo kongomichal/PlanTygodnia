@@ -12,11 +12,11 @@
   <meta name="application-name" content="Plan Tygodnia">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#f4f6fb" id="metaThemeColor">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=15.5">
-  <link rel="icon" type="image/svg+xml" href="icon.svg?v=15.5">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=15.5">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=15.5">
-  <link rel="manifest" href="manifest.webmanifest?v=15.5">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=15.6">
+  <link rel="icon" type="image/svg+xml" href="icon.svg?v=15.6">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=15.6">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=15.6">
+  <link rel="manifest" href="manifest.webmanifest?v=15.6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
@@ -24,11 +24,11 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="css/style.css?v=15.5">
+  <link rel="stylesheet" href="css/style.css?v=15.6">
 
   <script>
     (function () {
-      const APP_VERSION = '15.5';
+      const APP_VERSION = '15.6';
       try {
         const url = new URL(window.location.href);
         if (url.searchParams.get('v') !== APP_VERSION) {
@@ -226,7 +226,7 @@
   <div id="screenAuth">
     <div class="auth-portal-card">
       <div class="auth-portal-brand">
-        <img src="icon.svg?v=15.5" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
+        <img src="icon.svg?v=15.6" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
         <h1 class="auth-portal-title">Plan Tygodnia</h1>
       </div>
       <p class="auth-portal-subtitle">
@@ -385,8 +385,52 @@
           <span class="q-legend-item"><span class="q-tag q4">Q4</span> 🗑️ Zjadacze czasu (do odrzucenia)</span>
         </div>
 
+        <!-- Opcjonalne miejsce na Szybki Notatnik nad filarami -->
+        <div id="quickPadSlotAbove"></div>
+
         <!-- 4 Role życiowe (4 estetyczne rubryczki obok siebie z Celem Tygodniowym w środku) -->
         <div class="roles-grid" id="rolesGrid"></div>
+
+        <!-- Domyślne miejsce na Szybki Notatnik tuż pod 4 filarami (zawsze na widoku nad Kalendarzem) -->
+        <div id="quickPadSlotBelow">
+          <div class="quick-notepad-card" id="quickPadCard">
+            <div class="quick-notepad-head">
+              <div class="quick-notepad-title-wrap">
+                <span class="quick-notepad-title">📝 Szybki Notatnik</span>
+                <span class="quick-notepad-sub">Luźne notatki i rzeczy do zrobienia w biegu (bez przypisywania kategorii)</span>
+              </div>
+              <div class="quick-notepad-actions">
+                <button type="button" class="btn quick-pad-bold-btn" id="quickPadBoldBtn"
+                  onmousedown="event.preventDefault(); App.toggleQuickPadBold();"
+                  title="Pogrub zaznaczony tekst lub włącz pogrubione pisanie (Cmd/Ctrl + B)">
+                  <strong>B</strong> Pogrub
+                </button>
+                <button type="button" class="btn quick-pad-tool-btn"
+                  onmousedown="event.preventDefault(); App.insertQuickPadBullet();"
+                  title="Wstaw wypunktowanie (•)">
+                  • Punkt
+                </button>
+                <button type="button" class="btn quick-pad-tool-btn" id="quickPadPosBtn"
+                  onclick="App.toggleQuickPadPos()"
+                  title="Przełącz położenie notatnika (pod filarami / nad filarami)">
+                  ⬆️ Nad filary
+                </button>
+                <button type="button" class="btn quick-pad-tool-btn" id="quickPadClearBtn"
+                  onclick="App.clearQuickPad()"
+                  title="Wyczyść zawartość szybkiego notatnika">
+                  Wyczyść
+                </button>
+              </div>
+            </div>
+            <div id="quickPadEditor" class="quick-notepad-editor is-empty" contenteditable="true"
+              data-placeholder="Wpisz szybką notatkę, temat, numer lub rzecz do zrobienia w biegu... (zaznacz tekst lub kliknij „B Pogrub”, aby wyróżnić najważniejsze)"
+              oninput="App.onQuickPadInput()"
+              onblur="App.onQuickPadBlur()"
+              onkeyup="App.updateQuickPadToolbarState()"
+              onmouseup="App.updateQuickPadToolbarState()"
+              onpaste="App.onQuickPadPaste(event)"></div>
+          </div>
+        </div>
 
         <!-- Pełnowymiarowy Kalendarz Miesięczny na dole -->
         <div class="section-box">
@@ -567,14 +611,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=15.5"></script>
+  <script src="js/firebase-config.js?v=15.6"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=15.5"></script>
-  <script src="js/seed.js?v=15.5"></script>
-  <script src="js/sync.js?v=15.5"></script>
-  <script src="js/store.js?v=15.5"></script>
-  <script src="js/app.js?v=15.5"></script>
+  <script src="js/utils.js?v=15.6"></script>
+  <script src="js/seed.js?v=15.6"></script>
+  <script src="js/sync.js?v=15.6"></script>
+  <script src="js/store.js?v=15.6"></script>
+  <script src="js/app.js?v=15.6"></script>
 
   <script>
     window.handleAuthAction = async function (type) {

@@ -144,6 +144,8 @@ const Store = {
     if (!Array.isArray(s.archive)) s.archive = [];
     if (!Array.isArray(s.goalsArchive)) s.goalsArchive = [];
     if (!s.goals || typeof s.goals !== 'object') s.goals = def.goals;
+    if (typeof s.quickNote !== 'string') s.quickNote = '';
+    if (s.quickNotePos !== 'above' && s.quickNotePos !== 'below') s.quickNotePos = 'below';
 
     // Lata działają wyłącznie na zasadzie zapisanego tekstu w miesiącach danego roku
     const savedYears = this.getSavedYears(s);
@@ -408,6 +410,20 @@ const Store = {
         });
       });
     });
+
+    const tqa = fa['quickNote'] || 0;
+    const tqb = fb['quickNote'] || 0;
+    const vqa = typeof ca.quickNote === 'string' ? ca.quickNote : '';
+    const vqb = typeof cb.quickNote === 'string' ? cb.quickNote : '';
+    if (tqb > tqa) out.quickNote = vqb;
+    else if (tqa > tqb) out.quickNote = vqa;
+    else out.quickNote = (vqb !== '' ? vqb : vqa);
+
+    const tpa = fa['quickNotePos'] || 0;
+    const tpb = fb['quickNotePos'] || 0;
+    if (tpb > tpa) out.quickNotePos = cb.quickNotePos || 'below';
+    else if (tpa > tpb) out.quickNotePos = ca.quickNotePos || 'below';
+    else out.quickNotePos = cb.quickNotePos || ca.quickNotePos || 'below';
 
     out.updatedAt = Math.max(ca.updatedAt || 0, cb.updatedAt || 0);
     return this.normalizeState(out);
