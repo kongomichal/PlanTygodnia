@@ -3001,24 +3001,24 @@ const App = {
     } else if (st.readToday === 0) {
       statusHtml = `
         <div class="book-norm-badge">
-          <span>🎯 Dziś: <strong>${st.todayQuota} str.</strong></span>
-          <span style="font-size:0.68rem; font-weight:500; opacity:0.9;">do ${this.esc(st.targetEndDate.slice(5))}: ${this.esc(st.scheduleFromTodayLabel)}</span>
+          <span>🎯 Dzisiaj do przeczytania: <strong>${st.todayQuota} str.</strong> (aby zmieścić się w celu)</span>
+          <span style="font-size:0.68rem; font-weight:600; opacity:0.9;">Plan (${st.daysFromToday} ${st.daysFromToday === 1 ? 'dzień' : 'dni'} czytania do ${this.esc(st.targetEndDate.slice(5))}): ${this.esc(st.scheduleFromTodayLabel)}</span>
         </div>
       `;
     } else if (st.readToday >= st.todayQuota) {
       const bonus = st.readToday - st.todayQuota;
       statusHtml = `
         <div class="book-norm-badge done">
-          <span>✅ Dziś: <strong>${st.readToday}/${st.todayQuota} str.</strong>${bonus > 0 ? ` (+${bonus})` : ''}</span>
-          ${st.daysAfterToday > 0 ? `<span style="font-size:0.68rem; font-weight:600;">⏭️ Jutro: ${this.esc(st.scheduleAfterTodayLabel)}</span>` : ''}
+          <span>✅ Dzisiejszy cel zrobiony: <strong>${st.readToday} str.</strong> (norma na dziś: ${st.todayQuota} str.${bonus > 0 ? `, +${bonus} zapasu` : ''})</span>
+          ${st.daysAfterToday > 0 ? `<span style="font-size:0.68rem; font-weight:700;">⏭️ Od jutra (${st.daysAfterToday} dni): ${this.esc(st.scheduleAfterTodayLabel)}</span>` : ''}
         </div>
       `;
     } else {
       const leftToday = st.todayQuota - st.readToday;
       statusHtml = `
         <div class="book-norm-badge">
-          <span>📖 Dziś: <strong>${st.readToday}/${st.todayQuota} str.</strong> (brakuje ${leftToday})</span>
-          ${st.daysAfterToday > 0 ? `<span style="font-size:0.68rem; font-weight:500; opacity:0.9;">od jutra: ${this.esc(st.scheduleAfterTodayLabel)}</span>` : ''}
+          <span>📖 Dzisiaj zostało jeszcze: <strong>${leftToday} str.</strong> (przeczytano ${st.readToday} z ${st.todayQuota} str. dzisiejszej normy)</span>
+          ${st.daysAfterToday > 0 ? `<span style="font-size:0.68rem; font-weight:600; opacity:0.9;">Gdyby skończyć dziś → od jutra: ${this.esc(st.scheduleAfterTodayLabel)}</span>` : ''}
         </div>
       `;
     }

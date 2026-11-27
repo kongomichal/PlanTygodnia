@@ -159,24 +159,21 @@ const Store = {
             if (/^\d{4}-\d{2}-\d{2}$/.test(dk)) cleanStamps[dk] = Number(bk.dailyLogStamps[dk]) || 0;
           });
         }
+        const rawPlanStart = /^\d{4}-\d{2}-\d{2}$/.test(String(bk.planStartDate || '')) ? String(bk.planStartDate) : todayStr;
+        const hasAnyProgress = (Math.max(0, parseInt(bk.baseReadPages, 10) || 0) > 0) || (Object.keys(cleanLog).length > 0);
+        const effectivePlanStart = (!hasAnyProgress && rawPlanStart < todayStr) ? todayStr : rawPlanStart;
         item.book = {
           bookId: String(bk.bookId || 'bk_default'),
           bookTitle: String(bk.bookTitle || ''),
           totalPages: Math.max(0, parseInt(bk.totalPages, 10) || 0),
           targetDays: Math.max(1, parseInt(bk.targetDays, 10) || 7),
-          planStartDate: /^\d{4}-\d{2}-\d{2}$/.test(String(bk.planStartDate || '')) ? String(bk.planStartDate) : todayStr,
+          planStartDate: effectivePlanStart,
           baseReadPages: Math.max(0, parseInt(bk.baseReadPages, 10) || 0),
           dailyLog: cleanLog,
           dailyLogStamps: cleanStamps,
           updatedAt: Number(bk.updatedAt) || 1
         };
-        if (!s.fixedInitialBookStartV159) {
-          if (item.book.baseReadPages === 0 && Object.keys(cleanLog).length === 0 && item.book.planStartDate < todayStr) {
-            item.book.planStartDate = todayStr;
-            item.book.updatedAt = Date.now();
-          }
-          s.fixedInitialBookStartV159 = true;
-        }
+        delete s.fixedInitialBookStartV159;
       }
       if (!item.roleId || !s.roles.some(r => r.id === item.roleId)) {
         const d = String(item.dim || '').toLowerCase();
