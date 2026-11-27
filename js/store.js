@@ -149,8 +149,11 @@ const Store = {
         const cleanLog = {};
         if (bk.dailyLog && typeof bk.dailyLog === 'object') {
           Object.keys(bk.dailyLog).forEach(dk => {
-            const v = Math.max(0, parseInt(bk.dailyLog[dk], 10) || 0);
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dk) && v > 0) cleanLog[dk] = v;
+            const rawV = bk.dailyLog[dk];
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dk) && rawV !== null && rawV !== undefined && rawV !== '') {
+              const v = Math.max(0, parseInt(rawV, 10));
+              if (!isNaN(v)) cleanLog[dk] = v;
+            }
           });
         }
         const cleanStamps = {};
@@ -393,11 +396,18 @@ const Store = {
             allDays.forEach(dk => {
               const dsa = Number(saMap[dk]) || 0;
               const dsb = Number(sbMap[dk]) || 0;
-              let val = 0;
-              if (dsb > dsa) val = Number((bb.dailyLog || {})[dk]) || 0;
-              else if (dsa > dsb) val = Number((ba.dailyLog || {})[dk]) || 0;
-              else val = Math.max(Number((ba.dailyLog || {})[dk]) || 0, Number((bb.dailyLog || {})[dk]) || 0);
-              if (val > 0) mergedLog[dk] = val;
+              const hasA = Boolean(ba.dailyLog && Object.prototype.hasOwnProperty.call(ba.dailyLog, dk));
+              const hasB = Boolean(bb.dailyLog && Object.prototype.hasOwnProperty.call(bb.dailyLog, dk));
+              if (dsb > dsa) {
+                if (hasB) mergedLog[dk] = Math.max(0, parseInt(bb.dailyLog[dk], 10) || 0);
+              } else if (dsa > dsb) {
+                if (hasA) mergedLog[dk] = Math.max(0, parseInt(ba.dailyLog[dk], 10) || 0);
+              } else if (hasA || hasB) {
+                mergedLog[dk] = Math.max(
+                  hasA ? (parseInt(ba.dailyLog[dk], 10) || 0) : 0,
+                  hasB ? (parseInt(bb.dailyLog[dk], 10) || 0) : 0
+                );
+              }
               if (Math.max(dsa, dsb) > 0) mergedStamps[dk] = Math.max(dsa, dsb);
             });
             win.book = {

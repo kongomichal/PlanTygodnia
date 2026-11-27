@@ -608,11 +608,48 @@ button { cursor: pointer; }
   width: 100%;
 }
 .book-pages-input {
-  width: 56px !important;
+  width: 62px !important;
   padding: 3px 6px !important;
   font-size: 0.76rem !important;
   font-weight: 800 !important;
   text-align: center;
+}
+.book-date-input {
+  width: auto !important;
+  padding: 3px 6px !important;
+  font-size: 0.73rem !important;
+  font-weight: 600 !important;
+}
+.book-log-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 2px;
+}
+.book-log-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-main);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+.book-log-chip-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 0.68rem;
+  line-height: 1;
+  color: var(--text-muted);
+}
+.book-log-chip-btn:hover {
+  color: var(--accent);
 }
 
 .mobile-q-legend-toggle {
