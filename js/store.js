@@ -196,6 +196,26 @@ const Store = {
         else item.activeDays = [0, 1, 2, 3, 4, 5, 6];
       }
     });
+    // Automatyczna naprawa zadań Książki przywróconych z Archiwum (aby zawsze zachowywały pełny mini-panel stron)
+    if (bookTrackerItem) {
+      s.tasks.forEach(t => {
+        if (!t || t.sawId) return;
+        const rawTitle = String(t.title || '').trim();
+        const isRestoredBookTask = /\(\+\d+\s*str\.\s*·\s*\d+\/\d+\s*str\.\)\s*$/i.test(rawTitle) ||
+          (bookTrackerItem.book && bookTrackerItem.book.bookTitle && rawTitle.startsWith(bookTrackerItem.title + ':'));
+        if (isRestoredBookTask) {
+          t.sawId = bookTrackerItem.id;
+          t.sawDate = t.scheduledDate || todayStr;
+          t.title = bookTrackerItem.title;
+          t.restoredFromArchive = true;
+          t.restoredDoneDay = todayStr;
+          if (Array.isArray(bookTrackerItem.doneDays)) {
+            bookTrackerItem.doneDays = bookTrackerItem.doneDays.filter(d => d !== t.sawDate && d !== todayStr);
+          }
+        }
+      });
+    }
+
     if (!Array.isArray(s.rules)) s.rules = def.rules;
     if (!Array.isArray(s.affirmations)) s.affirmations = def.affirmations;
     if (!Array.isArray(s.quotes)) s.quotes = def.quotes;
@@ -445,14 +465,25 @@ const Store = {
     });
 
     // Spójność między kolekcjami: zadanie odhaczone w Ostrzeniu Piły lub Kalendarzu nie może wisieć na aktywnej liście
+    // Jeśli zadanie z Ostrzenia Piły zostało jawnie przywrócone z Archiwum, usuń jego datę z doneDays po scaleniu
     const sawMap = new Map((out.saw || []).map(s => [s.id, s]));
+    (out.tasks || []).forEach(t => {
+      if (t && t.sawId && t.restoredFromArchive) {
+        const sItem = sawMap.get(t.sawId);
+        if (sItem && Array.isArray(sItem.doneDays)) {
+          const dStr = t.sawDate || t.scheduledDate;
+          sItem.doneDays = sItem.doneDays.filter(d => d !== dStr && d !== t.restoredDoneDay);
+        }
+      }
+    });
+
     const remMap = new Map((out.reminders || []).map(r => [r.id, r]));
     out.tasks = (out.tasks || []).filter(t => {
       if (t.sawId) {
         const sItem = sawMap.get(t.sawId);
         if (!sItem) return false;
         const dStr = t.sawDate || t.scheduledDate;
-        if (dStr && ((sItem.doneDays || []).includes(dStr) || (sItem.dismissedDays || []).includes(dStr))) {
+        if (!t.restoredFromArchive && dStr && ((sItem.doneDays || []).includes(dStr) || (sItem.dismissedDays || []).includes(dStr))) {
           return false;
         }
       }

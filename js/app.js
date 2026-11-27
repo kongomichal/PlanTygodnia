@@ -828,10 +828,19 @@ const App = {
     Store.state.archive.unshift({
       id: 'ar_' + Date.now(),
       title: archiveTitle,
+      origTitle: t.title,
       note: t.note || '',
       roleId: t.roleId,
       q: t.q || 2,
       scheduledDate: t.scheduledDate || today,
+      sawId: t.sawId || null,
+      sawDate: t.sawDate || null,
+      sawFreq: t.sawFreq || null,
+      leadDays: t.leadDays || 0,
+      isGoalSubtask: Boolean(t.isGoalSubtask),
+      remId: t.remId || null,
+      fromCalendarDate: t.fromCalendarDate || null,
+      doneDay: today,
       delayDays: delay,
       doneAt: stamp,
       year: Store.state.year,
@@ -2557,16 +2566,58 @@ const App = {
     const idx = Store.state.archive.findIndex(a => a.id === id);
     if (idx < 0) return;
     const [item] = Store.state.archive.splice(idx, 1);
-    Store.state.tasks.push({
-      id: 't_' + Date.now(),
-      title: item.title,
+    const today = this.today();
+    const newTaskId = 't_' + Date.now();
+    const doneDayStr = item.doneDay || (/^\d{4}-\d{2}-\d{2}/.test(String(item.doneAt || '')) ? String(item.doneAt).slice(0, 10) : today);
+
+    // Rozpoznaj powiązaną pozycję z Ostrzenia Piły (również dla starszych wpisów Książki sprzed v16.1)
+    let sawObj = item.sawId ? (Store.state.saw || []).find(s => s.id === item.sawId) : null;
+    if (!sawObj && /\(\+\d+\s*str\.\s*·\s*\d+\/\d+\s*str\.\)\s*$/i.test(String(item.title || '').trim())) {
+      sawObj = (Store.state.saw || []).find(s => s && s.isBookTracker) || null;
+    }
+
+    const restoredTask = {
+      id: newTaskId,
+      title: item.origTitle || (sawObj ? sawObj.title : item.title),
       note: item.note || '',
-      roleId: item.roleId || Store.state.roles[0].id,
+      roleId: item.roleId || (sawObj ? sawObj.roleId : Store.state.roles[0].id),
       q: item.q || 2,
-      scheduledDate: item.scheduledDate || this.today(),
+      scheduledDate: item.scheduledDate || today,
+      isGoalSubtask: Boolean(item.isGoalSubtask),
       year: Store.state.year,
       createdAt: Date.now()
-    });
+    };
+
+    if (sawObj) {
+      const targetSawDate = item.sawDate || item.scheduledDate || today;
+      restoredTask.sawId = sawObj.id;
+      restoredTask.sawDate = targetSawDate;
+      restoredTask.sawFreq = item.sawFreq || sawObj.freq || 'weekdays';
+      restoredTask.leadDays = item.leadDays || sawObj.leadDays || 0;
+      restoredTask.restoredFromArchive = true;
+      restoredTask.restoredDoneDay = doneDayStr;
+
+      if (Array.isArray(sawObj.doneDays)) {
+        sawObj.doneDays = sawObj.doneDays.filter(d => d !== targetSawDate && d !== doneDayStr);
+      }
+      if (Array.isArray(sawObj.dismissedDays)) {
+        sawObj.dismissedDays = sawObj.dismissedDays.filter(d => d !== targetSawDate && d !== doneDayStr);
+      }
+      // Usuń ewentualny duplikat aktywnego zadania tego samego nawyku
+      Store.state.tasks = (Store.state.tasks || []).filter(t => t.sawId !== sawObj.id);
+    }
+
+    if (item.remId) {
+      restoredTask.remId = item.remId;
+      restoredTask.fromCalendarDate = item.fromCalendarDate || item.scheduledDate || today;
+      const rem = (Store.state.reminders || []).find(r => r.id === item.remId);
+      if (rem) {
+        rem.done = false;
+        rem.activatedTaskId = newTaskId;
+      }
+    }
+
+    Store.state.tasks.push(restoredTask);
     this.save();
     this.renderAll();
   },
