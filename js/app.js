@@ -514,6 +514,11 @@ const App = {
                 if (!t.sawId && this.editingTaskId === t.id) {
                   return `<div class="task-row task-row-macos">${this.renderInlineTaskEditor(t)}</div>`;
                 }
+                const sawObj = t.sawId ? (Store.state.saw || []).find(s => s.id === t.sawId) : null;
+                const isBookTask = Boolean(sawObj && sawObj.isBookTracker);
+                const bookTitleSuffix = (isBookTask && sawObj.book && sawObj.book.bookTitle)
+                  ? `: „${sawObj.book.bookTitle}”`
+                  : '';
                 const rawDiff = D.diff(today, t.scheduledDate || today);
                 const delay = Math.max(0, rawDiff);
                 const daysUntil = rawDiff < 0 ? Math.abs(rawDiff) : 0;
@@ -524,13 +529,14 @@ const App = {
                     <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
                     <div class="task-main-col">
                       <div class="task-title-line">
-                        <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title)}</span>
+                        <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title + bookTitleSuffix)}</span>
                         ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
                         ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
                         ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
                         ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
                         ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
                       </div>
+                      ${isBookTask ? this.renderBookCardWidget(sawObj, t.id) : ''}
                       ${this.renderTaskNoteBlock(t)}
                     </div>
                     <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
@@ -759,11 +765,29 @@ const App = {
     this.renderAll();
   },
 
-  doneTask(id) {
+  doneTask(id, skipBookPrompt = false) {
     const idx = Store.state.tasks.findIndex(x => x.id === id);
     if (idx < 0) return;
-    const [t] = Store.state.tasks.splice(idx, 1);
+    const candidateTask = Store.state.tasks[idx];
     const today = this.today();
+
+    // Dla spersonalizowanego zadania Książki: jeśli jeszcze dziś nie wpisano liczby przeczytanych stron, zapytaj z domyślną dzisiejszą normą
+    const linkedSawPre = candidateTask.sawId ? (Store.state.saw || []).find(s => s.id === candidateTask.sawId) : null;
+    if (!skipBookPrompt && linkedSawPre && linkedSawPre.isBookTracker && linkedSawPre.book && linkedSawPre.book.totalPages > 0) {
+      const preStats = this.getBookStats(linkedSawPre, today);
+      if (preStats.readToday === 0 && preStats.remainingNow > 0) {
+        const labelBook = linkedSawPre.book.bookTitle ? `„${linkedSawPre.book.bookTitle}”` : linkedSawPre.title;
+        const ans = prompt(
+          `📚 ${labelBook}\nIle stron przeczytałeś dzisiaj?\n(Dzisiejsza norma do wyrobienia się w planie: ${preStats.todayQuota} str.)`,
+          String(preStats.todayQuota)
+        );
+        if (ans === null) return;
+        const pages = Math.max(0, parseInt(String(ans).trim(), 10) || 0);
+        this.setBookPagesToday(linkedSawPre.id, pages, false);
+      }
+    }
+
+    const [t] = Store.state.tasks.splice(idx, 1);
 
     // Oznacz powiązane przypomnienie w kalendarzu jako wykonane
     const rem = (Store.state.reminders || []).find(r => r.activatedTaskId === id || (t.remId && r.id === t.remId) || ('t_cal_' + r.id) === id);
@@ -771,9 +795,15 @@ const App = {
 
     // Jeśli zadanie pochodziło z Ostrzenia Piły, oznacz termin zadania ORAZ dzisiejszy dzień jako wykonane,
     // aby po odklikaniu opóźnionej czynności nie wyskoczyła od razu kolejna na ten sam dzień (dopiero od kolejnego terminu / jutra)
+    let archiveTitle = t.title;
     if (t.sawId) {
       const sawItem = (Store.state.saw || []).find(s => s.id === t.sawId);
       if (sawItem) {
+        if (sawItem.isBookTracker && sawItem.book && sawItem.book.totalPages > 0) {
+          const postStats = this.getBookStats(sawItem, today);
+          const bName = sawItem.book.bookTitle ? `: „${sawItem.book.bookTitle}”` : '';
+          archiveTitle = `${t.title}${bName} (+${postStats.readToday} str. · ${postStats.totalRead}/${postStats.totalPages} str.)`;
+        }
         if (!Array.isArray(sawItem.doneDays)) sawItem.doneDays = [];
         if (!Array.isArray(sawItem.spawnedDates)) sawItem.spawnedDates = [];
         const targetDay = t.sawDate || today;
@@ -795,7 +825,7 @@ const App = {
     const stamp = `${today} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     Store.state.archive.unshift({
       id: 'ar_' + Date.now(),
-      title: t.title,
+      title: archiveTitle,
       note: t.note || '',
       roleId: t.roleId,
       q: t.q || 2,
@@ -1314,6 +1344,11 @@ const App = {
               if (!t.sawId && this.editingTaskId === t.id) {
                 return `<div class="task-row task-row-macos">${this.renderInlineTaskEditor(t)}</div>`;
               }
+              const sawObj = t.sawId ? (Store.state.saw || []).find(s => s.id === t.sawId) : null;
+              const isBookTask = Boolean(sawObj && sawObj.isBookTracker);
+              const bookTitleSuffix = (isBookTask && sawObj.book && sawObj.book.bookTitle)
+                ? `: „${sawObj.book.bookTitle}”`
+                : '';
               const r = Store.state.roles.find(x => x.id === t.roleId);
               const rawDiff = D.diff(today, t.scheduledDate || today);
               const delay = Math.max(0, rawDiff);
@@ -1325,13 +1360,14 @@ const App = {
                   <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
                   <div class="task-main-col">
                     <div class="task-title-line">
-                      <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title)}</span>
+                      <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title + bookTitleSuffix)}</span>
                       ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
                       ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
                       ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
                       ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
                       ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
                     </div>
+                    ${isBookTask ? this.renderBookCardWidget(sawObj, t.id) : ''}
                     ${this.renderTaskNoteBlock(t)}
                   </div>
                   <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
@@ -1627,9 +1663,10 @@ const App = {
                     <input type="text" class="input-clean" style="font-weight:700; padding:6px 9px; margin-bottom:5px;" value="${this.esc(s.title)}" oninput="App.updateSawTitle('${s.id}', this.value)" placeholder="Nazwa zadania...">
                     <input type="text" class="input-clean" style="font-size:0.75rem; padding:4px 8px; color:var(--text-muted);" value="${this.esc(s.note || '')}" oninput="App.updateSawNote('${s.id}', this.value)" placeholder="Notatka (opcjonalnie)...">
                   ` : `
-                    <strong>${this.esc(s.title)}</strong>
+                    <strong>${this.esc(s.title)}${(s.isBookTracker && s.book && s.book.bookTitle) ? `: „${this.esc(s.book.bookTitle)}”` : ''}</strong>
                     ${s.note ? `<div style="font-size:0.74rem; color:var(--text-muted); margin-top:2px; white-space:pre-wrap;">${this.esc(s.note)}</div>` : ''}
                   `}
+                  ${s.isBookTracker ? this.renderBookSawPanel(s) : ''}
                   <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:5px;">
                     <span style="font-size:0.7rem; color:var(--text-muted); background:var(--surface-alt); border:1px solid var(--border); padding:1px 7px; border-radius:999px;">
                       📅 Start: <strong>${this.esc(startDate)}</strong>
@@ -2790,6 +2827,602 @@ const App = {
     this.editingCalendarRemId = null;
     const root = document.getElementById('modalRoot');
     if (root) root.innerHTML = '';
+  },
+
+  /* ---- SPERSONALIZOWANY SYSTEM CZYTANIA KSIĄŻKI (OSTRZENIE PIŁY + UMYSŁ & STUDIA) ---- */
+  _bookModalDays: [0, 1, 2, 3, 4, 5, 6],
+
+  countActiveDaysInRange(fromDate, toDate, actDays) {
+    if (!fromDate || !toDate || fromDate > toDate) return 0;
+    const act = (Array.isArray(actDays) && actDays.length) ? actDays : [0, 1, 2, 3, 4, 5, 6];
+    let cur = fromDate;
+    let cnt = 0;
+    let guard = 0;
+    while (cur <= toDate && guard++ < 1500) {
+      if (act.includes(D.dow(cur))) cnt++;
+      cur = D.addDays(cur, 1);
+    }
+    return cnt;
+  },
+
+  formatBookScheduleBreakdown(pages, days, prefix = 'po') {
+    const p = Math.max(0, parseInt(pages, 10) || 0);
+    const d = Math.max(1, parseInt(days, 10) || 1);
+    if (p <= 0) return '0 str. (książka ukończona!)';
+    if (d === 1) return `${p} str. (ostatni dzień planu)`;
+    const base = Math.floor(p / d);
+    const extra = p % d;
+    const normal = d - extra;
+    if (extra === 0) {
+      return `${prefix} ${base} str. dziennie (${d} dni)`;
+    }
+    if (base === 0) {
+      return `po 1 str. przez ${p} ${p === 1 ? 'dzień' : 'dni'}`;
+    }
+    return `${base} str. (${normal} ${normal === 1 ? 'dzień' : 'dni'} × ${base} str. i ${extra} ${extra === 1 ? 'dzień' : 'dni'} × ${base + 1} str.)`;
+  },
+
+  getBookStats(s, todayStr, overrideBook = null, overrideActDays = null) {
+    const today = todayStr || this.today();
+    const bk = overrideBook || (s && s.book) || {};
+    const totalPages = Math.max(0, parseInt(bk.totalPages, 10) || 0);
+    const targetDays = Math.max(1, parseInt(bk.targetDays, 10) || 7);
+    const planStartDate = /^\d{4}-\d{2}-\d{2}$/.test(String(bk.planStartDate || ''))
+      ? String(bk.planStartDate)
+      : today;
+    const targetEndDate = D.addDays(planStartDate, targetDays - 1);
+    const act = overrideActDays || ((s && Array.isArray(s.activeDays) && s.activeDays.length) ? s.activeDays : [0, 1, 2, 3, 4, 5, 6]);
+
+    const dailyLog = (bk.dailyLog && typeof bk.dailyLog === 'object') ? bk.dailyLog : {};
+    const readToday = Math.max(0, parseInt(dailyLog[today], 10) || 0);
+    const loggedSum = Object.values(dailyLog).reduce((acc, v) => acc + (Math.max(0, parseInt(v, 10) || 0)), 0);
+    const baseRead = Math.max(0, parseInt(bk.baseReadPages, 10) || 0);
+    const rawTotalRead = baseRead + loggedSum;
+    const totalRead = totalPages > 0 ? Math.min(totalPages, rawTotalRead) : rawTotalRead;
+    const readBeforeToday = Math.max(0, totalRead - readToday);
+
+    const remainingBeforeToday = Math.max(0, totalPages - readBeforeToday);
+    const remainingNow = Math.max(0, totalPages - totalRead);
+    const pct = totalPages > 0 ? Math.min(100, Math.round((totalRead / totalPages) * 100)) : 0;
+
+    const effStart = today > planStartDate ? today : planStartDate;
+    const rawDaysFromToday = today <= targetEndDate ? this.countActiveDaysInRange(effStart, targetEndDate, act) : 1;
+    const daysFromToday = Math.max(1, rawDaysFromToday);
+
+    const nextStart = D.addDays(effStart, 1);
+    const daysAfterToday = nextStart <= targetEndDate ? this.countActiveDaysInRange(nextStart, targetEndDate, act) : 0;
+
+    const todayQuota = remainingBeforeToday <= 0
+      ? 0
+      : Math.max(1, Math.floor(remainingBeforeToday / daysFromToday));
+
+    const nextDayQuota = remainingNow <= 0
+      ? 0
+      : (daysAfterToday > 0 ? Math.max(1, Math.floor(remainingNow / daysAfterToday)) : remainingNow);
+
+    const scheduleFromTodayLabel = this.formatBookScheduleBreakdown(remainingBeforeToday, daysFromToday, 'po');
+    const scheduleAfterTodayLabel = daysAfterToday > 0
+      ? this.formatBookScheduleBreakdown(remainingNow, daysAfterToday, 'po')
+      : `${remainingNow} str.`;
+
+    return {
+      bookTitle: String(bk.bookTitle || ''),
+      totalPages,
+      targetDays,
+      planStartDate,
+      targetEndDate,
+      readToday,
+      readBeforeToday,
+      totalRead,
+      remainingBeforeToday,
+      remainingNow,
+      pct,
+      daysFromToday,
+      daysAfterToday,
+      todayQuota,
+      nextDayQuota,
+      scheduleFromTodayLabel,
+      scheduleAfterTodayLabel,
+      isPastDeadline: today > targetEndDate && remainingNow > 0
+    };
+  },
+
+  setBookPagesToday(sawId, pagesVal, rerender = true) {
+    const s = (Store.state.saw || []).find(x => x.id === sawId);
+    if (!s) return;
+    const today = this.today();
+    if (!s.book || typeof s.book !== 'object') {
+      s.book = { bookId: 'bk_' + Date.now(), bookTitle: '', totalPages: 0, targetDays: 7, planStartDate: today, baseReadPages: 0, dailyLog: {}, dailyLogStamps: {}, updatedAt: Date.now() };
+    }
+    if (!s.book.dailyLog || typeof s.book.dailyLog !== 'object') s.book.dailyLog = {};
+    if (!s.book.dailyLogStamps || typeof s.book.dailyLogStamps !== 'object') s.book.dailyLogStamps = {};
+
+    const cleanPages = Math.max(0, parseInt(pagesVal, 10) || 0);
+    if (cleanPages > 0) {
+      s.book.dailyLog[today] = cleanPages;
+    } else {
+      delete s.book.dailyLog[today];
+    }
+    const now = Date.now();
+    s.book.dailyLogStamps[today] = now;
+    s.book.updatedAt = now;
+
+    if (rerender) {
+      this.save();
+      this.renderAll();
+    }
+  },
+
+  saveBookTodayFromInput(sawId, inputId) {
+    const inp = document.getElementById(inputId);
+    if (!inp) return;
+    const raw = inp.value.trim();
+    const pages = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0);
+    this.setBookPagesToday(sawId, pages, true);
+  },
+
+  completeBookDayFromCard(taskId, sawId, inputId) {
+    const s = (Store.state.saw || []).find(x => x.id === sawId);
+    if (!s) return;
+    const stats = this.getBookStats(s, this.today());
+    const inp = document.getElementById(inputId);
+    const raw = inp ? inp.value.trim() : '';
+    const pages = raw !== '' ? Math.max(0, parseInt(raw, 10) || 0) : stats.todayQuota;
+    this.setBookPagesToday(sawId, pages, false);
+    this.doneTask(taskId, true);
+  },
+
+  renderBookCardWidget(s, taskId) {
+    const today = this.today();
+    const st = this.getBookStats(s, today);
+    if (!st.totalPages) {
+      return `
+        <div class="book-tracker-box">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:0.74rem; color:var(--text-muted);">📖 Ustaw tytuł książki, liczbę stron i czas czytania:</span>
+            <button type="button" class="btn btn-primary" style="padding:3px 9px; font-size:0.72rem;" onclick="App.openBookSetupModal('${s.id}')">📖 Ustaw książkę</button>
+          </div>
+        </div>
+      `;
+    }
+
+    const inpId = `bookTodayInp_${taskId}`;
+    let statusHtml = '';
+    if (st.remainingNow <= 0) {
+      statusHtml = `
+        <div class="book-norm-badge done">
+          🎉 Książka przeczytana w całości (${st.totalPages}/${st.totalPages} str.)!
+        </div>
+      `;
+    } else if (st.readToday === 0) {
+      statusHtml = `
+        <div class="book-norm-badge">
+          🎯 Dziś do przeczytania: <strong>${st.todayQuota} str.</strong>
+          <div style="font-size:0.69rem; font-weight:500; opacity:0.9; margin-top:1px;">
+            Plan do ${this.esc(st.targetEndDate.slice(5))}: ${this.esc(st.scheduleFromTodayLabel)}
+          </div>
+        </div>
+      `;
+    } else if (st.readToday >= st.todayQuota) {
+      const bonus = st.readToday - st.todayQuota;
+      statusHtml = `
+        <div class="book-norm-badge done">
+          ✅ Dziś: <strong>${st.readToday} / ${st.todayQuota} str.</strong>${bonus > 0 ? ` (+${bonus} str. nadwyżki!)` : ''}
+          ${st.daysAfterToday > 0 ? `
+            <div style="font-size:0.69rem; font-weight:600; margin-top:1px;">
+              ⏭️ Od następnego dnia: <strong>${this.esc(st.scheduleAfterTodayLabel)}</strong>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    } else {
+      const leftToday = st.todayQuota - st.readToday;
+      statusHtml = `
+        <div class="book-norm-badge">
+          📖 Dziś: <strong>${st.readToday} / ${st.todayQuota} str.</strong> (zostało jeszcze ${leftToday} str. do normy)
+          ${st.daysAfterToday > 0 ? `
+            <div style="font-size:0.69rem; font-weight:500; opacity:0.9; margin-top:1px;">
+              Gdyby zakończyć dziś: od jutra ${this.esc(st.scheduleAfterTodayLabel)}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="book-tracker-box" onclick="event.stopPropagation()">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
+          <span style="font-size:0.73rem; font-weight:700; color:var(--text-main);">
+            📖 <strong>${st.totalRead} / ${st.totalPages} str.</strong> (${st.pct}%) · zostało ${st.remainingNow} str.
+          </span>
+          <button type="button" class="btn" style="padding:2px 7px; font-size:0.69rem;" onclick="App.openBookSetupModal('${s.id}')" title="Zmień książkę, liczbę stron lub dni czytania">
+            ${st.remainingNow <= 0 ? '📚 Nowa książka' : '⚙️ Książka'}
+          </button>
+        </div>
+        <div class="book-progress-track">
+          <div class="book-progress-fill" style="width:${st.pct}%;"></div>
+        </div>
+        ${statusHtml}
+        ${st.remainingNow > 0 || st.readToday > 0 ? `
+          <div class="book-quick-log-row">
+            <span style="font-size:0.72rem; font-weight:700; color:var(--text-muted);">Dziś przeczytano:</span>
+            <input type="number" id="${inpId}" min="0" max="${st.totalPages}" class="input-clean book-pages-input"
+              value="${st.readToday > 0 ? st.readToday : ''}" placeholder="${st.todayQuota}"
+              onchange="App.saveBookTodayFromInput('${s.id}', '${inpId}')"
+              onkeydown="if(event.key==='Enter'){event.preventDefault(); App.saveBookTodayFromInput('${s.id}', '${inpId}');}">
+            <span style="font-size:0.72rem; color:var(--text-muted);">str.</span>
+            <button type="button" class="btn" style="padding:3px 8px; font-size:0.71rem;" onclick="App.saveBookTodayFromInput('${s.id}', '${inpId}')" title="Zapisz dzisiejsze strony i przelicz plan">Przelicz</button>
+            <button type="button" class="btn btn-primary" style="padding:3px 9px; font-size:0.71rem; margin-left:auto;" onclick="App.completeBookDayFromCard('${taskId}', '${s.id}', '${inpId}')" title="Zapisz przeczytane dziś strony i odhacz dzisiejsze czytanie">✓ Odhacz dzień</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  },
+
+  renderBookSawPanel(s) {
+    const today = this.today();
+    const st = this.getBookStats(s, today);
+    if (!st.totalPages) {
+      return `
+        <div class="book-tracker-box" style="margin-top:6px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+            <span style="font-size:0.74rem; color:var(--text-muted);">📚 System czytania: ustaw tytuł książki, liczbę stron i w ile dni chcesz ją przeczytać</span>
+            <button type="button" class="btn btn-primary" style="padding:4px 10px; font-size:0.73rem;" onclick="App.openBookSetupModal('${s.id}')">📖 Ustaw książkę</button>
+          </div>
+        </div>
+      `;
+    }
+
+    const sawInpId = `sawBookToday_${s.id}`;
+    return `
+      <div class="book-tracker-box" style="margin-top:6px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+          <span style="font-size:0.74rem; font-weight:700;">
+            📖 Postęp: <strong>${st.totalRead} / ${st.totalPages} str.</strong> (${st.pct}%) · zostało <strong>${st.remainingNow} str.</strong> (cel: ${st.targetDays} dni do ${this.esc(st.targetEndDate)})
+          </span>
+          <button type="button" class="btn" style="padding:3px 9px; font-size:0.72rem;" onclick="App.openBookSetupModal('${s.id}')">📖 Edytuj / Zmień książkę</button>
+        </div>
+        <div class="book-progress-track">
+          <div class="book-progress-fill" style="width:${st.pct}%;"></div>
+        </div>
+        <div style="font-size:0.73rem; color:var(--text-muted); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+          <span>
+            ${st.remainingNow <= 0
+              ? '🎉 <strong>Książka ukończona!</strong>'
+              : (st.readToday > 0
+                  ? `✅ Dziś: <strong>${st.readToday} str.</strong> (norma była ${st.todayQuota} str.) · Kolejne dni: <strong>${this.esc(st.scheduleAfterTodayLabel)}</strong>`
+                  : `🎯 Norma na dziś: <strong>${st.todayQuota} str.</strong> · Harmonogram: <strong>${this.esc(st.scheduleFromTodayLabel)}</strong>`)}
+          </span>
+          <span style="display:inline-flex; align-items:center; gap:5px;">
+            <span>Dziś:</span>
+            <input type="number" id="${sawInpId}" min="0" max="${st.totalPages}" class="input-clean book-pages-input"
+              value="${st.readToday > 0 ? st.readToday : ''}" placeholder="${st.todayQuota}"
+              onchange="App.saveBookTodayFromInput('${s.id}', '${sawInpId}')">
+            <span>str.</span>
+          </span>
+        </div>
+      </div>
+    `;
+  },
+
+  openPrimaryBookModal() {
+    let bookSaw = (Store.state.saw || []).find(x => x && x.isBookTracker);
+    if (!bookSaw) {
+      bookSaw = (Store.state.saw || []).find(x => x && /(książk|ksiazk)/i.test(String(x.title || '')));
+    }
+    if (!bookSaw) {
+      const today = this.today();
+      bookSaw = {
+        id: 's_book_' + Date.now(),
+        title: '📚 Książka',
+        roleId: 'r2',
+        q: 2,
+        isBookTracker: true,
+        book: { bookId: 'bk_' + Date.now(), bookTitle: '', totalPages: 0, targetDays: 7, planStartDate: today, baseReadPages: 0, dailyLog: {}, dailyLogStamps: {}, updatedAt: Date.now() },
+        activeDays: [0, 1, 2, 3, 4, 5, 6],
+        doneDays: [],
+        spawnedDates: [],
+        dismissedDays: [],
+        startDate: today,
+        createdAt: Date.now()
+      };
+      Store.state.saw.unshift(bookSaw);
+      this.processDueReminders();
+      this.save();
+    } else {
+      bookSaw.isBookTracker = true;
+    }
+    this.openBookSetupModal(bookSaw.id);
+  },
+
+  openBookSetupModal(sawId) {
+    const root = document.getElementById('modalRoot');
+    const s = (Store.state.saw || []).find(x => x.id === sawId);
+    if (!root || !s) return;
+
+    const today = this.today();
+    const st = this.getBookStats(s, today);
+    this._bookModalDays = (Array.isArray(s.activeDays) && s.activeDays.length) ? [...s.activeDays] : [0, 1, 2, 3, 4, 5, 6];
+    const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
+
+    root.innerHTML = `
+      <div class="modal-backdrop" onclick="if(event.target===this) App.closeModal()">
+        <div class="modal" style="max-width:540px;">
+          <div class="modal-header">
+            <div>
+              <h3 style="font-size:1.1rem; font-weight:800;">📚 Spersonalizowany Plan Czytania Książki</h3>
+              <p style="font-size:0.76rem; color:var(--text-muted); margin-top:2px;">
+                System automatycznie wylicza dzienną normę stron i na bieżąco koryguje kolejne dni, gdy przeczytasz więcej lub mniej.
+              </p>
+            </div>
+            <button type="button" class="btn" onclick="App.closeModal()">✕</button>
+          </div>
+
+          <form id="bookSetupForm" data-saw-id="${s.id}" data-base-read="${st.readBeforeToday}" onsubmit="event.preventDefault(); App.saveBookSetup('${s.id}', this);" style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+              <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">📖 Tytuł aktualnie czytanej książki:</label>
+              <input type="text" name="bookTitle" class="input-clean" style="font-weight:700;" value="${this.esc(st.bookTitle)}" placeholder="np. Atomowe Nawyki, 7 Nawyków Skutecznego Działania..." autofocus oninput="App.refreshBookModalPreview()">
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div>
+                <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">📄 Ile stron ma cała książka:</label>
+                <input type="number" name="totalPages" min="1" max="10000" class="input-clean" style="font-weight:800;" value="${st.totalPages > 0 ? st.totalPages : ''}" placeholder="np. 70" required oninput="App.refreshBookModalPreview()">
+              </div>
+              <div>
+                <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">🗓️ W ile dni chcesz ją przeczytać:</label>
+                <input type="number" name="targetDays" min="1" max="365" class="input-clean" style="font-weight:800;" value="${st.targetDays}" required oninput="App.refreshBookModalPreview()">
+              </div>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+              <span style="font-size:0.71rem; color:var(--text-muted); font-weight:700;">Szybki wybór czasu:</span>
+              <button type="button" class="btn" style="padding:3px 8px; font-size:0.72rem;" onclick="App.setBookModalPresetDays(7)">7 dni (tydzień)</button>
+              <button type="button" class="btn" style="padding:3px 8px; font-size:0.72rem;" onclick="App.setBookModalPresetDays(14)">14 dni (2 tyg.)</button>
+              <button type="button" class="btn" style="padding:3px 8px; font-size:0.72rem;" onclick="App.setBookModalPresetDays(21)">21 dni (3 tyg.)</button>
+              <button type="button" class="btn" style="padding:3px 8px; font-size:0.72rem;" onclick="App.setBookModalPresetDays(30)">30 dni (miesiąc)</button>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div>
+                <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">🔖 Przeczytane już strony (łącznie):</label>
+                <input type="number" name="totalRead" min="0" max="10000" class="input-clean" style="font-weight:700;" value="${st.totalRead}" oninput="App.onBookModalTotalReadChange(this.form)">
+              </div>
+              <div>
+                <label style="font-size:0.74rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">✍️ W tym przeczytane dzisiaj (${today.slice(5)}):</label>
+                <input type="number" name="readToday" min="0" max="10000" class="input-clean" style="font-weight:700;" value="${st.readToday}" oninput="App.onBookModalTodayChange(this.form)">
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end;">
+              <div>
+                <label style="font-size:0.73rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">📅 Data startu odliczania planu:</label>
+                <input type="date" name="planStartDate" class="input-clean" style="font-weight:600;" value="${this.esc(st.planStartDate)}" onchange="App.refreshBookModalPreview()">
+              </div>
+              <button type="button" class="btn" style="padding:8px 10px; font-size:0.73rem;" onclick="document.querySelector('#bookSetupForm [name=planStartDate]').value='${today}'; App.refreshBookModalPreview();">Licz od dziś</button>
+            </div>
+
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; flex-wrap:wrap; gap:6px;">
+                <label style="font-size:0.73rem; font-weight:700; color:var(--text-muted);">📆 Dni tygodnia, w które czytasz (wskakuje do Umysł & Studia):</label>
+                <button type="button" class="btn" style="padding:2px 8px; font-size:0.7rem;" onclick="App.setBookModalAllDays()">Codziennie (Pn–Nd)</button>
+              </div>
+              <div class="week-dots" id="bookModalDaysWrap" style="gap:6px;">
+                ${days.map((dLabel, dIdx) => `
+                  <button type="button" class="dot-btn ${this._bookModalDays.includes(dIdx) ? 'done' : ''}" style="width:34px; height:34px; font-size:0.78rem;" onclick="App.toggleBookModalDay(${dIdx})">${dLabel}</button>
+                `).join('')}
+              </div>
+            </div>
+
+            <div id="bookModalLivePreview" class="book-norm-badge" style="padding:10px 12px;"></div>
+
+            <div style="display:flex; gap:8px; justify-content:space-between; flex-wrap:wrap; padding-top:4px;">
+              ${st.totalPages > 0 ? `
+                <button type="button" class="btn" style="font-size:0.75rem; color:var(--crimson);" onclick="App.resetForNewBook('${s.id}')">🔄 Nowa książka (wyzeruj)</button>
+              ` : `<span></span>`}
+              <div style="display:flex; gap:8px; margin-left:auto;">
+                <button type="button" class="btn" onclick="App.closeModal()">Anuluj</button>
+                <button type="submit" class="btn btn-primary" style="padding:9px 18px;">✓ Zapisz plan książki</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    this.refreshBookModalPreview();
+  },
+
+  setBookModalPresetDays(n) {
+    const form = document.getElementById('bookSetupForm');
+    if (!form) return;
+    form.targetDays.value = String(n);
+    this.refreshBookModalPreview();
+  },
+
+  setBookModalAllDays() {
+    this._bookModalDays = [0, 1, 2, 3, 4, 5, 6];
+    this.rerenderBookModalDays();
+    this.refreshBookModalPreview();
+  },
+
+  toggleBookModalDay(idx) {
+    const i = this._bookModalDays.indexOf(idx);
+    if (i >= 0) {
+      if (this._bookModalDays.length <= 1) return; // Zostaw min. 1 dzień czytania
+      this._bookModalDays.splice(i, 1);
+    } else {
+      this._bookModalDays.push(idx);
+    }
+    this._bookModalDays.sort((a, b) => a - b);
+    this.rerenderBookModalDays();
+    this.refreshBookModalPreview();
+  },
+
+  rerenderBookModalDays() {
+    const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
+    const wrap = document.getElementById('bookModalDaysWrap');
+    if (!wrap) return;
+    wrap.innerHTML = days.map((dLabel, dIdx) => `
+      <button type="button" class="dot-btn ${this._bookModalDays.includes(dIdx) ? 'done' : ''}" style="width:34px; height:34px; font-size:0.78rem;" onclick="App.toggleBookModalDay(${dIdx})">${dLabel}</button>
+    `).join('');
+  },
+
+  onBookModalTodayChange(form) {
+    if (!form) return;
+    const baseRead = Math.max(0, parseInt(form.dataset.baseRead, 10) || 0);
+    const readToday = Math.max(0, parseInt(form.readToday.value, 10) || 0);
+    const totalPages = Math.max(0, parseInt(form.totalPages.value, 10) || 0);
+    const combined = baseRead + readToday;
+    form.totalRead.value = String(totalPages > 0 ? Math.min(totalPages, combined) : combined);
+    this.refreshBookModalPreview();
+  },
+
+  onBookModalTotalReadChange(form) {
+    if (!form) return;
+    const totalRead = Math.max(0, parseInt(form.totalRead.value, 10) || 0);
+    let readToday = Math.max(0, parseInt(form.readToday.value, 10) || 0);
+    if (readToday > totalRead) {
+      readToday = totalRead;
+      form.readToday.value = String(readToday);
+    }
+    form.dataset.baseRead = String(Math.max(0, totalRead - readToday));
+    this.refreshBookModalPreview();
+  },
+
+  refreshBookModalPreview() {
+    const form = document.getElementById('bookSetupForm');
+    const preview = document.getElementById('bookModalLivePreview');
+    if (!form || !preview) return;
+    const today = this.today();
+    const totalPages = Math.max(0, parseInt(form.totalPages.value, 10) || 0);
+    const targetDays = Math.max(1, parseInt(form.targetDays.value, 10) || 7);
+    const planStartDate = form.planStartDate.value || today;
+    const readToday = Math.max(0, parseInt(form.readToday.value, 10) || 0);
+    const totalRead = Math.max(0, parseInt(form.totalRead.value, 10) || 0);
+    const baseReadPages = Math.max(0, totalRead - readToday);
+
+    if (!totalPages) {
+      preview.innerHTML = 'Wpisz łączną liczbę stron książki powyżej, aby zobaczyć wyliczenie dziennej normy.';
+      return;
+    }
+
+    const tempBook = {
+      bookTitle: form.bookTitle.value.trim(),
+      totalPages,
+      targetDays,
+      planStartDate,
+      baseReadPages,
+      dailyLog: readToday > 0 ? { [today]: readToday } : {}
+    };
+    const st = this.getBookStats(null, today, tempBook, this._bookModalDays);
+
+    if (st.remainingNow <= 0) {
+      preview.innerHTML = `🎉 Wszystkie strony (${totalPages}/${totalPages}) oznaczone jako przeczytane!`;
+      return;
+    }
+
+    const daysWarn = this._bookModalDays.length < 7
+      ? `<div style="font-size:0.7rem; font-weight:500; opacity:0.85; margin-top:3px;">ℹ️ Wybrano ${this._bookModalDays.length} dni czytania w tygodniu (${st.daysFromToday} dni czytania do ${st.targetEndDate}).</div>`
+      : '';
+
+    if (st.readToday > 0) {
+      preview.innerHTML = `
+        <div>📊 Dzisiejsza norma wynosiła: <strong>${st.todayQuota} str.</strong> · Wpisano dziś: <strong>${st.readToday} str.</strong> (zostało łącznie ${st.remainingNow} str.)</div>
+        ${st.daysAfterToday > 0
+          ? `<div style="margin-top:3px;">⏭️ Przeliczona norma od kolejnego dnia (${st.daysAfterToday} dni czytania do ${st.targetEndDate}): <strong>${this.esc(st.scheduleAfterTodayLabel)}</strong></div>`
+          : `<div style="margin-top:3px;">📅 Koniec planu dzisiaj — pozostało: <strong>${st.remainingNow} str.</strong></div>`}
+        ${daysWarn}
+      `;
+    } else {
+      preview.innerHTML = `
+        <div>🎯 Wyliczona norma na dziś: <strong>${st.todayQuota} str.</strong> (pozostało ${st.remainingNow} z ${st.totalPages} str.)</div>
+        <div style="margin-top:2px; font-weight:600;">📅 Harmonogram do ${st.targetEndDate}: <strong>${this.esc(st.scheduleFromTodayLabel)}</strong></div>
+        ${daysWarn}
+      `;
+    }
+  },
+
+  resetForNewBook(sawId) {
+    if (!confirm('Czy na pewno chcesz wyzerować postęp i rozpocząć nową książkę od 0 stron?')) return;
+    const s = (Store.state.saw || []).find(x => x.id === sawId);
+    if (!s) return;
+    const today = this.today();
+    s.book = {
+      bookId: 'bk_' + Date.now(),
+      bookTitle: '',
+      totalPages: 0,
+      targetDays: 7,
+      planStartDate: today,
+      baseReadPages: 0,
+      dailyLog: {},
+      dailyLogStamps: {},
+      updatedAt: Date.now()
+    };
+    this.save();
+    this.renderAll();
+    this.openBookSetupModal(sawId);
+  },
+
+  saveBookSetup(sawId, form) {
+    const s = (Store.state.saw || []).find(x => x.id === sawId);
+    if (!s || !form) return;
+    const today = this.today();
+    const bookTitle = form.bookTitle.value.trim();
+    const totalPages = Math.max(1, parseInt(form.totalPages.value, 10) || 0);
+    if (!totalPages) {
+      alert('Podaj liczbę stron książki (większą od 0).');
+      return;
+    }
+    const targetDays = Math.max(1, parseInt(form.targetDays.value, 10) || 7);
+    const planStartDate = form.planStartDate.value || today;
+    const readToday = Math.max(0, parseInt(form.readToday.value, 10) || 0);
+    const totalRead = Math.min(totalPages, Math.max(readToday, parseInt(form.totalRead.value, 10) || 0));
+
+    const prevBook = (s.book && typeof s.book === 'object') ? s.book : {};
+    const isSameBook = prevBook.bookTitle === bookTitle && prevBook.totalPages === totalPages && prevBook.bookId;
+    const nextLog = isSameBook && prevBook.dailyLog ? { ...prevBook.dailyLog } : {};
+    const nextStamps = isSameBook && prevBook.dailyLogStamps ? { ...prevBook.dailyLogStamps } : {};
+
+    if (readToday > 0) {
+      nextLog[today] = readToday;
+    } else {
+      delete nextLog[today];
+    }
+    const now = Date.now();
+    nextStamps[today] = now;
+
+    const otherDaysLoggedSum = Object.keys(nextLog)
+      .filter(dk => dk !== today)
+      .reduce((acc, dk) => acc + (Math.max(0, parseInt(nextLog[dk], 10) || 0)), 0);
+    const baseReadPages = Math.max(0, totalRead - readToday - otherDaysLoggedSum);
+
+    // Jeśli suma wcześniejszych logów z innych dni przekracza nowe totalRead (np. użytkownik ręcznie zmniejszył „przeczytane łącznie”), wyczyść stare logi i oprzyj się na aktualnej wartości
+    if (otherDaysLoggedSum + readToday > totalRead) {
+      Object.keys(nextLog).forEach(dk => { if (dk !== today) delete nextLog[dk]; });
+    }
+
+    s.isBookTracker = true;
+    s.freq = 'weekdays';
+    s.activeDays = [...this._bookModalDays];
+    if (!s.roleId) s.roleId = 'r2';
+    s.book = {
+      bookId: isSameBook ? prevBook.bookId : ('bk_' + now),
+      bookTitle,
+      totalPages,
+      targetDays,
+      planStartDate,
+      baseReadPages: (otherDaysLoggedSum + readToday > totalRead) ? Math.max(0, totalRead - readToday) : baseReadPages,
+      dailyLog: nextLog,
+      dailyLogStamps: nextStamps,
+      updatedAt: now
+    };
+
+    // Jeśli dziś jest aktywnym dniem czytania i nie odhaczono jeszcze dzisiaj, upewnij się że karta Książki jest widoczna w Umysł & Studia
+    this.processDueReminders();
+    this.save();
+    this.closeModal();
+    this.renderAll();
   },
 
   /* ---- SZYBKI NOTATNIK (BRUDNOPIS W GŁÓWNYM WIDOKU Z POGRUBIANIEM) ---- */

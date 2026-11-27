@@ -57,6 +57,30 @@ const Seed = {
       laterFolders: [],
       reminders: [],
       saw: [
+        {
+          id: 's_book',
+          title: '📚 Książka',
+          roleId: 'r2',
+          q: 2,
+          isBookTracker: true,
+          book: {
+            bookId: 'bk_default',
+            bookTitle: '',
+            totalPages: 0,
+            targetDays: 7,
+            planStartDate: '',
+            baseReadPages: 0,
+            dailyLog: {},
+            dailyLogStamps: {},
+            updatedAt: 1
+          },
+          activeDays: [0, 1, 2, 3, 4, 5, 6],
+          doneDays: [],
+          spawnedDates: [],
+          dismissedDays: [],
+          createdAt: 1,
+          updatedAt: 1
+        },
         { id: 's1', title: '🚶‍♂️ Wyjście na spacer', roleId: 'r1', q: 2, activeDays: [0, 1, 2, 3, 4, 5, 6], doneDays: [], spawnedDates: [], dismissedDays: [], createdAt: 1, updatedAt: 1 },
         { id: 's2', title: '📓 Pisanie dziennika', roleId: 'r2', q: 2, activeDays: [0, 1, 2, 3, 4, 5, 6], doneDays: [], spawnedDates: [], dismissedDays: [], createdAt: 1, updatedAt: 1 },
         { id: 's3', title: '🧭 Planowanie tygodnia i przegląd celów', roleId: 'r2', q: 2, activeDays: [0], doneDays: [], spawnedDates: [], dismissedDays: [], createdAt: 1, updatedAt: 1 },

@@ -534,6 +534,60 @@ button { cursor: pointer; }
   align-items: center;
   gap: 6px;
 }
+/* ---- SPERSONALIZOWANY SYSTEM CZYTANIA KSIĄŻKI ---- */
+.book-tracker-box {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.book-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--surface-hover);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.book-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #10b981);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+.book-norm-badge {
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--accent-light);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  line-height: 1.38;
+}
+.book-norm-badge.done {
+  background: var(--emerald-light);
+  color: var(--emerald);
+  border-color: var(--emerald-border);
+}
+.book-quick-log-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 2px;
+}
+.book-pages-input {
+  width: 64px !important;
+  padding: 4px 7px !important;
+  font-size: 0.78rem !important;
+  font-weight: 800 !important;
+  text-align: center;
+}
+
 .mobile-q-legend-toggle {
   display: none;
 }
@@ -1224,6 +1278,10 @@ button { cursor: pointer; }
   }
   .quarterly-goals-bar.mobile-open {
     display: grid;
+  }
+  .book-pages-input {
+    font-size: 16px !important;
+    width: 72px !important;
   }
   .mobile-q-legend-toggle {
     display: flex !important;

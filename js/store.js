@@ -109,6 +109,33 @@ const Store = {
       }
       s.restoredDefaultSawV135 = true;
     }
+
+    // Automatyczne podpięcie / dodanie spersonalizowanego systemu czytania Książki w Ostrzeniu Piły (domyślnie Umysł & Studia)
+    let bookTrackerItem = s.saw.find(x => x && x.isBookTracker);
+    if (!bookTrackerItem) {
+      bookTrackerItem = s.saw.find(x => x && /(książk|ksiazk|czytanie książ|lektura)/i.test(String(x.title || '').trim()));
+      if (bookTrackerItem) {
+        bookTrackerItem.isBookTracker = true;
+      } else if (!s.addedDefaultBookTrackerV158 && !(s.deleted && s.deleted['saw:s_book'])) {
+        bookTrackerItem = {
+          id: 's_book',
+          title: '📚 Książka',
+          roleId: 'r2',
+          q: 2,
+          isBookTracker: true,
+          activeDays: [0, 1, 2, 3, 4, 5, 6],
+          doneDays: [],
+          dismissedDays: [],
+          startDate: todayStr,
+          spawnedDates: [],
+          createdAt: 1,
+          updatedAt: 1
+        };
+        s.saw.unshift(bookTrackerItem);
+      }
+      s.addedDefaultBookTrackerV158 = true;
+    }
+
     s.saw.forEach(item => {
       if (!item || typeof item !== 'object') return;
       if (!item.startDate) item.startDate = todayStr;
@@ -117,6 +144,33 @@ const Store = {
       if (!Array.isArray(item.spawnedDates)) item.spawnedDates = [];
       if (!Array.isArray(item.doneDays)) item.doneDays = [];
       if (!Array.isArray(item.dismissedDays)) item.dismissedDays = [];
+      if (item.isBookTracker) {
+        const bk = (item.book && typeof item.book === 'object') ? item.book : {};
+        const cleanLog = {};
+        if (bk.dailyLog && typeof bk.dailyLog === 'object') {
+          Object.keys(bk.dailyLog).forEach(dk => {
+            const v = Math.max(0, parseInt(bk.dailyLog[dk], 10) || 0);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dk) && v > 0) cleanLog[dk] = v;
+          });
+        }
+        const cleanStamps = {};
+        if (bk.dailyLogStamps && typeof bk.dailyLogStamps === 'object') {
+          Object.keys(bk.dailyLogStamps).forEach(dk => {
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dk)) cleanStamps[dk] = Number(bk.dailyLogStamps[dk]) || 0;
+          });
+        }
+        item.book = {
+          bookId: String(bk.bookId || 'bk_default'),
+          bookTitle: String(bk.bookTitle || ''),
+          totalPages: Math.max(0, parseInt(bk.totalPages, 10) || 0),
+          targetDays: Math.max(1, parseInt(bk.targetDays, 10) || 7),
+          planStartDate: /^\d{4}-\d{2}-\d{2}$/.test(String(bk.planStartDate || '')) ? String(bk.planStartDate) : (item.startDate || todayStr),
+          baseReadPages: Math.max(0, parseInt(bk.baseReadPages, 10) || 0),
+          dailyLog: cleanLog,
+          dailyLogStamps: cleanStamps,
+          updatedAt: Number(bk.updatedAt) || 1
+        };
+      }
       if (!item.roleId || !s.roles.some(r => r.id === item.roleId)) {
         const d = String(item.dim || '').toLowerCase();
         if (d.includes('umysł') || d.includes('studia') || d.includes('duch') || /dziennik|planowanie/i.test(item.title)) item.roleId = 'r2';
@@ -292,11 +346,44 @@ const Store = {
       const sb = this._stampOf(it);
       const win = { ...((sb > sa || (sb === sa && JSON.stringify(it) > JSON.stringify(cur))) ? it : cur) };
 
-      // Dla Ostrzenia Piły zawsze łączymy (unia) wykonane dni, wygenerowane daty oraz odrzucone dni
+      // Dla Ostrzenia Piły zawsze łączymy (unia) wykonane dni, wygenerowane daty oraz odrzucone dni + postęp książki
       if (col === 'saw') {
         win.doneDays = [...new Set([...(cur.doneDays || []), ...(it.doneDays || [])])];
         win.spawnedDates = [...new Set([...(cur.spawnedDates || []), ...(it.spawnedDates || [])])];
         win.dismissedDays = [...new Set([...(cur.dismissedDays || []), ...(it.dismissedDays || [])])];
+        if (cur.isBookTracker || it.isBookTracker) {
+          win.isBookTracker = true;
+          const ba = cur.book || {};
+          const bb = it.book || {};
+          const tba = Number(ba.updatedAt) || 0;
+          const tbb = Number(bb.updatedAt) || 0;
+          if ((ba.bookId || 'bk_default') !== (bb.bookId || 'bk_default')) {
+            win.book = JSON.parse(JSON.stringify(tbb >= tba ? bb : ba));
+          } else {
+            const newer = tbb >= tba ? bb : ba;
+            const mergedLog = {};
+            const mergedStamps = {};
+            const saMap = ba.dailyLogStamps || {};
+            const sbMap = bb.dailyLogStamps || {};
+            const allDays = new Set([...Object.keys(ba.dailyLog || {}), ...Object.keys(bb.dailyLog || {}), ...Object.keys(saMap), ...Object.keys(sbMap)]);
+            allDays.forEach(dk => {
+              const dsa = Number(saMap[dk]) || 0;
+              const dsb = Number(sbMap[dk]) || 0;
+              let val = 0;
+              if (dsb > dsa) val = Number((bb.dailyLog || {})[dk]) || 0;
+              else if (dsa > dsb) val = Number((ba.dailyLog || {})[dk]) || 0;
+              else val = Math.max(Number((ba.dailyLog || {})[dk]) || 0, Number((bb.dailyLog || {})[dk]) || 0);
+              if (val > 0) mergedLog[dk] = val;
+              if (Math.max(dsa, dsb) > 0) mergedStamps[dk] = Math.max(dsa, dsb);
+            });
+            win.book = {
+              ...newer,
+              dailyLog: mergedLog,
+              dailyLogStamps: mergedStamps,
+              updatedAt: Math.max(tba, tbb)
+            };
+          }
+        }
       }
 
       // Dla przypomnień kalendarza: jeśli na którymkolwiek urządzeniu zostało odhaczone jako wykonane, pozostaje wykonane
@@ -439,6 +526,11 @@ const Store = {
         const copy = { ...it };
         delete copy.updatedAt;
         delete copy.createdAt;
+        if (copy.book && typeof copy.book === 'object') {
+          copy.book = { ...copy.book };
+          delete copy.book.updatedAt;
+          delete copy.book.dailyLogStamps;
+        }
         return copy;
       }).sort((x, y) => (String(x?.id) > String(y?.id) ? 1 : -1));
     });
