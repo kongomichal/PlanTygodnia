@@ -164,12 +164,19 @@ const Store = {
           bookTitle: String(bk.bookTitle || ''),
           totalPages: Math.max(0, parseInt(bk.totalPages, 10) || 0),
           targetDays: Math.max(1, parseInt(bk.targetDays, 10) || 7),
-          planStartDate: /^\d{4}-\d{2}-\d{2}$/.test(String(bk.planStartDate || '')) ? String(bk.planStartDate) : (item.startDate || todayStr),
+          planStartDate: /^\d{4}-\d{2}-\d{2}$/.test(String(bk.planStartDate || '')) ? String(bk.planStartDate) : todayStr,
           baseReadPages: Math.max(0, parseInt(bk.baseReadPages, 10) || 0),
           dailyLog: cleanLog,
           dailyLogStamps: cleanStamps,
           updatedAt: Number(bk.updatedAt) || 1
         };
+        if (!s.fixedInitialBookStartV159) {
+          if (item.book.baseReadPages === 0 && Object.keys(cleanLog).length === 0 && item.book.planStartDate < todayStr) {
+            item.book.planStartDate = todayStr;
+            item.book.updatedAt = Date.now();
+          }
+          s.fixedInitialBookStartV159 = true;
+        }
       }
       if (!item.roleId || !s.roles.some(r => r.id === item.roleId)) {
         const d = String(item.dim || '').toLowerCase();

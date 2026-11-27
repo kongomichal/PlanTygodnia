@@ -525,25 +525,27 @@ const App = {
                 const dblAttr = !t.sawId ? `ondblclick="App.startEditTask('${t.id}', event)"` : '';
                 const dblTitle = !t.sawId ? `title="Kliknij dwukrotnie, aby edytować przypomnienie"` : '';
                 return `
-                  <div class="task-row task-row-macos ${!t.sawId ? 'task-row-editable' : ''}" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}" ${dblAttr}>
-                    <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
-                    <div class="task-main-col">
-                      <div class="task-title-line">
-                        <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title + bookTitleSuffix)}</span>
-                        ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
-                        ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
-                        ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
-                        ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
-                        ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
+                  <div class="task-row task-row-macos ${isBookTask ? 'task-row-book' : ''} ${!t.sawId ? 'task-row-editable' : ''}" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}" ${dblAttr}>
+                    <div class="task-row-top">
+                      <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
+                      <div class="task-main-col">
+                        <div class="task-title-line">
+                          <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title + bookTitleSuffix)}</span>
+                          ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
+                          ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
+                          ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
+                          ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
+                          ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;" title="Zaplanowane na: ${t.scheduledDate} — opóźnienie: ${delay} dni">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
+                        </div>
+                        ${this.renderTaskNoteBlock(t)}
                       </div>
-                      ${isBookTask ? this.renderBookCardWidget(sawObj, t.id) : ''}
-                      ${this.renderTaskNoteBlock(t)}
+                      <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
+                        ${this.renderQTagWithTooltip(t.id, t.q || 2)}
+                        <button type="button" class="btn" style="padding:2px 6px; font-size:0.74rem; line-height:1;" onclick="App.openRescheduleModal('${t.id}', 'task')" title="Zmień datę zadania (przełóż na inny dzień)">📅</button>
+                        <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z tego filaru, z Matrycy i z Kalendarza)">✕</button>
+                      </div>
                     </div>
-                    <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
-                      ${this.renderQTagWithTooltip(t.id, t.q || 2)}
-                      <button type="button" class="btn" style="padding:2px 6px; font-size:0.74rem; line-height:1;" onclick="App.openRescheduleModal('${t.id}', 'task')" title="Zmień datę zadania (przełóż na inny dzień)">📅</button>
-                      <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z tego filaru, z Matrycy i z Kalendarza)">✕</button>
-                    </div>
+                    ${isBookTask ? this.renderBookCardWidget(sawObj, t.id) : ''}
                   </div>
                 `;
               }).join('')}
@@ -1356,26 +1358,28 @@ const App = {
               const dblAttr = !t.sawId ? `ondblclick="App.startEditTask('${t.id}', event)"` : '';
               const dblTitle = !t.sawId ? `title="Kliknij dwukrotnie, aby edytować przypomnienie"` : '';
               return `
-                <div class="task-row task-row-macos ${!t.sawId ? 'task-row-editable' : ''}" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}" ${dblAttr}>
-                  <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
-                  <div class="task-main-col">
-                    <div class="task-title-line">
-                      <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title + bookTitleSuffix)}</span>
-                      ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
-                      ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
-                      ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
-                      ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
-                      ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
+                <div class="task-row task-row-macos ${isBookTask ? 'task-row-book' : ''} ${!t.sawId ? 'task-row-editable' : ''}" style="${t.sawId ? 'border-left: 3px solid var(--emerald);' : ''}" ${dblAttr}>
+                  <div class="task-row-top">
+                    <button class="check-circle" style="margin-top:2px;" onclick="App.doneTask('${t.id}')" title="Odhacz jako wykonane">✓</button>
+                    <div class="task-main-col">
+                      <div class="task-title-line">
+                        <span class="task-title-main ${!t.sawId ? 'task-editable-title' : ''}" ${dblTitle}>${this.esc(t.title + bookTitleSuffix)}</span>
+                        ${t.isGoalSubtask ? `<span style="font-size:0.65rem; color:var(--accent); background:var(--accent-light); border:1px solid var(--border); padding:1px 6px; border-radius:999px; font-weight:800;">🎯 Cel</span>` : ''}
+                        ${t.sawId ? `<span style="font-size:0.65rem; color:var(--emerald); background:var(--emerald-light); padding:1px 6px; border-radius:999px; font-weight:700;">🪚 ${this.esc((t.sawDate || '').slice(5))}</span>` : ''}
+                        ${t.fromCalendarDate ? `<span style="font-size:0.68rem; color:var(--accent); background:var(--accent-light); padding:1px 6px; border-radius:999px; font-weight:700;">📅 ${t.fromCalendarDate.slice(5)}</span>` : ''}
+                        ${daysUntil > 0 ? `<span style="font-size:0.68rem; color:var(--amber); background:var(--amber-light); border:1px solid rgba(217,119,6,0.3); padding:1px 7px; border-radius:999px; font-weight:800;" title="Przypomnienie z wyprzedzeniem — termin właściwy: ${t.scheduledDate}">🔔 Termin za ${daysUntil} ${daysUntil === 1 ? 'dzień' : 'dni'} (${this.esc((t.scheduledDate || '').slice(5))})</span>` : ''}
+                        ${delay > 0 ? `<span style="font-size:0.68rem; color:var(--crimson); background:var(--crimson-light); border:1px solid rgba(220,38,38,0.25); padding:1px 7px; border-radius:999px; font-weight:800;">⏳ ${delay} ${delay === 1 ? 'dzień' : 'dni'} opóźnienia</span>` : ''}
+                      </div>
+                      ${this.renderTaskNoteBlock(t)}
                     </div>
-                    ${isBookTask ? this.renderBookCardWidget(sawObj, t.id) : ''}
-                    ${this.renderTaskNoteBlock(t)}
+                    <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
+                      <span style="font-size:0.72rem; color:var(--text-muted); cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--surface);" onclick="App.cycleRole('${t.id}')" title="Kliknij, aby zmienić rodzaj (Ciało / Umysł / Relacje / Finanse)">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
+                      ${this.renderQTagWithTooltip(t.id, t.q || 2)}
+                      <button type="button" class="btn" style="padding:2px 6px; font-size:0.74rem; line-height:1;" onclick="App.openRescheduleModal('${t.id}', 'task')" title="Zmień datę zadania (przełóż na inny dzień)">📅</button>
+                      <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z Filaru, Matrycy i Kalendarza)">✕</button>
+                    </div>
                   </div>
-                  <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
-                    <span style="font-size:0.72rem; color:var(--text-muted); cursor:pointer; padding:2px 6px; border-radius:4px; background:var(--surface);" onclick="App.cycleRole('${t.id}')" title="Kliknij, aby zmienić rodzaj (Ciało / Umysł / Relacje / Finanse)">${r ? r.emoji + ' ' + this.esc(r.name) : ''}</span>
-                    ${this.renderQTagWithTooltip(t.id, t.q || 2)}
-                    <button type="button" class="btn" style="padding:2px 6px; font-size:0.74rem; line-height:1;" onclick="App.openRescheduleModal('${t.id}', 'task')" title="Zmień datę zadania (przełóż na inny dzień)">📅</button>
-                    <button type="button" class="btn" style="padding:2px 7px; font-size:0.74rem; line-height:1;" onclick="App.deleteActiveTask('${t.id}')" title="Usuń przypomnienie / zadanie (zniknie z Filaru, Matrycy i Kalendarza)">✕</button>
-                  </div>
+                  ${isBookTask ? this.renderBookCardWidget(sawObj, t.id) : ''}
                 </div>
               `;
             }).join('') : `<div style="color:var(--text-dim); font-size:0.8rem; margin:auto 0; text-align:center;">Brak zadań w tej ćwiartce</div>`}
@@ -2991,68 +2995,59 @@ const App = {
     if (st.remainingNow <= 0) {
       statusHtml = `
         <div class="book-norm-badge done">
-          🎉 Książka przeczytana w całości (${st.totalPages}/${st.totalPages} str.)!
+          <span>🎉 Książka przeczytana w całości (${st.totalPages}/${st.totalPages} str.)!</span>
         </div>
       `;
     } else if (st.readToday === 0) {
       statusHtml = `
         <div class="book-norm-badge">
-          🎯 Dziś do przeczytania: <strong>${st.todayQuota} str.</strong>
-          <div style="font-size:0.69rem; font-weight:500; opacity:0.9; margin-top:1px;">
-            Plan do ${this.esc(st.targetEndDate.slice(5))}: ${this.esc(st.scheduleFromTodayLabel)}
-          </div>
+          <span>🎯 Dziś: <strong>${st.todayQuota} str.</strong></span>
+          <span style="font-size:0.68rem; font-weight:500; opacity:0.9;">do ${this.esc(st.targetEndDate.slice(5))}: ${this.esc(st.scheduleFromTodayLabel)}</span>
         </div>
       `;
     } else if (st.readToday >= st.todayQuota) {
       const bonus = st.readToday - st.todayQuota;
       statusHtml = `
         <div class="book-norm-badge done">
-          ✅ Dziś: <strong>${st.readToday} / ${st.todayQuota} str.</strong>${bonus > 0 ? ` (+${bonus} str. nadwyżki!)` : ''}
-          ${st.daysAfterToday > 0 ? `
-            <div style="font-size:0.69rem; font-weight:600; margin-top:1px;">
-              ⏭️ Od następnego dnia: <strong>${this.esc(st.scheduleAfterTodayLabel)}</strong>
-            </div>
-          ` : ''}
+          <span>✅ Dziś: <strong>${st.readToday}/${st.todayQuota} str.</strong>${bonus > 0 ? ` (+${bonus})` : ''}</span>
+          ${st.daysAfterToday > 0 ? `<span style="font-size:0.68rem; font-weight:600;">⏭️ Jutro: ${this.esc(st.scheduleAfterTodayLabel)}</span>` : ''}
         </div>
       `;
     } else {
       const leftToday = st.todayQuota - st.readToday;
       statusHtml = `
         <div class="book-norm-badge">
-          📖 Dziś: <strong>${st.readToday} / ${st.todayQuota} str.</strong> (zostało jeszcze ${leftToday} str. do normy)
-          ${st.daysAfterToday > 0 ? `
-            <div style="font-size:0.69rem; font-weight:500; opacity:0.9; margin-top:1px;">
-              Gdyby zakończyć dziś: od jutra ${this.esc(st.scheduleAfterTodayLabel)}
-            </div>
-          ` : ''}
+          <span>📖 Dziś: <strong>${st.readToday}/${st.todayQuota} str.</strong> (brakuje ${leftToday})</span>
+          ${st.daysAfterToday > 0 ? `<span style="font-size:0.68rem; font-weight:500; opacity:0.9;">od jutra: ${this.esc(st.scheduleAfterTodayLabel)}</span>` : ''}
         </div>
       `;
     }
 
     return `
       <div class="book-tracker-box" onclick="event.stopPropagation()">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
-          <span style="font-size:0.73rem; font-weight:700; color:var(--text-main);">
-            📖 <strong>${st.totalRead} / ${st.totalPages} str.</strong> (${st.pct}%) · zostało ${st.remainingNow} str.
+        <div class="book-progress-row">
+          <span style="font-size:0.72rem; font-weight:700; color:var(--text-main); white-space:nowrap;">
+            📖 <strong>${st.totalRead}/${st.totalPages}</strong> (${st.pct}%)
           </span>
-          <button type="button" class="btn" style="padding:2px 7px; font-size:0.69rem;" onclick="App.openBookSetupModal('${s.id}')" title="Zmień książkę, liczbę stron lub dni czytania">
-            ${st.remainingNow <= 0 ? '📚 Nowa książka' : '⚙️ Książka'}
+          <div class="book-progress-track" title="Pozostało ${st.remainingNow} str.">
+            <div class="book-progress-fill" style="width:${st.pct}%;"></div>
+          </div>
+          <span style="font-size:0.69rem; color:var(--text-muted); white-space:nowrap;">zostało ${st.remainingNow}</span>
+          <button type="button" class="btn" style="padding:2px 7px; font-size:0.68rem; flex-shrink:0;" onclick="App.openBookSetupModal('${s.id}')" title="Zmień książkę, liczbę stron lub dni czytania">
+            ${st.remainingNow <= 0 ? '📚 Nowa' : '⚙️ Książka'}
           </button>
-        </div>
-        <div class="book-progress-track">
-          <div class="book-progress-fill" style="width:${st.pct}%;"></div>
         </div>
         ${statusHtml}
         ${st.remainingNow > 0 || st.readToday > 0 ? `
           <div class="book-quick-log-row">
-            <span style="font-size:0.72rem; font-weight:700; color:var(--text-muted);">Dziś przeczytano:</span>
+            <span style="font-size:0.71rem; font-weight:700; color:var(--text-muted);">Dziś:</span>
             <input type="number" id="${inpId}" min="0" max="${st.totalPages}" class="input-clean book-pages-input"
               value="${st.readToday > 0 ? st.readToday : ''}" placeholder="${st.todayQuota}"
               onchange="App.saveBookTodayFromInput('${s.id}', '${inpId}')"
               onkeydown="if(event.key==='Enter'){event.preventDefault(); App.saveBookTodayFromInput('${s.id}', '${inpId}');}">
-            <span style="font-size:0.72rem; color:var(--text-muted);">str.</span>
-            <button type="button" class="btn" style="padding:3px 8px; font-size:0.71rem;" onclick="App.saveBookTodayFromInput('${s.id}', '${inpId}')" title="Zapisz dzisiejsze strony i przelicz plan">Przelicz</button>
-            <button type="button" class="btn btn-primary" style="padding:3px 9px; font-size:0.71rem; margin-left:auto;" onclick="App.completeBookDayFromCard('${taskId}', '${s.id}', '${inpId}')" title="Zapisz przeczytane dziś strony i odhacz dzisiejsze czytanie">✓ Odhacz dzień</button>
+            <span style="font-size:0.71rem; color:var(--text-muted);">str.</span>
+            <button type="button" class="btn" style="padding:2px 7px; font-size:0.7rem;" onclick="App.saveBookTodayFromInput('${s.id}', '${inpId}')" title="Zapisz dzisiejsze strony i przelicz plan">Przelicz</button>
+            <button type="button" class="btn btn-primary" style="padding:3px 9px; font-size:0.7rem; margin-left:auto;" onclick="App.completeBookDayFromCard('${taskId}', '${s.id}', '${inpId}')" title="Zapisz przeczytane dziś strony i odhacz dzisiejsze czytanie">✓ Odhacz dzień</button>
           </div>
         ` : ''}
       </div>
@@ -3142,6 +3137,7 @@ const App = {
 
     const today = this.today();
     const st = this.getBookStats(s, today);
+    const modalStartDate = st.totalPages > 0 ? st.planStartDate : today;
     this._bookModalDays = (Array.isArray(s.activeDays) && s.activeDays.length) ? [...s.activeDays] : [0, 1, 2, 3, 4, 5, 6];
     const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
 
@@ -3197,7 +3193,7 @@ const App = {
             <div style="display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end;">
               <div>
                 <label style="font-size:0.73rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">📅 Data startu odliczania planu:</label>
-                <input type="date" name="planStartDate" class="input-clean" style="font-weight:600;" value="${this.esc(st.planStartDate)}" onchange="App.refreshBookModalPreview()">
+                <input type="date" name="planStartDate" class="input-clean" style="font-weight:600;" value="${this.esc(modalStartDate)}" onchange="App.refreshBookModalPreview()">
               </div>
               <button type="button" class="btn" style="padding:8px 10px; font-size:0.73rem;" onclick="document.querySelector('#bookSetupForm [name=planStartDate]').value='${today}'; App.refreshBookModalPreview();">Licz od dziś</button>
             </div>
