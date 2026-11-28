@@ -12,11 +12,11 @@
   <meta name="application-name" content="Plan Tygodnia">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#f4f6fb" id="metaThemeColor">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=16.2">
-  <link rel="icon" type="image/svg+xml" href="icon.svg?v=16.2">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=16.2">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=16.2">
-  <link rel="manifest" href="manifest.webmanifest?v=16.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=16.3">
+  <link rel="icon" type="image/svg+xml" href="icon.svg?v=16.3">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=16.3">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=16.3">
+  <link rel="manifest" href="manifest.webmanifest?v=16.3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
@@ -24,11 +24,11 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="css/style.css?v=16.2">
+  <link rel="stylesheet" href="css/style.css?v=16.3">
 
   <script>
     (function () {
-      const APP_VERSION = '16.2';
+      const APP_VERSION = '16.3';
       try {
         const url = new URL(window.location.href);
         if (url.searchParams.get('v') !== APP_VERSION) {
@@ -226,7 +226,7 @@
   <div id="screenAuth">
     <div class="auth-portal-card">
       <div class="auth-portal-brand">
-        <img src="icon.svg?v=16.2" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
+        <img src="icon.svg?v=16.3" alt="Ikona" style="width:40px; height:40px; border-radius:10px;">
         <h1 class="auth-portal-title">Plan Tygodnia</h1>
       </div>
       <p class="auth-portal-subtitle">
@@ -479,6 +479,39 @@
               <button class="btn btn-primary" onclick="App.openAddSawModal()">+ Dodaj nawyk / cykl</button>
             </div>
           </div>
+
+          <!-- Pasek wyszukiwania i filtracji w Ostrzeniu Piły -->
+          <div class="filter-toolbar">
+            <input type="search" id="sawSearchInput" class="input-clean filter-search-input"
+              placeholder="🔍 Szukaj nawyku, zadania lub książki..." oninput="App.renderSaw()">
+            <select id="sawRoleFilter" class="input-clean filter-select" onchange="App.renderSaw()">
+              <option value="all">Wszystkie role (4)</option>
+            </select>
+            <select id="sawQFilter" class="input-clean filter-select" onchange="App.renderSaw()">
+              <option value="all">Wszystkie ćwiartki</option>
+              <option value="1">🔥 Q1: Pilne i Ważne</option>
+              <option value="2">💎 Q2: Ważne, niepilne</option>
+              <option value="3">⚡ Q3: Pilne, nieważne</option>
+              <option value="4">🗑️ Q4: Niepilne, nieważne</option>
+            </select>
+            <select id="sawFreqFilter" class="input-clean filter-select" onchange="App.renderSaw()">
+              <option value="all">Wszystkie cykle i dni</option>
+              <option value="today">☀️ Wypada dzisiaj</option>
+              <option value="weekdays">📅 Cykl tygodniowy (Pn–Nd)</option>
+              <option value="long">🔄 Dłuższe cykle (2 tyg. – rok)</option>
+              <option value="dow_0">Poniedziałek (Pn)</option>
+              <option value="dow_1">Wtorek (Wt)</option>
+              <option value="dow_2">Środa (Śr)</option>
+              <option value="dow_3">Czwartek (Cz)</option>
+              <option value="dow_4">Piątek (Pt)</option>
+              <option value="dow_5">Sobota (Sb)</option>
+              <option value="dow_6">Niedziela (Nd)</option>
+            </select>
+            <span id="sawFilterStatus" class="filter-count-label"></span>
+            <button type="button" id="sawClearFiltersBtn" class="btn filter-clear-btn" style="display:none;"
+              onclick="App.clearSawFilters()">✕ Wyczyść</button>
+          </div>
+
           <div id="sawContainer"></div>
         </div>
       </section>
@@ -505,7 +538,9 @@
               <p style="font-size:0.8rem; color:var(--text-muted);">Spis wszystkich osiągniętych i zarchiwizowanych
                 celów z podziałem na Cele Tygodniowe, Cele Kwartalne oraz Role</p>
             </div>
-            <div style="display:flex; align-items:center; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <input type="search" id="goalsArchiveSearchInput" class="input-clean" style="width:210px;"
+                placeholder="🔍 Szukaj celu..." oninput="App.renderGoalsArchive()">
               <select id="goalsArchiveRoleFilter" class="input-clean" style="width:auto; font-weight:600;"
                 onchange="App.renderGoalsArchive()">
                 <option value="all">Wszystkie role (4 Nogi Stołu)</option>
@@ -520,6 +555,12 @@
       <section id="view_mind" class="tab-section" style="display:none;">
         <button type="button" class="btn mobile-back-btn" onclick="App.switchTab('plan')">← Wróć do zadań (4
           Role)</button>
+        <div class="filter-toolbar" style="margin-bottom:14px;">
+          <input type="search" id="mindSearchInput" class="input-clean filter-search-input"
+            placeholder="🔍 Szukaj w afirmacjach, myślach i cytatach..." oninput="App.renderMind()">
+          <button type="button" id="mindClearFiltersBtn" class="btn filter-clear-btn" style="display:none;"
+            onclick="document.getElementById('mindSearchInput').value=''; App.renderMind();">✕ Wyczyść</button>
+        </div>
         <div class="matrix-2x2">
           <div class="section-box">
             <div class="section-head">
@@ -562,6 +603,26 @@
               <input type="file" accept=".json" style="display:none;" onchange="App.importJSON(event)">
             </label>
           </div>
+
+          <!-- Pasek wyszukiwania i filtracji w Archiwum -->
+          <div class="filter-toolbar">
+            <input type="search" id="archiveSearchInput" class="input-clean filter-search-input"
+              placeholder="🔍 Szukaj wykonanego zadania, notatki lub daty (np. 11-27)..." oninput="App.renderArchive()">
+            <select id="archiveRoleFilter" class="input-clean filter-select" onchange="App.renderArchive()">
+              <option value="all">Wszystkie role (4)</option>
+            </select>
+            <select id="archiveQFilter" class="input-clean filter-select" onchange="App.renderArchive()">
+              <option value="all">Wszystkie ćwiartki</option>
+              <option value="1">🔥 Q1</option>
+              <option value="2">💎 Q2</option>
+              <option value="3">⚡ Q3</option>
+              <option value="4">🗑️ Q4</option>
+            </select>
+            <span id="archiveFilterStatus" class="filter-count-label"></span>
+            <button type="button" id="archiveClearFiltersBtn" class="btn filter-clear-btn" style="display:none;"
+              onclick="App.clearArchiveFilters()">✕ Wyczyść</button>
+          </div>
+
           <div id="archiveTableContainer"></div>
         </div>
       </section>
@@ -589,6 +650,9 @@
         <div id="laterFoldersGrid" class="later-folders-grid"></div>
       </div>
 
+      <input type="search" id="laterSearchInput" class="input-clean"
+        placeholder="🔍 Szukaj pomysłu we wszystkich folderach..." oninput="App.renderLater()">
+
       <form onsubmit="event.preventDefault(); App.addLater();" style="display:flex; gap:6px;">
         <input type="text" id="laterInput" class="input-clean" placeholder="+ Wpisz pomysł na później...">
         <button type="submit" class="btn btn-primary">+</button>
@@ -604,14 +668,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/firebase-config.js?v=16.2"></script>
+  <script src="js/firebase-config.js?v=16.3"></script>
 
   <!-- Skrypty aplikacji -->
-  <script src="js/utils.js?v=16.2"></script>
-  <script src="js/seed.js?v=16.2"></script>
-  <script src="js/sync.js?v=16.2"></script>
-  <script src="js/store.js?v=16.2"></script>
-  <script src="js/app.js?v=16.2"></script>
+  <script src="js/utils.js?v=16.3"></script>
+  <script src="js/seed.js?v=16.3"></script>
+  <script src="js/sync.js?v=16.3"></script>
+  <script src="js/store.js?v=16.3"></script>
+  <script src="js/app.js?v=16.3"></script>
 
   <script>
     window.handleAuthAction = async function (type) {

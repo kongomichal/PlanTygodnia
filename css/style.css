@@ -656,6 +656,41 @@ button { cursor: pointer; }
   display: none;
 }
 
+/* ---- PASKI WYSZUKIWANIA I FILTRACJI (OSTRZENIE PIŁY, ARCHIWUM I INNE) ---- */
+.filter-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.filter-search-input {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+.filter-select {
+  width: auto !important;
+  font-weight: 600;
+  font-size: 0.78rem !important;
+  padding: 7px 10px !important;
+  cursor: pointer;
+}
+.filter-count-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.filter-clear-btn {
+  padding: 5px 10px;
+  font-size: 0.74rem;
+  color: var(--crimson);
+}
+
 /* ---- SZYBKI NOTATNIK (BRUDNOPIS W WIDOKU GŁÓWNYM) ---- */
 .quick-notepad-card {
   background: var(--surface);

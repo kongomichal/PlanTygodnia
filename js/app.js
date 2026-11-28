@@ -53,6 +53,31 @@ const App = {
     return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   },
 
+  normSearch(s) {
+    return String(s ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/ł/g, 'l')
+      .trim();
+  },
+
+  matchesQuery(haystack, query) {
+    const q = this.normSearch(query);
+    if (!q) return true;
+    return this.normSearch(haystack).includes(q);
+  },
+
+  ensureRoleSelectOptions(selectEl, defaultLabel = 'Wszystkie role (4)') {
+    if (!selectEl) return;
+    const prev = selectEl.value || 'all';
+    selectEl.innerHTML = `<option value="all">${this.esc(defaultLabel)}</option>` +
+      (Store.state.roles || []).map(r => `<option value="${r.id}">${r.emoji} ${this.esc(r.name)}</option>`).join('');
+    if ([...selectEl.options].some(o => o.value === prev)) {
+      selectEl.value = prev;
+    }
+  },
+
   /* ---- EKRAN POWITALNY ---- */
   renderWelcome() {
     const firstAff = Store.state.affirmations?.[0];
@@ -1646,10 +1671,78 @@ const App = {
     this.renderAll();
   },
 
+  clearSawFilters() {
+    const sInp = document.getElementById('sawSearchInput');
+    const rSel = document.getElementById('sawRoleFilter');
+    const qSel = document.getElementById('sawQFilter');
+    const fSel = document.getElementById('sawFreqFilter');
+    if (sInp) sInp.value = '';
+    if (rSel) rSel.value = 'all';
+    if (qSel) qSel.value = 'all';
+    if (fSel) fSel.value = 'all';
+    this.renderSaw();
+  },
+
   renderSaw() {
     const days = ['Pn','Wt','Śr','Cz','Pt','Sb','Nd'];
     const el = document.getElementById('sawContainer');
     if (!el) return;
+
+    const rSel = document.getElementById('sawRoleFilter');
+    this.ensureRoleSelectOptions(rSel, 'Wszystkie role (4)');
+
+    const searchQ = document.getElementById('sawSearchInput')?.value || '';
+    const roleFilter = rSel ? rSel.value : 'all';
+    const qFilter = document.getElementById('sawQFilter')?.value || 'all';
+    const freqFilter = document.getElementById('sawFreqFilter')?.value || 'all';
+
+    const today = this.today();
+    const todayDow = D.dow(today);
+    const allSaw = Store.state.saw || [];
+
+    const filteredSaw = allSaw.filter(s => {
+      if (!s) return false;
+      if (this.editingSawId === s.id) return true;
+      if (roleFilter !== 'all' && (s.roleId || 'r1') !== roleFilter) return false;
+      if (qFilter !== 'all' && String(s.q || 2) !== qFilter) return false;
+      const freq = s.freq || 'weekdays';
+      const act = Array.isArray(s.activeDays) ? s.activeDays : [0, 1, 2, 3, 4, 5, 6];
+      if (freqFilter === 'weekdays' && freq !== 'weekdays') return false;
+      if (freqFilter === 'long' && freq === 'weekdays') return false;
+      if (freqFilter.startsWith('dow_')) {
+        const targetDow = parseInt(freqFilter.slice(4), 10);
+        if (freq !== 'weekdays' || !act.includes(targetDow)) return false;
+      }
+      if (freqFilter === 'today') {
+        if (freq === 'weekdays') {
+          if (!act.includes(todayDow)) return false;
+        } else {
+          const occs = this.getSawOccurrencesInRange(s, today, today);
+          if (!occs.includes(today)) return false;
+        }
+      }
+      if (searchQ.trim()) {
+        const hay = [s.title, s.note, s.book?.bookTitle, this.getSawFreqLabel(freq)].filter(Boolean).join(' ');
+        if (!this.matchesQuery(hay, searchQ)) return false;
+      }
+      return true;
+    });
+
+    const isFiltered = Boolean(searchQ.trim() || roleFilter !== 'all' || qFilter !== 'all' || freqFilter !== 'all');
+    const statusEl = document.getElementById('sawFilterStatus');
+    if (statusEl) {
+      statusEl.textContent = isFiltered ? `${filteredSaw.length} z ${allSaw.length}` : `${allSaw.length} pozycji`;
+    }
+    const clearBtn = document.getElementById('sawClearFiltersBtn');
+    if (clearBtn) {
+      clearBtn.style.display = isFiltered ? '' : 'none';
+    }
+
+    if (!filteredSaw.length) {
+      el.innerHTML = `<div style="padding:20px 8px; text-align:center; color:var(--text-dim); font-size:0.84rem;">Brak pozycji w Ostrzeniu Piły pasujących do wybranych filtrów.</div>`;
+      return;
+    }
+
     el.innerHTML = `
       <table class="clean-table">
         <thead>
@@ -1661,7 +1754,7 @@ const App = {
           </tr>
         </thead>
         <tbody>
-          ${Store.state.saw.map(s => {
+          ${filteredSaw.map(s => {
             const isEditing = (this.editingSawId === s.id);
             const freq = s.freq || 'weekdays';
             const leadDays = Math.max(0, parseInt(s.leadDays, 10) || 0);
@@ -2365,18 +2458,19 @@ const App = {
     const y = Store.state.year;
 
     const filterSel = document.getElementById('goalsArchiveRoleFilter');
-    if (filterSel && filterSel.options.length <= 1) {
-      Store.state.roles.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r.id;
-        opt.textContent = `${r.emoji} ${r.name}`;
-        filterSel.appendChild(opt);
-      });
-    }
+    this.ensureRoleSelectOptions(filterSel, 'Wszystkie role (4 Nogi Stołu)');
     const roleFilter = filterSel ? filterSel.value : 'all';
+    const goalSearch = document.getElementById('goalsArchiveSearchInput')?.value || '';
 
     const allYear = (Store.state.goalsArchive || []).filter(g => (g.year || y) === y);
-    const filtered = allYear.filter(g => roleFilter === 'all' || g.roleId === roleFilter);
+    const filtered = allYear.filter(g => {
+      if (roleFilter !== 'all' && g.roleId !== roleFilter) return false;
+      if (goalSearch.trim()) {
+        const hay = [g.title, g.note, g.periodLabel, g.doneAt].filter(Boolean).join(' ');
+        if (!this.matchesQuery(hay, goalSearch)) return false;
+      }
+      return true;
+    });
 
     const weeklyDone = filtered.filter(g => g.horizon === 'weekly');
     const quarterlyDone = filtered.filter(g => g.horizon === 'quarterly');
@@ -2454,30 +2548,34 @@ const App = {
 
   /* ---- ZAKŁADKA 5: MYŚLI & AFIRMACJE ---- */
   renderMind() {
+    const mindSearch = document.getElementById('mindSearchInput')?.value || '';
+    const mindClearBtn = document.getElementById('mindClearFiltersBtn');
+    if (mindClearBtn) mindClearBtn.style.display = mindSearch.trim() ? '' : 'none';
+
     const affList = document.getElementById('affList');
     if (affList) {
-      affList.innerHTML = Store.state.affirmations.map((a, i) => {
-        const txt = typeof a === 'object' ? a.text : a;
-        return `
-          <div class="task-row" style="background:var(--emerald-light);">
-            <span>✨ ${this.esc(txt)}</span>
-            <button class="btn" style="padding:2px 6px;" onclick="App.deleteAffirmationAt(${i})">✕</button>
-          </div>
-        `;
-      }).join('');
+      const affRows = Store.state.affirmations
+        .map((a, i) => ({ txt: typeof a === 'object' ? a.text : a, i }))
+        .filter(row => this.matchesQuery(row.txt, mindSearch));
+      affList.innerHTML = affRows.length ? affRows.map(({ txt, i }) => `
+        <div class="task-row" style="background:var(--emerald-light);">
+          <span>✨ ${this.esc(txt)}</span>
+          <button class="btn" style="padding:2px 6px;" onclick="App.deleteAffirmationAt(${i})">✕</button>
+        </div>
+      `).join('') : `<div style="font-size:0.8rem; color:var(--text-dim); padding:8px 0;">Brak pasujących afirmacji.</div>`;
     }
 
     const quoteList = document.getElementById('quoteList');
     if (quoteList) {
-      quoteList.innerHTML = Store.state.quotes.map((q, i) => {
-        const txt = typeof q === 'object' ? q.text : q;
-        return `
-          <div class="task-row">
-            <span>💭 ${this.esc(txt)}</span>
-            <button class="btn" style="padding:2px 6px;" onclick="App.deleteQuoteAt(${i})">✕</button>
-          </div>
-        `;
-      }).join('');
+      const qRows = Store.state.quotes
+        .map((q, i) => ({ txt: typeof q === 'object' ? q.text : q, i }))
+        .filter(row => this.matchesQuery(row.txt, mindSearch));
+      quoteList.innerHTML = qRows.length ? qRows.map(({ txt, i }) => `
+        <div class="task-row">
+          <span>💭 ${this.esc(txt)}</span>
+          <button class="btn" style="padding:2px 6px;" onclick="App.deleteQuoteAt(${i})">✕</button>
+        </div>
+      `).join('') : `<div style="font-size:0.8rem; color:var(--text-dim); padding:8px 0;">Brak pasujących myśli lub cytatów.</div>`;
     }
   },
 
@@ -2520,11 +2618,49 @@ const App = {
   },
 
   /* ---- ZAKŁADKA 6: ARCHIWUM ---- */
+  clearArchiveFilters() {
+    const sInp = document.getElementById('archiveSearchInput');
+    const rSel = document.getElementById('archiveRoleFilter');
+    const qSel = document.getElementById('archiveQFilter');
+    if (sInp) sInp.value = '';
+    if (rSel) rSel.value = 'all';
+    if (qSel) qSel.value = 'all';
+    this.renderArchive();
+  },
+
   renderArchive() {
     const y = Store.state.year;
-    const list = Store.state.archive.filter(a => (a.year || y) === y);
+    const allYearList = Store.state.archive.filter(a => (a.year || y) === y);
     const el = document.getElementById('archiveTableContainer');
     if (!el) return;
+
+    const rSel = document.getElementById('archiveRoleFilter');
+    this.ensureRoleSelectOptions(rSel, 'Wszystkie role (4)');
+
+    const searchQ = document.getElementById('archiveSearchInput')?.value || '';
+    const roleFilter = rSel ? rSel.value : 'all';
+    const qFilter = document.getElementById('archiveQFilter')?.value || 'all';
+
+    const list = allYearList.filter(a => {
+      if (roleFilter !== 'all' && a.roleId !== roleFilter) return false;
+      if (qFilter !== 'all' && String(a.q || 2) !== qFilter) return false;
+      if (searchQ.trim()) {
+        const hay = [a.title, a.note, a.doneAt, a.scheduledDate].filter(Boolean).join(' ');
+        if (!this.matchesQuery(hay, searchQ)) return false;
+      }
+      return true;
+    });
+
+    const isFiltered = Boolean(searchQ.trim() || roleFilter !== 'all' || qFilter !== 'all');
+    const statusEl = document.getElementById('archiveFilterStatus');
+    if (statusEl) {
+      statusEl.textContent = isFiltered ? `${list.length} z ${allYearList.length}` : `${allYearList.length} wpisów`;
+    }
+    const clearBtn = document.getElementById('archiveClearFiltersBtn');
+    if (clearBtn) {
+      clearBtn.style.display = isFiltered ? '' : 'none';
+    }
+
     el.innerHTML = list.length ? `
       <table class="clean-table">
         <thead>
@@ -2559,7 +2695,7 @@ const App = {
           }).join('')}
         </tbody>
       </table>
-    ` : `<p style="color:var(--text-dim); padding:16px 0;">Brak wykonanych zadań w roku ${y}.</p>`;
+    ` : `<p style="color:var(--text-dim); padding:16px 0;">${isFiltered ? 'Brak wykonanych zadań pasujących do wybranych filtrów.' : `Brak wykonanych zadań w roku ${y}.`}</p>`;
   },
 
   restoreFromArchive(id) {
@@ -2734,12 +2870,22 @@ const App = {
     const listEl = document.getElementById('laterList');
     if (!listEl) return;
 
-    const visibleItems = this.activeLaterFolderId === 'general'
-      ? generalItems
-      : allItems.filter(l => l.folderId === this.activeLaterFolderId);
+    const laterSearch = document.getElementById('laterSearchInput')?.value || '';
+    const baseItems = laterSearch.trim()
+      ? allItems
+      : (this.activeLaterFolderId === 'general'
+          ? generalItems
+          : allItems.filter(l => l.folderId === this.activeLaterFolderId));
+
+    const visibleItems = laterSearch.trim()
+      ? baseItems.filter(l => {
+          const fName = folders.find(f => f.id === l.folderId)?.name || 'Ogólne';
+          return this.matchesQuery(`${l.title || ''} ${fName}`, laterSearch);
+        })
+      : baseItems;
 
     if (!visibleItems.length) {
-      listEl.innerHTML = `<div style="font-size:0.8rem; color:var(--text-dim); text-align:center; padding:18px 8px;">Brak pomysłów w tym folderze.</div>`;
+      listEl.innerHTML = `<div style="font-size:0.8rem; color:var(--text-dim); text-align:center; padding:18px 8px;">${laterSearch.trim() ? 'Brak pomysłów pasujących do wyszukiwania.' : 'Brak pomysłów w tym folderze.'}</div>`;
       return;
     }
 
